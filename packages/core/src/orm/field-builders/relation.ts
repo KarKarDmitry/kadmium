@@ -107,6 +107,12 @@ export class RelationBuilder<
     return this;
   }
 
+  /** Явно выбрать поля связи. */
+  select(fn: (t: SelectProxy<TModel>) => readonly SelectableField[]): this {
+    this.internalSqb.selects = [...fn(this._createFieldProxy())];
+    return this;
+  }
+
   /** Вложенный include */
   include(
     fn: (

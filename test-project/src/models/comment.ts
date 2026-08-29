@@ -3,7 +3,7 @@ import { Post } from './post';
 import { User } from './user';
 
 export class Comment extends Model {
-  text = f.string;
+  text = f.string.default('');
   post = f.ref.target(Post, 'comments');
   user = f.ref.target(User, 'comments');
 }

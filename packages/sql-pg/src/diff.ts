@@ -190,7 +190,7 @@ function isPrimaryField(f: IrField): boolean {
 }
 
 /** Рендерит default-значение как корректный SQL-литерал по типу поля. */
-function renderDefault(f: IrField): string | null {
+export function renderDefault(f: IrField): string | null {
   const value = f.spec?.default;
   if (value === undefined || value === null) return null;
   switch (f.type) {

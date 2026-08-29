@@ -215,6 +215,7 @@ export {
   pgType,
   normalizePgType,
   diffToHealth,
+  renderDefault,
 } from './diff';
 export type { DiffOp, DiffResult, HealthCheckResult } from './diff';
 export { PgDdlAdapter } from './ddl-adapter';
