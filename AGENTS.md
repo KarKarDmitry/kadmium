@@ -2,87 +2,95 @@
 
 > Honest multi-axis review (correctness, architecture, security, performance, readability)
 > with a prioritized execution plan. Generated 2026-08-29.
-> Updated 2026-08-29 — Phase 1 (correctness) + test harness completed.
+> Updated 2026-08-29 — Phase 1 (correctness) + integration test harness completed.
 
 ## Repository snapshot
 
 - **Monorepo** (npm workspaces): `packages/core` (ORM + CLI), `packages/sql-types` (interfaces), `packages/sql-pg` (PostgreSQL adapter).
-- **Total source**: ~6 200 TypeScript lines (+ help_source/test-project scaffolding).
-- **No `.gitignore` at root** (not a git repo yet — `node_modules`/`.env` will leak if init'd).
-- **`.env` committed** in `test-project/` with local Postgres creds (low sensitivity, but remove or template).
-- **Help_source** contains a full `dist/` + test suite of a prior `kadmium-core` version — confusing coexistence with current code.
-- **Tests**: `test-project/test/` has 27 unit tests via vitest (compile, pgType, diffToHealth). Root `test:project` works.
+- **Git**: initialized (`fd28a9f`). Root `.gitignore` present; `test-project/.env` is **untracked**.
+- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 8 files / 38 tests pass + 1 documented `it.todo`. `npm run test:project` + `test-project` has `typecheck`.
+- **help_source/**: gitignored legacy scaffolding; clean it up eventually.
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Phase 1 (correctness) completed. **Still not production-ready**: architectural debt remains (dead code, dual include mental models, silent fallbacks), no README/.gitignore, TS version mismatch.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed. **Still not production-ready**: include nesting, DDL `.default()`/`alias()`, bigint id typing, IR caching and dual include models remain; no README, TS version mismatch.
 
 ---
 
-## Five-axis findings (after Phase 1 fixes)
+## Five-axis findings
 
-### 1️⃣ Correctness — FIXED
-
-| # | Severity | Finding | Status |
-|---|----------|---------|--------|
-| C1 | 🔴 Critical | Decimal/float silently truncated to integer | ✅ Fixed: added `'decimal'|'float'|'bigint'|'numeric'` to `FieldType` + `normalizeType` + `pgType`. `BigIntPrimaryField.type` fixed to `'bigint'`. |
-| C2 | 🔴 Critical | `diffToHealth` bug | ✅ Fixed: renamed `HealthCheckResult.summary` to `tablesMissing`/`tablesExpected`/`tablesMatching`; `tablesMissing = diff.summary.addedTables`. |
-| C3 | 🔴 Critical | No automated tests | ✅ Fixed: vitest harness in `test-project/test/`, 27 tests, `npm run test:project` works. |
-| C4 | 🟠 Required | `findById` type/runtime mismatch | ⬜ Pending |
-| C5 | 🟠 Required | `go()` returns `[]` silently without adapter | ✅ Fixed: now throws `Error`. |
-| C6 | 🟠 Required | bigint PK defaulted to integer | ✅ Fixed via C1. |
-
-### 2️⃣ Architecture — pending
+### 1️⃣ Correctness
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| A1 | 🟠 Required | **Dead code with SQL-injection risk** (`single.ts:469-513`). `_renderIncludes`, `_formatGroup`, `_isCondition` — never called, inline string values. | ⬜ Pending (delete) |
-| A2 | 🟠 Required | Two incompatible include mental models | ⬜ Pending |
-| A3 | 🟠 Required | `toSql()` requires a live adapter | ⬜ Pending |
-| A4 | 🟡 Medium | Type layer is ~60% of ORM code | ⬜ Pending (TODO 4.1) |
-| A5 | 🟡 Medium | IR not cached in hot path | ⬜ Pending |
-| A6 | 🟡 Medium | `help_source/` confusing coexistence | ⬜ Pending |
+| C1 | 🔴 | Decimal/float silently truncated to integer | ✅ Fixed (pre-existing, in `fd28a9f`): `decimal\|float\|bigint\|numeric` in `FieldType`/`normalizeType`/`pgType`. |
+| C2 | 🔴 | `diffToHealth` summary bug | ✅ Fixed (in `fd28a9f`): clear `tablesMissing`/`tablesExpected`/`tablesMatching`. |
+| C3 | 🔴 | No meaningful tests / no typecheck on tests | ✅ Fixed (`a36dcea`): integration harness; `test/**/*` in tsconfig + `typecheck` script. |
+| C4 | 🟠 | `findById` PK lookup | 🟡 Partial (`035696a`): locates PK via `isPrimary`. **Open**: bigint id typed `number`, runtime `string` (D8). |
+| C5 | 🟠 | `go()` silently returns `[]` without adapter | 🟡 Single throws ✅ (in `fd28a9f`); **Multi still silent** (`multi.ts:133` returns `Promise.resolve([])`) ⬜ Open. |
+| C6 | 🟠 | bigint PK defaulted to integer / PK never emitted | ✅ Fixed (`ba16cbd`): PK detected via `FieldIR.isPrimary`, DDL emits `bigserial`. |
+| D1 | 🔴 | **PK + serial never generated** → every insert failed (`id bigint NOT NULL UNIQUE`, no PK) | ✅ Fixed (`ba16cbd`). |
+| D2 | 🔴 | **`f.bool`/`f.ref` compiled to `string`** → varchar columns, no FK constraints | ✅ Fixed (`ba16cbd`). |
+| D3 | 🟠 | **Numeric/ref filters missing `.gt()`/`.eq()`** (`int`/`decimal`/`float`/`numeric`/`ref` → bare `BaseFilter`) | ✅ Fixed (`035696a`). |
+| D4 | 🟠 | **`update`/`delete` broken**: `missing FROM-clause`, delete had no `RETURNING *` | ✅ Fixed (`035696a`). |
+| D5 | 🟠 | **Includes returned only `{alias.id}`** (not the related object) | 🟡 Partial (`035696a`): to-one/to-many clean. **Nested** (`author.posts`) not rendered ⬜ Open (`it.todo`). |
+| D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ⬜ Pending |
+| D7 | 🟡 | **`alias()` doesn't rename the DB column** — `irToColumns` uses the field name | ⬜ Pending |
+| D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ⬜ Pending (design decision) |
+
+### 2️⃣ Architecture
+
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| A1 | 🟠 | Dead SQL renderers `single.ts:469-513` (`_renderIncludes`/`_formatGroup`/`_isCondition`) | ✅ Resolved (already removed — stale finding) |
+| A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ⬜ Pending |
+| A3 | 🟠 | `toSql()` requires a live adapter | ⬜ By design |
+| A4 | 🟡 | Type layer is ~60% of ORM code | ⬜ Pending (TODO 4.1) |
+| A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ⬜ Pending |
+| A6 | 🟡 | `help_source/` confusing coexistence | ⬜ Pending (cleanup) |
 
 ### 3️⃣ Security
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| S1 | 🟠 Required | Latent SQL injection via dead code `_formatGroup` | ⬜ Pending (delete A1) |
-| S2 | 🟡 Medium | DDL interpolates `spec.db_type`/`defaultValue` | ⬜ Pending |
-| S3 | 🟢 Low | `.env` with `PGPASSWORD=postgres` committed, no root `.gitignore` | ⬜ Pending |
+| S1 | 🟠 | Latent SQL injection via dead `_formatGroup` | ✅ Resolved (dead code gone, A1) |
+| S2 | 🟡 | DDL interpolates `spec.db_type`/`defaultValue` raw (trusted dev source, no validation) | ⬜ Pending |
+| S3 | 🟢 | `.env` with `PGPASSWORD` committed / no `.gitignore` | ✅ Resolved (`.gitignore` present, `.env` untracked) |
 
-### 4️⃣ Performance — pending
-
-| # | Severity | Finding | Status |
-|---|----------|---------|--------|
-| P1 | 🟡 Medium | Includes as correlated subqueries | ⬜ Pending (TODO 2.3) |
-| P2 | 🟢 Low | No IR cache in hot path | ⬜ Pending |
-| P3 | 🟢 Low | Schema inspection sequential per table | ⬜ Acceptable |
-
-### 5️⃣ Readability / Hygiene — pending
+### 4️⃣ Performance
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| H1 | 🟢 Low | No root `README.md` | ⬜ Pending (T4.1) |
-| H2 | 🟢 Low | TypeScript version mismatch: core 6.0.3, test-project 5.4.0 | ⬜ Pending (T4.3) |
-| H3 | 🟢 Low | Comments in Russian | ⬜ Acceptable |
-| H4 | 🟢 Low | Monorepo vs `file:` dependency inconsistency | ⬜ Pending (T4.4) |
+| P1 | 🟡 | Includes as correlated subqueries (N+1-like) | ⬜ Pending (TODO 2.3) |
+| P2 | 🟢 | No IR cache in hot path | ⬜ Pending |
+| P3 | 🟢 | Schema inspection sequential per table | ✅ Acceptable |
+
+### 5️⃣ Readability / Hygiene
+
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| H1 | 🟢 | No root `README.md` | ⬜ Pending |
+| H2 | 🟢 | TypeScript version mismatch: core 6.0.3, test-project 5.4.0 | ⬜ Pending |
+| H3 | 🟢 | Comments in Russian | ✅ Acceptable |
+| H4 | 🟢 | Monorepo vs `file:` dependency inconsistency | ⬜ Pending |
 
 ---
 
-## Execution plan (phases)
+## Execution plan
 
-### Phase 1 — Critical correctness (✅ COMPLETED)
+### Phase 1 — Correctness (✅ COMPLETED)
 
-- T1.1 ✅ — vitest harness: `test-project/test/compile.test.ts`, `pgType.test.ts`, `diffToHealth.test.ts` (27 tests).
-- T1.2 ✅ — decimal/float/bigint/numeric support: added to `FieldType`, `normalizeType`, `pgType`, `normalizePgType`, `BigIntPrimaryField.type`.
-- T1.3 ✅ — `diffToHealth` renamed to clear `tablesMissing`/`tablesExpected`/`tablesMatching`.
-- T1.4 ✅ — `go()`/`update().go`/`delete().go` now throw if no adapter.
-- T1.5 ⬜ `findById` type fix.
+- T1.1 ✅ — Integration harness (`a36dcea`): replaces the 27 pure-function unit tests with a real-DB harness. NOTE: `pgType`/`diffToHealth`/`compile` unit tests were **removed**; pure functions now covered only indirectly.
+- T1.2 ✅ — Decimal/float/bigint/numeric support (in `fd28a9f`).
+- T1.3 ✅ — `diffToHealth` renamed (in `fd28a9f`).
+- T1.4 ✅ — `go()`/`update().go`/`delete().go` throw without adapter (single; multi still open).
+- T1.5 ✅ — `findById` PK lookup via `isPrimary` (`035696a`).
+- T1.6 ✅ — Schema DDL correctness: PK/serial, bool/ref types, FK generation (`ba16cbd`).
+- T1.7 ✅ — Query-layer fixes: filters, UPDATE/DELETE, includes to-one/to-many, `create()`, `OrmManager` export (`035696a`).
 
 ### Phase 2 — Architecture debt
 
-- T2.1 ⬜ Delete dead SQL renderers (`single.ts:469-513`).
+- T2.1 ✅ — Delete dead SQL renderers (done, stale).
 - T2.2 ⬜ Unify include mental model.
 - T2.3 ⬜ Make `toSql()` adapter-independent.
 - T2.4 ⬜ Add IR cache in hot path.
@@ -90,14 +98,19 @@ Architecturally sound, well-decoupled IR contract, good CLI. Phase 1 (correctnes
 
 ### Phase 3 — Medium effort
 
-- T3.1 ⬜ Reduce type-layer complexity (TODO 4.1).
-- T3.2 ⬜ Correlated-subquery → LEFT JOIN LATERAL migration plan.
-- T3.3 ⬜ Security lint for DDL.
+- T3.1 ⬜ Render nested includes recursively in `_buildIncludeSubquery` (D5).
+- T3.2 ⬜ Make `.default()` reach DDL (`irToColumns`/`renderSql`) (D6).
+- T3.3 ⬜ Make `alias()` affect the DB column name (D7).
+- T3.4 ⬜ Decide bigint id typing (`number` vs `string`) (D8).
+- T3.5 ⬜ Multi `select().go()` should throw without adapter (C5).
+- T3.6 ⬜ Reduce type-layer complexity (TODO 4.1).
+- T3.7 ⬜ Correlated-subquery → LEFT JOIN LATERAL plan.
+- T3.8 ⬜ Security lint for DDL.
 
 ### Phase 4 — Hygiene
 
 - T4.1 ⬜ Add root `README.md`.
-- T4.2 ⬜ Add root `.gitignore`.
+- T4.2 ⬜ Add root `.gitignore` (✅ present).
 - T4.3 ⬜ Align TypeScript versions.
 - T4.4 ⬜ Migrate `test-project` to workspace protocol.
 
@@ -105,17 +118,20 @@ Architecturally sound, well-decoupled IR contract, good CLI. Phase 1 (correctnes
 
 ## Verification checklist
 
-- [x] `npm run check:type` — no type errors.
+- [x] `npm run check:type` (core) — no type errors.
+- [x] `tsc -p packages/sql-pg` — no type errors.
 - [x] `npm run lint` — no lint errors.
-- [x] `npm run format:check` — prettiier happy.
-- [x] `npm run test:project` — tests pass (27/27).
-- [ ] Build: `npm run build`.
+- [x] `npm run format:check` — prettier happy.
+- [x] `npm run test:project` — 38 pass + 1 todo (requires docker `db:up`).
+- [x] `test-project: npm run typecheck` — tests typechecked, clean.
+- [x] `npm run build` — succeeds.
 
 ## Rules for agents working here
 
 - Do **not** resurrect the dead SQL renderers in `single.ts`.
 - All SQL generation must go through `SqlGenerator` (adapter) or the extracted pure `renderSql`.
 - Every schema type change must be reflected in `pgType()`, `normalizeType()`, and `irToColumns()` together.
-- New behavior without tests is **blocked** — this is an ORM.
+- The PK is identified by `FieldIR.isPrimary` — never by field name or `type === 'primary'` alone.
+- New behavior without tests is **blocked** — this is an ORM. Integration tests live in `test-project/test/`.
+- Integration tests need Postgres: `cd test-project && npm run db:up`, then `npm run test:project`.
 - Keep PRs under ~300 lines; split phases into separate commits/PRs.
-- `test:project` = `cd test-project && npm run test` (vitest).
