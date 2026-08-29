@@ -8,12 +8,12 @@
 
 - **Monorepo** (npm workspaces): `packages/core` (ORM + CLI), `packages/sql-types` (interfaces), `packages/sql-pg` (PostgreSQL adapter).
 - **Git**: initialized (`fd28a9f`). Root `.gitignore` present; `test-project/.env` is **untracked**.
-- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 8 files / 38 tests pass. `npm run test:project` + `test-project` has `typecheck`.
+- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 10 files / 59 tests pass. `npm run test:project` + `test-project` has `typecheck`.
 - **help_source/**: gitignored legacy scaffolding; clean it up eventually.
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed. **Still not production-ready**: include nesting, DDL `.default()`/`alias()`, bigint id typing, IR caching and dual include models remain; no README, TS version mismatch.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes (incl. nested) and `.default()` work. **Still not production-ready**: `alias()` in DDL, bigint id typing, IR caching and dual include models remain; no README, TS version mismatch.
 
 ---
 
@@ -34,7 +34,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | D3 | 🟠 | **Numeric/ref filters missing `.gt()`/`.eq()`** (`int`/`decimal`/`float`/`numeric`/`ref` → bare `BaseFilter`) | ✅ Fixed (`035696a`). |
 | D4 | 🟠 | **`update`/`delete` broken**: `missing FROM-clause`, delete had no `RETURNING *` | ✅ Fixed (`035696a`). |
 | D5 | 🟠 | **Includes returned only `{alias.id}`** (not the related object) | ✅ Fixed (`035696a` + `6e7d915`): to-one/to-many and **nested** (`author.posts`) all render clean. |
-| D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ⬜ Pending |
+| D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ✅ Fixed (`78cff3b`): `renderDefault()` renders a strict per-type SQL literal; `IntegerFieldBuilder` rejects non-integer defaults. |
 | D7 | 🟡 | **`alias()` doesn't rename the DB column** — `irToColumns` uses the field name | ⬜ Pending |
 | D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ⬜ Pending (design decision) |
 
@@ -99,7 +99,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 ### Phase 3 — Medium effort
 
 - T3.1 ✅ — Render nested includes recursively in `_buildIncludeSubquery` (D5) (`6e7d915`).
-- T3.2 ⬜ Make `.default()` reach DDL (`irToColumns`/`renderSql`) (D6).
+- T3.2 ✅ — Make `.default()` reach DDL (`irToColumns`/`renderSql`) (D6) (`78cff3b`).
 - T3.3 ⬜ Make `alias()` affect the DB column name (D7).
 - T3.4 ⬜ Decide bigint id typing (`number` vs `string`) (D8).
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
@@ -122,7 +122,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [x] `tsc -p packages/sql-pg` — no type errors.
 - [x] `npm run lint` — no lint errors.
 - [x] `npm run format:check` — prettier happy.
-- [x] `npm run test:project` — 38 pass (requires docker `db:up`).
+- [x] `npm run test:project` — 59 pass (requires docker `db:up`).
 - [x] `test-project: npm run typecheck` — tests typechecked, clean.
 - [x] `npm run build` — succeeds.
 
