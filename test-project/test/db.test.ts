@@ -57,4 +57,11 @@ describe('db: schema diff + health', () => {
     expect(hasDrop).toBe(false);
     await h.adapter.ddl.raw('DROP TABLE IF EXISTS "unmanaged_extra"');
   });
+
+  it('field .default() reaches DDL as a column default', async () => {
+    const cols = await h.adapter.ddl.inspectColumns('post');
+    const views = cols.find((c) => c.name === 'views')!;
+    expect(views).toBeDefined();
+    expect(views.defaultValue).toContain('0');
+  });
 });

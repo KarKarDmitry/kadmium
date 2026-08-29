@@ -56,4 +56,14 @@ describe('seed: create via ORM layer', () => {
     // имя не должно быть вшито в текст запроса
     expect(sql).not.toContain("'Alice'");
   });
+
+  it('column default applies when the field is omitted', async () => {
+    const post = await h.orm.single(PostModel).create({
+      title: 'No Views Given',
+      content: 'default views',
+      published: true,
+      // views не передаём — должен примениться default 0
+    });
+    expect(post.views).toBe(0);
+  });
 });

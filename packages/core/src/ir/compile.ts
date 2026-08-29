@@ -20,8 +20,13 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
   for (const [name, field] of Object.entries(schema.fields)) {
     // Сохраняем db_type из поля (для uuid PK, etc.)
     const dbType = field.db?.db_type as string | undefined;
+    const fieldSpec = (field as unknown as { spec?: unknown }).spec as
+      Record<string, unknown> | undefined;
     const spec: Record<string, unknown> = {};
     if (dbType) spec.db_type = dbType;
+    if (fieldSpec && fieldSpec.default !== undefined) {
+      spec.default = fieldSpec.default;
+    }
 
     const rawType = (field as unknown as Record<string, unknown>)
       .type as string;

@@ -189,6 +189,31 @@ function isPrimaryField(f: IrField): boolean {
   return f.isPrimary === true || f.type === 'primary';
 }
 
+/** Рендерит default-значение как корректный SQL-литерал по типу поля. */
+function renderDefault(f: IrField): string | null {
+  const value = f.spec?.default;
+  if (value === undefined || value === null) return null;
+  switch (f.type) {
+    case 'boolean':
+      return value === true || value === 'true' ? 'true' : 'false';
+    case 'number':
+    case 'int':
+    case 'bigint':
+    case 'decimal':
+    case 'float':
+    case 'numeric':
+      return String(value);
+    case 'datetime':
+    case 'date':
+    case 'time':
+      return `'${value instanceof Date ? value.toISOString() : String(value)}'`;
+    case 'string':
+    case 'uuid':
+    default:
+      return `'${String(value).replace(/'/g, "''")}'`;
+  }
+}
+
 function irToColumns(
   tableName: string,
   irFields: Record<string, IrField>,
@@ -201,7 +226,7 @@ function irToColumns(
       tableName,
       dataType: pgType(name, f, irs),
       isNullable: f.nullable && !isPrimaryField(f),
-      defaultValue: null,
+      defaultValue: renderDefault(f),
       isPrimary: isPrimaryField(f),
       isUnique: f.unique || isPrimaryField(f),
       autoIncrement:

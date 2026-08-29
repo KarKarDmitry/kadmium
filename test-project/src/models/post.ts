@@ -5,6 +5,6 @@ export class Post extends Model {
   title = f.string;
   content = f.string;
   published = f.bool.notNull();
-  views = f.number.notNull();
+  views = f.number.notNull().default(0);
   author = f.ref.target(User, 'posts');
 }

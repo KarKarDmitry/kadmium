@@ -37,6 +37,17 @@ export class BaseNumberFieldBuilder extends StandartFieldBuilder {
 }
 
 export class IntegerFieldBuilder extends BaseNumberFieldBuilder {
+  /** Дефолт для целочисленного поля — только целое число. */
+  default(val: number) {
+    if (!Number.isInteger(val)) {
+      throw new Error(
+        `IntegerField default must be an integer, got ${val}. Use f.number.decimal for fractional defaults.`,
+      );
+    }
+    super.default(val);
+    return this;
+  }
+
   $build(): IntegerField {
     const base = super.$build();
     return { ...base, type: 'int' };
