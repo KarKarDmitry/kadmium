@@ -149,7 +149,7 @@ export abstract class SqlGenerator {
     const relatedSqb = inc.internalSqb;
     const collectionName = inc.targetIr.collection;
 
-    const selectClause = this._buildSubquerySelectClause(
+    let selectClause = this._buildSubquerySelectClause(
       alias,
       relatedSqb.selects,
       Object.keys((inc.targetIr as any).fields ?? {}).filter(
@@ -158,6 +158,25 @@ export abstract class SqlGenerator {
       values,
       paramIndex,
     );
+
+    // Вложенные includes: рендерим рекурсивно, коррелируя по родительскому подзапросу
+    for (const nested of relatedSqb.includes) {
+      const nestedCond: WhereCondition = {
+        alias: nested.propertyName,
+        field: nested.childField,
+        op: '=',
+        value: {
+          getIdentifierForSql: () =>
+            `"${nested.parentAlias}"."${nested.parentField}"`,
+        },
+      };
+      selectClause += `, ${this._buildIncludeSubquery(
+        nested,
+        nestedCond,
+        values,
+        paramIndex,
+      )}`;
+    }
 
     // WHERE: пользовательский + correlation
     const subqueryWheres: WhereGroup = {

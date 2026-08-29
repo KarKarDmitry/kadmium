@@ -21,15 +21,18 @@ import { PgDdlAdapter } from './ddl-adapter';
 /**
  * Срезает префикс `prop.` с ключей JSON-объектов include-подзапросов,
  * превращая `{"author.id":1,"author.name":"..."}` в `{id:1,name:"..."}`.
+ * Рекурсивно обрабатывает вложенные include (по дереву includes).
  */
-function stripIncludePrefix(value: unknown, prop: string): unknown {
-  if (Array.isArray(value))
-    return value.map((v) => stripIncludePrefix(v, prop));
+function unpackIncludeValue(value: unknown, inc: IncludedRelation): unknown {
+  if (Array.isArray(value)) return value.map((v) => unpackIncludeValue(v, inc));
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
-    const prefix = `${prop}.`;
+    const prefix = `${inc.propertyName}.`;
+    const nested = inc.internalSqb.includes;
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k.startsWith(prefix) ? k.slice(prefix.length) : k] = v;
+      const clean = k.startsWith(prefix) ? k.slice(prefix.length) : k;
+      const nestedInc = nested.find((n) => n.propertyName === clean);
+      out[clean] = nestedInc ? unpackIncludeValue(v, nestedInc) : v;
     }
     return out;
   }
@@ -43,10 +46,7 @@ function unpackIncludes(
   for (const row of rows) {
     for (const inc of includes) {
       if (row[inc.propertyName] !== undefined) {
-        row[inc.propertyName] = stripIncludePrefix(
-          row[inc.propertyName],
-          inc.propertyName,
-        );
+        row[inc.propertyName] = unpackIncludeValue(row[inc.propertyName], inc);
       }
     }
   }
