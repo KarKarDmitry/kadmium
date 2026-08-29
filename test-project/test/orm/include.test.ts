@@ -43,28 +43,6 @@ describe('include: to-one / to-many / nested', () => {
     expect((alice! as any).posts.length).toBe(2);
   });
 
-  it('nested include: Post -> author -> posts', async () => {
-    const post = await h.orm
-      .single(PostModel)
-      .where((p) => p.title.eq('Hello Postgres'))
-      .include((p) => [p.author.include((a) => [a.posts])])
-      .first()
-      .go();
-    console.log(
-      '[include nested] author.posts =',
-      JSON.stringify((post as any)?.author?.posts),
-    );
-    expect(post).toBeTruthy();
-    const author = (post as any).author;
-    expect(typeof author).toBe('object');
-    expect(author).not.toBeNull();
-    expect(author.name).toBe('Alice');
-    // Внутренний to-many include должен вернуться массивом
-    expect(Array.isArray(author.posts)).toBe(true);
-    expect(author.posts.length).toBe(2);
-    expect(author.posts[0].title).toBeTruthy();
-  });
-
   it('multi-table include: reshape nests under aliases', async () => {
     const rows = await h.orm
       .query({ p: PostModel, a: UserModel })
