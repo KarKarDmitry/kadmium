@@ -7,7 +7,7 @@ declare module '../src/models/comment' {
   interface Comment {
   ['~shape']: {
     id: number;
-    body: string | undefined;
+    text: string | undefined;
     post: number | undefined;
     user: number | undefined;
   };
@@ -25,6 +25,9 @@ declare module '../src/models/user' {
     id: number;
     name: string | undefined;
     email: string | undefined;
+    age: number | undefined;
+    active: boolean | undefined;
+    registeredAt: Date | undefined;
   };
 
   ['~rel']: {
@@ -40,26 +43,9 @@ declare module '../src/models/post' {
     id: number;
     title: string | undefined;
     content: string | undefined;
+    published: boolean;
+    views: number;
     author: number | undefined;
-    asas: number;
-  };
-
-  ['~rel']: {
-    author?: User;
-    comments: Comment[];
-  };
-  }
-}
-
-declare module '../src/models/post' {
-  interface Post_posts {
-  ['~shape']: {
-    id: number;
-    title: string | undefined;
-    content: string | undefined;
-    author: number | undefined;
-    asas: number;
-    title2: string | undefined;
   };
 
   ['~rel']: {

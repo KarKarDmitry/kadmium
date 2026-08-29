@@ -5,7 +5,10 @@
   "scripts": {
     "generate": "kadmium generate",
     "dev": "ts-node src/index.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down"
   },
   "dependencies": {
     "@karkardmitry/kadmium-core": "file:../packages/core",
