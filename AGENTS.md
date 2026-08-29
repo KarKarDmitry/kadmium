@@ -8,7 +8,7 @@
 
 - **Monorepo** (npm workspaces): `packages/core` (ORM + CLI), `packages/sql-types` (interfaces), `packages/sql-pg` (PostgreSQL adapter).
 - **Git**: initialized (`fd28a9f`). Root `.gitignore` present; `test-project/.env` is **untracked**.
-- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 8 files / 38 tests pass + 1 documented `it.todo`. `npm run test:project` + `test-project` has `typecheck`.
+- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 8 files / 38 tests pass. `npm run test:project` + `test-project` has `typecheck`.
 - **help_source/**: gitignored legacy scaffolding; clean it up eventually.
 
 ## Verdict
@@ -27,13 +27,13 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | C2 | 🔴 | `diffToHealth` summary bug | ✅ Fixed (in `fd28a9f`): clear `tablesMissing`/`tablesExpected`/`tablesMatching`. |
 | C3 | 🔴 | No meaningful tests / no typecheck on tests | ✅ Fixed (`a36dcea`): integration harness; `test/**/*` in tsconfig + `typecheck` script. |
 | C4 | 🟠 | `findById` PK lookup | 🟡 Partial (`035696a`): locates PK via `isPrimary`. **Open**: bigint id typed `number`, runtime `string` (D8). |
-| C5 | 🟠 | `go()` silently returns `[]` without adapter | 🟡 Single throws ✅ (in `fd28a9f`); **Multi still silent** (`multi.ts:133` returns `Promise.resolve([])`) ⬜ Open. |
+| C5 | 🟠 | `go()` silently returns `[]` without adapter | ✅ Fixed: single (in `fd28a9f`), multi (`5f217a4`). |
 | C6 | 🟠 | bigint PK defaulted to integer / PK never emitted | ✅ Fixed (`ba16cbd`): PK detected via `FieldIR.isPrimary`, DDL emits `bigserial`. |
 | D1 | 🔴 | **PK + serial never generated** → every insert failed (`id bigint NOT NULL UNIQUE`, no PK) | ✅ Fixed (`ba16cbd`). |
 | D2 | 🔴 | **`f.bool`/`f.ref` compiled to `string`** → varchar columns, no FK constraints | ✅ Fixed (`ba16cbd`). |
 | D3 | 🟠 | **Numeric/ref filters missing `.gt()`/`.eq()`** (`int`/`decimal`/`float`/`numeric`/`ref` → bare `BaseFilter`) | ✅ Fixed (`035696a`). |
 | D4 | 🟠 | **`update`/`delete` broken**: `missing FROM-clause`, delete had no `RETURNING *` | ✅ Fixed (`035696a`). |
-| D5 | 🟠 | **Includes returned only `{alias.id}`** (not the related object) | 🟡 Partial (`035696a`): to-one/to-many clean. **Nested** (`author.posts`) not rendered ⬜ Open (`it.todo`). |
+| D5 | 🟠 | **Includes returned only `{alias.id}`** (not the related object) | ✅ Fixed (`035696a` + `6e7d915`): to-one/to-many and **nested** (`author.posts`) all render clean. |
 | D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ⬜ Pending |
 | D7 | 🟡 | **`alias()` doesn't rename the DB column** — `irToColumns` uses the field name | ⬜ Pending |
 | D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ⬜ Pending (design decision) |
@@ -98,11 +98,11 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 ### Phase 3 — Medium effort
 
-- T3.1 ⬜ Render nested includes recursively in `_buildIncludeSubquery` (D5).
+- T3.1 ✅ — Render nested includes recursively in `_buildIncludeSubquery` (D5) (`6e7d915`).
 - T3.2 ⬜ Make `.default()` reach DDL (`irToColumns`/`renderSql`) (D6).
 - T3.3 ⬜ Make `alias()` affect the DB column name (D7).
 - T3.4 ⬜ Decide bigint id typing (`number` vs `string`) (D8).
-- T3.5 ⬜ Multi `select().go()` should throw without adapter (C5).
+- T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
 - T3.6 ⬜ Reduce type-layer complexity (TODO 4.1).
 - T3.7 ⬜ Correlated-subquery → LEFT JOIN LATERAL plan.
 - T3.8 ⬜ Security lint for DDL.
@@ -122,7 +122,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [x] `tsc -p packages/sql-pg` — no type errors.
 - [x] `npm run lint` — no lint errors.
 - [x] `npm run format:check` — prettier happy.
-- [x] `npm run test:project` — 38 pass + 1 todo (requires docker `db:up`).
+- [x] `npm run test:project` — 38 pass (requires docker `db:up`).
 - [x] `test-project: npm run typecheck` — tests typechecked, clean.
 - [x] `npm run build` — succeeds.
 
