@@ -31,13 +31,15 @@ describe('db: schema diff + health', () => {
   });
 
   it('renderSql returns no-op when clean', async () => {
-    const { computeDiff, renderSql } = await import('@karkardmitry/kadmium-sql-pg');
+    const { computeDiff, renderSql } =
+      await import('@karkardmitry/kadmium-sql-pg');
     const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
     expect(renderSql(diff)).toContain('No changes needed');
   });
 
   it('detects a missing table as unhealthy', async () => {
-    const { computeDiff, diffToHealth } = await import('@karkardmitry/kadmium-sql-pg');
+    const { computeDiff, diffToHealth } =
+      await import('@karkardmitry/kadmium-sql-pg');
     // Эмулируем diff с отсутствующей таблицей
     const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
     const altered = { ...diff, summary: { ...diff.summary, addedTables: 1 } };
@@ -47,7 +49,9 @@ describe('db: schema diff + health', () => {
   });
 
   it('extra tables in DB are not auto-dropped by applyDiff', async () => {
-    await h.adapter.ddl.raw('CREATE TABLE IF NOT EXISTS "unmanaged_extra" (id bigint)');
+    await h.adapter.ddl.raw(
+      'CREATE TABLE IF NOT EXISTS "unmanaged_extra" (id bigint)',
+    );
     const { computeDiff } = await import('@karkardmitry/kadmium-sql-pg');
     const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
     // droppedTables не заполняется при создании (не авто-дроп)

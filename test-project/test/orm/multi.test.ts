@@ -1,5 +1,9 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
-import { User as UserModel, Post as PostModel, Comment as CommentModel } from '../../src/models';
+import {
+  User as UserModel,
+  Post as PostModel,
+  Comment as CommentModel,
+} from '../../src/models';
 import { makeHarness, type Harness } from '../helpers';
 import { resetAndSeed } from '../fixtures';
 

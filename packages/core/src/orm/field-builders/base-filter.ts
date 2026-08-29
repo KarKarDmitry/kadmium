@@ -10,14 +10,21 @@ export class BaseFilter {
     public readonly sqb: KadmiumSqb,
     public readonly field: string,
     public readonly alias: string,
+    public readonly column?: string,
   ) {}
 
   protected clause(op: string, value: unknown): WhereCondition {
-    return { alias: this.alias, field: this.field, op, value };
+    return {
+      alias: this.alias,
+      field: this.field,
+      column: this.column,
+      op,
+      value,
+    };
   }
 
   /** SQL-представление поля (для field-to-field сравнений) */
   getIdentifierForSql(): string {
-    return `"${this.alias}"."${this.field}"`;
+    return `"${this.alias}"."${this.column ?? this.field}"`;
   }
 }

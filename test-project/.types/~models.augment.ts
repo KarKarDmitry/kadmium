@@ -8,6 +8,7 @@ declare module '../src/models/comment' {
   ['~shape']: {
     id: number;
     text: string | undefined;
+    flagged: boolean | undefined;
     post: number | undefined;
     user: number | undefined;
   };

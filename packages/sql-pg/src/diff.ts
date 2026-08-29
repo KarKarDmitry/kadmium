@@ -126,6 +126,7 @@ type IrField = {
   unique: boolean;
   index?: boolean;
   isPrimary?: boolean;
+  alias?: string;
   spec?: Record<string, unknown>;
 };
 
@@ -222,7 +223,7 @@ function irToColumns(
   return Object.entries(irFields)
     .filter(([, f]) => !f.sourceModel)
     .map(([name, f]) => ({
-      name,
+      name: f.alias ?? name,
       tableName,
       dataType: pgType(name, f, irs),
       isNullable: f.nullable && !isPrimaryField(f),
@@ -246,9 +247,9 @@ function expectedIndexes(
     // Ref fields automatically get an index
     if (f.unique || f.index || f.type === 'ref') {
       indexes.push({
-        name: `idx_${tableName}_${name}`,
+        name: `idx_${tableName}_${f.alias ?? name}`,
         tableName,
-        columns: [name],
+        columns: [f.alias ?? name],
         isUnique: !!f.unique,
       });
     }
@@ -273,9 +274,9 @@ function expectedForeignKeys(
     const [pkName] = pkEntry;
 
     fks.push({
-      name: `fk_${tableName}_${name}`,
+      name: `fk_${tableName}_${f.alias ?? name}`,
       tableName,
-      columns: [name],
+      columns: [f.alias ?? name],
       refTable: f.ref.toLowerCase(),
       refColumns: [pkName],
       onDelete: 'NO ACTION',
@@ -414,7 +415,8 @@ export async function computeDiff(
     // Column diff
     for (const [name, f] of Object.entries(ir.fields)) {
       if (f.sourceModel) continue;
-      const dbCol = dbColMap.get(name);
+      const colName = f.alias ?? name;
+      const dbCol = dbColMap.get(colName);
 
       if (!dbCol) {
         // New column
@@ -431,7 +433,7 @@ export async function computeDiff(
           operations.push({
             type: 'alter-type',
             table: tableName,
-            columnName: name,
+            columnName: colName,
             oldType: dbCol.dataType,
             newType: expectedType,
           });
@@ -439,12 +441,12 @@ export async function computeDiff(
         }
 
         // Check nullable
-        const expectedNullable = f.nullable && f.type !== 'primary';
+        const expectedNullable = f.nullable && !isPrimaryField(f);
         if (dbCol.isNullable !== expectedNullable) {
           operations.push({
             type: 'alter-nullable',
             table: tableName,
-            columnName: name,
+            columnName: colName,
             oldNullable: dbCol.isNullable,
             newNullable: expectedNullable,
           });
@@ -457,7 +459,7 @@ export async function computeDiff(
     const irFieldNames = new Set(
       Object.entries(ir.fields)
         .filter(([, f]) => !f.sourceModel)
-        .map(([n]) => n),
+        .map(([n, f]) => f.alias ?? n),
     );
     for (const dbCol of dbCols) {
       if (!irFieldNames.has(dbCol.name)) {

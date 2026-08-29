@@ -39,7 +39,11 @@ export class KadmiumSqb {
   public selects: AnySelectableField[] | null = null;
   public joins: JoinOptions[] = [];
   public includes: IncludedRelation[] = [];
-  public orders: { field: string; direction: 'asc' | 'desc' }[] = [];
+  public orders: {
+    field: string;
+    column?: string;
+    direction: 'asc' | 'desc';
+  }[] = [];
   public limit: number | null = null;
   public offset: number | null = null;
   public groupBy: string[] = [];

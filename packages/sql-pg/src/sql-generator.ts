@@ -57,7 +57,8 @@ export abstract class SqlGenerator {
       if ('conditions' in c) {
         return `(${this._buildWhereGroupSql(c, values, paramIndex)})`;
       }
-      const left = c.alias ? `"${c.alias}"."${c.field}"` : `"${c.field}"`;
+      const col = c.column ?? c.field;
+      const left = c.alias ? `"${c.alias}"."${col}"` : `"${col}"`;
       const right = this._renderValue(c, values, paramIndex);
       return `${left} ${c.op} ${right}`;
     });
@@ -82,7 +83,8 @@ export abstract class SqlGenerator {
     values: unknown[],
     paramIndex: { p: number },
   ): string {
-    const left = w.alias ? `"${w.alias}"."${w.field}"` : `"${w.field}"`;
+    const col = w.column ?? w.field;
+    const left = w.alias ? `"${w.alias}"."${col}"` : `"${col}"`;
     const right = this._renderValue(w, values, paramIndex);
     return `${left} ${w.op} ${right}`;
   }
@@ -92,31 +94,37 @@ export abstract class SqlGenerator {
   protected _buildSubquerySelectClause(
     alias: string,
     selects: readonly SelectableField[] | null,
-    targetFieldNames: string[],
+    targetFields: { name: string; column: string }[],
     values: unknown[],
     paramIndex: { p: number },
   ): string {
     if (selects && selects.length > 0) {
       return selects
         .map((sel) => {
+          const col = (sel as any).column ?? sel.fieldName;
           if (sel.aggregate) {
             // Агрегаты пока не поддерживаем
-            return `${sel.aggregate.toUpperCase()}(${sel.fieldName === '*' ? '*' : `"${alias}"."${sel.fieldName}"`}) AS "${sel.alias || sel.fieldName}"`;
+            return `${sel.aggregate.toUpperCase()}(${sel.fieldName === '*' ? '*' : `"${alias}"."${col}"`}) AS "${sel.alias || sel.fieldName}"`;
           }
-          return `"${alias}"."${sel.fieldName}" AS "${sel.alias || sel.fieldName}"`;
+          return `"${alias}"."${col}" AS "${sel.alias || sel.fieldName}"`;
         })
         .join(', ');
     }
     // Все поля: каждый алиасится префиксом `alias.` для последующей распаковки
-    if (targetFieldNames.length === 0) targetFieldNames = ['id'];
-    return targetFieldNames
-      .map((f) => `"${alias}"."${f}" AS "${alias}.${f}"`)
+    if (targetFields.length === 0)
+      targetFields = [{ name: 'id', column: 'id' }];
+    return targetFields
+      .map((tf) => `"${alias}"."${tf.column}" AS "${alias}.${tf.name}"`)
       .join(', ');
   }
 
   protected _buildSubqueryModifiers(
     alias: string,
-    orders: readonly { field: string; direction: 'asc' | 'desc' }[],
+    orders: readonly {
+      field: string;
+      column?: string;
+      direction: 'asc' | 'desc';
+    }[],
     limit: number | null,
     offset: number | null,
     values: unknown[],
@@ -125,7 +133,7 @@ export abstract class SqlGenerator {
     const parts: string[] = [];
     if (orders.length > 0) {
       parts.push(
-        `ORDER BY ${orders.map((o) => `"${alias}"."${o.field}" ${o.direction.toUpperCase()}`).join(', ')}`,
+        `ORDER BY ${orders.map((o) => `"${alias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`).join(', ')}`,
       );
     }
     if (limit !== null) {
@@ -152,9 +160,12 @@ export abstract class SqlGenerator {
     let selectClause = this._buildSubquerySelectClause(
       alias,
       relatedSqb.selects,
-      Object.keys((inc.targetIr as any).fields ?? {}).filter(
-        (n) => !(inc.targetIr as any).fields[n].sourceModel,
-      ),
+      Object.entries((inc.targetIr as any).fields ?? {})
+        .filter(([, f]: [string, any]) => !f.sourceModel)
+        .map(([name, f]: [string, any]) => ({
+          name,
+          column: f.alias ?? name,
+        })),
       values,
       paramIndex,
     );
@@ -292,9 +303,10 @@ export abstract class SqlGenerator {
           if (sel.kind === 'aggregate') {
             return sel.toSql();
           }
+          const col = sel.column ?? sel.fieldName;
           const id = sel.tableAlias
-            ? `"${sel.tableAlias}"."${sel.fieldName}"`
-            : `"${sel.fieldName}"`;
+            ? `"${sel.tableAlias}"."${col}"`
+            : `"${col}"`;
           if (sel.alias) return `${id} AS "${sel.alias}"`;
           if (isMultiTable && sel.tableAlias)
             return `${id} AS "${sel.tableAlias}.${sel.fieldName}"`;
@@ -404,7 +416,7 @@ export abstract class SqlGenerator {
       orderByClause = `ORDER BY ${sqb.orders
         .map(
           (o) =>
-            `"${mainTableAlias}"."${o.field}" ${o.direction.toUpperCase()}`,
+            `"${mainTableAlias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
         )
         .join(', ')}`;
     }

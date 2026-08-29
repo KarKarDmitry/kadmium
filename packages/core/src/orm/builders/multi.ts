@@ -159,7 +159,7 @@ export class MultiQueryBuilder<
 
   groupBy(fn: (t: MultiSelectProxy<T>) => SelectableField[]): this {
     const fields = fn(this._createSelectProxy());
-    this.sqb.groupBy.push(...fields.map((f) => f.fieldName));
+    this.sqb.groupBy.push(...fields.map((f) => f.column ?? f.fieldName));
     return this;
   }
 
@@ -180,7 +180,11 @@ export class MultiQueryBuilder<
     dir: 'asc' | 'desc' = 'asc',
   ): this {
     const field = fn(this._createSelectProxy());
-    this.sqb.orders.push({ field: field.fieldName, direction: dir });
+    this.sqb.orders.push({
+      field: field.fieldName,
+      column: field.column,
+      direction: dir,
+    });
     return this;
   }
 
@@ -266,8 +270,16 @@ export class MultiQueryBuilder<
     const irs = this.irs;
     return new Proxy({} as MultiSelectProxy<T>, {
       get: (_, alias: string) => {
+        const ir = irs.get(alias);
         return new Proxy({} as Record<string, SelectableField>, {
-          get: (__, field: string) => new SelectableField(alias, field),
+          get: (__, field: string) =>
+            new SelectableField(
+              alias,
+              field,
+              undefined,
+              undefined,
+              ir?.fields[field]?.alias,
+            ),
         });
       },
     });

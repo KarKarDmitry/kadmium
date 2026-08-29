@@ -140,7 +140,16 @@ export class SingleQueryBuilder<
       const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
       this.sqb.selects = Object.entries(this.ir.fields)
         .filter(([, f]) => !f.sourceModel) // пропускаем виртуальные (inverse)
-        .map(([name]) => new SelectableField(tableAlias, name));
+        .map(
+          ([name, f]) =>
+            new SelectableField(
+              tableAlias,
+              name,
+              undefined,
+              undefined,
+              f.alias,
+            ),
+        );
     } else {
       this.sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
     }
@@ -188,7 +197,16 @@ export class SingleQueryBuilder<
       const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
       this.sqb.selects = Object.entries(this.ir.fields)
         .filter(([, f]) => !f.sourceModel)
-        .map(([name]) => new SelectableField(tableAlias, name));
+        .map(
+          ([name, f]) =>
+            new SelectableField(
+              tableAlias,
+              name,
+              undefined,
+              undefined,
+              f.alias,
+            ),
+        );
     }
     this.sqb.limit = 1;
     return this._buildFirstFinalizer();
@@ -198,7 +216,7 @@ export class SingleQueryBuilder<
 
   groupBy(fn: (t: SelectProxy<TModel>) => SelectableField[]): this {
     const fields = fn(this._createSelectProxy());
-    this.sqb.groupBy.push(...fields.map((f) => f.fieldName));
+    this.sqb.groupBy.push(...fields.map((f) => f.column ?? f.fieldName));
     return this;
   }
 
@@ -207,7 +225,11 @@ export class SingleQueryBuilder<
     dir: 'asc' | 'desc' = 'asc',
   ): this {
     const field = fn(this._createOrderProxy());
-    this.sqb.orders.push({ field: field.fieldName, direction: dir });
+    this.sqb.orders.push({
+      field: field.fieldName,
+      column: field.column,
+      direction: dir,
+    });
     return this;
   }
 
@@ -245,7 +267,13 @@ export class SingleQueryBuilder<
     data: Record<string, unknown>,
   ): Promise<Evaluate<IncludeResult<TModel, R>>> {
     if (!this.adapter) throw new Error('No adapter configured; cannot create.');
-    return this.adapter.create(this.ir.collection, data) as Promise<
+    const mapped: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      mapped[this.ir.fields[k]?.alias ?? k] = v;
+    }
+    return this.adapter
+      .create(this.ir.collection, mapped)
+      .then((row) => this._mapRow(row)) as Promise<
       Evaluate<IncludeResult<TModel, R>>
     >;
   }
@@ -254,14 +282,20 @@ export class SingleQueryBuilder<
 
   update(data: Record<string, unknown>): UpdateFinalizer<TModel> {
     this.sqb.operation = 'update';
-    this.sqb.updateData = data as any;
+    // Ключи — имена свойств; в SET подставляем имена колонок (alias)
+    const mapped: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      mapped[this.ir.fields[k]?.alias ?? k] = v;
+    }
+    this.sqb.updateData = mapped as any;
 
     const go = async () => {
       if (!this.adapter)
         throw new Error(
           'No adapter configured; call .go() only with an adapter.',
         );
-      return this.adapter.execute(this.sqb);
+      const rows = await this.adapter.execute(this.sqb);
+      return rows.map((r) => this._mapRow(r));
     };
     const sql = () => this.toSql();
 
@@ -284,7 +318,8 @@ export class SingleQueryBuilder<
         throw new Error(
           'No adapter configured; call .go() only with an adapter.',
         );
-      return this.adapter.execute(this.sqb);
+      const rows = await this.adapter.execute(this.sqb);
+      return rows.map((r) => this._mapRow(r));
     };
     const sql = () => this.toSql();
 
@@ -317,7 +352,16 @@ export class SingleQueryBuilder<
       const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
       this.sqb.selects = Object.entries(this.ir.fields)
         .filter(([, f]) => !f.sourceModel)
-        .map(([name]) => new SelectableField(tableAlias, name));
+        .map(
+          ([name, f]) =>
+            new SelectableField(
+              tableAlias,
+              name,
+              undefined,
+              undefined,
+              f.alias,
+            ),
+        );
     }
     if (this.adapter) {
       return this.adapter.execute(this.sqb) as Promise<
@@ -360,6 +404,16 @@ export class SingleQueryBuilder<
   }
 
   // ── private ──
+
+  /** Перевести строку с ключами-колонками в ключи-свойства (alias → property). */
+  private _mapRow(row: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [prop, f] of Object.entries(this.ir.fields)) {
+      const col = f.alias ?? prop;
+      if (row[col] !== undefined) out[prop] = row[col];
+    }
+    return out;
+  }
 
   private _buildSelectFinalizer(): ISingleTableQuery<TModel, R, any> {
     const finalizer: ISingleTableQuery<TModel, R, any> = {
@@ -433,17 +487,27 @@ export class SingleQueryBuilder<
 
   private _createSelectProxy(): SelectProxy<TModel> {
     const alias = [...this.sqb.tableContext.keys()][0] ?? this.ir.name;
+    const ir = this.ir;
     return new Proxy({} as SelectProxy<TModel>, {
-      get: (_, field: string) => new SelectableField(alias, field),
+      get: (_, field: string) =>
+        new SelectableField(
+          alias,
+          field,
+          undefined,
+          undefined,
+          ir.fields[field]?.alias,
+        ),
     });
   }
 
   private _createOrderProxy(): OrderProxy<TModel> {
     const alias = [...this.sqb.tableContext.keys()][0] ?? this.ir.name;
+    const ir = this.ir;
     return new Proxy({} as OrderProxy<TModel>, {
       get: (_, field: string) => ({
         tableAlias: alias,
         fieldName: field as string,
+        column: ir.fields[field]?.alias,
       }),
     });
   }

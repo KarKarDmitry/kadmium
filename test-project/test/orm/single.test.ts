@@ -59,7 +59,10 @@ describe('single: select / update / delete', () => {
       .go();
     expect(deleted.length).toBe(1);
 
-    const remaining = await h.orm.single(PostModel).select((p) => [p.title]).go();
+    const remaining = await h.orm
+      .single(PostModel)
+      .select((p) => [p.title])
+      .go();
     expect(remaining.map((r) => r.title)).not.toContain('Draft Post');
   });
 

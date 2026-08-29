@@ -109,6 +109,7 @@ export function addNullable(
       return {
         alias: base.alias,
         field: base.field,
+        column: base.column,
         op: 'IS NULL',
         value: null,
       };
@@ -117,6 +118,7 @@ export function addNullable(
       return {
         alias: base.alias,
         field: base.field,
+        column: base.column,
         op: 'IS NOT NULL',
         value: null,
       };

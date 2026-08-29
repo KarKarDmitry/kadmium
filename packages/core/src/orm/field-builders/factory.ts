@@ -20,14 +20,21 @@ export function createFilter(
   alias: string,
   ir: FieldIR,
 ): BaseFilter | NullableFilter {
-  const filter = createBaseFilter(sqb, field, alias, ir);
+  const column = ir.alias ?? field;
+  const filter = createBaseFilter(sqb, field, alias, ir, column);
   if (ir.nullable) {
     return Object.assign(filter, {
       get null(): WhereCondition {
-        return { alias, field, op: 'IS NULL' as const, value: null };
+        return { alias, field, column, op: 'IS NULL' as const, value: null };
       },
       get notNull(): WhereCondition {
-        return { alias, field, op: 'IS NOT NULL' as const, value: null };
+        return {
+          alias,
+          field,
+          column,
+          op: 'IS NOT NULL' as const,
+          value: null,
+        };
       },
     });
   }
@@ -39,10 +46,11 @@ function createBaseFilter(
   field: string,
   alias: string,
   ir: FieldIR,
+  column: string,
 ): BaseFilter {
   switch (ir.type) {
     case 'string':
-      return new StringFilter(sqb, field, alias);
+      return new StringFilter(sqb, field, alias, column);
     case 'number':
     case 'primary':
     case 'bigint':
@@ -51,14 +59,14 @@ function createBaseFilter(
     case 'float':
     case 'numeric':
     case 'ref': // FK-колонка: сравнение по id целевой модели
-      return new NumberFilter(sqb, field, alias);
+      return new NumberFilter(sqb, field, alias, column);
     case 'boolean':
-      return new BooleanFilter(sqb, field, alias);
+      return new BooleanFilter(sqb, field, alias, column);
     case 'datetime':
     case 'date':
     case 'time':
-      return new DateFilter(sqb, field, alias);
+      return new DateFilter(sqb, field, alias, column);
     default:
-      return new BaseFilter(sqb, field, alias);
+      return new BaseFilter(sqb, field, alias, column);
   }
 }

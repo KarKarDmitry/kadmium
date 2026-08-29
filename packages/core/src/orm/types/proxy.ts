@@ -60,6 +60,8 @@ export interface OrderField {
   readonly tableAlias: string;
   readonly fieldName: string;
   readonly alias?: string;
+  /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
+  readonly column?: string;
   readonly ['~orderField']: unique symbol;
 }
 

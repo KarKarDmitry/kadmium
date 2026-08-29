@@ -15,6 +15,8 @@ export class SelectableField<
     public readonly fieldName: TFieldName,
     public readonly alias?: TAlias,
     public readonly aggregate?: string,
+    /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
+    public readonly column?: string,
   ) {}
 
   /** Переименовать колонку в SELECT */
@@ -26,14 +28,16 @@ export class SelectableField<
       this.fieldName,
       alias,
       this.aggregate,
+      this.column,
     ) as any;
   }
 
   /** SQL-представление */
   toSql(): string {
+    const col = this.column ?? this.fieldName;
     const quoted = this.alias
-      ? `"${this.tableAlias}"."${this.fieldName}" AS "${this.alias}"`
-      : `"${this.tableAlias}"."${this.fieldName}"`;
+      ? `"${this.tableAlias}"."${col}" AS "${this.alias}"`
+      : `"${this.tableAlias}"."${col}"`;
     return quoted;
   }
 }

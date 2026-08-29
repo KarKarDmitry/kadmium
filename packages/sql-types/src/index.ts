@@ -9,6 +9,8 @@
 export interface WhereCondition {
   alias?: string;
   field: string;
+  /** Имя колонки в БД (FieldIR.alias ?? field) */
+  column?: string;
   op: string;
   value: unknown;
 }
@@ -50,7 +52,11 @@ export interface ReadonlySqb {
   readonly selects: readonly SelectableField[] | null;
   readonly joins: readonly JoinOptions[];
   readonly includes: readonly IncludedRelation[];
-  readonly orders: readonly { field: string; direction: 'asc' | 'desc' }[];
+  readonly orders: readonly {
+    field: string;
+    column?: string;
+    direction: 'asc' | 'desc';
+  }[];
   readonly limit: number | null;
   readonly offset: number | null;
   readonly groupBy: readonly string[];

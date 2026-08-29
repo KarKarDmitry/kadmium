@@ -57,11 +57,16 @@ describe('where: filters, groups, ordering, pagination', () => {
       .single(PostModel)
       .where((p) => p.published.eq(true))
       .group((q) =>
-        q.where((p) => p.title.like('%Postgres%')).or((p) => p.title.like('%Bob%')),
+        q
+          .where((p) => p.title.like('%Postgres%'))
+          .or((p) => p.title.like('%Bob%')),
       )
       .go();
     // published AND (title~Postgres OR title~Bob) => оба опубликованы и подходят
-    expect(rows.map((r) => r.title).sort()).toEqual(['Bob Writes', 'Hello Postgres']);
+    expect(rows.map((r) => r.title).sort()).toEqual([
+      'Bob Writes',
+      'Hello Postgres',
+    ]);
   });
 
   it('order + limit + offset', async () => {
@@ -76,7 +81,11 @@ describe('where: filters, groups, ordering, pagination', () => {
   });
 
   it('page() applies limit/offset', async () => {
-    const page = await h.orm.single(UserModel).select((u) => [u.name]).page(2, 2).go();
+    const page = await h.orm
+      .single(UserModel)
+      .select((u) => [u.name])
+      .page(2, 2)
+      .go();
     expect(page.length).toBe(1); // 3 пользователя, страница 2 по 2 => 1
     expect(page[0].name).toBe('Carol');
   });
