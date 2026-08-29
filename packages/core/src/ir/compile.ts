@@ -25,7 +25,8 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
 
     const rawType = (field as unknown as Record<string, unknown>)
       .type as string;
-    const resolvedType = rawType === '_' ? field._meta._type : rawType;
+    const resolvedType =
+      rawType == null || rawType === '_' ? field._meta._type : rawType;
 
     const base: FieldIR = {
       type: normalizeType(resolvedType),
@@ -34,6 +35,7 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
       nullable: field.db.nullable,
       unique: field.db.unique,
       index: field.db.index,
+      isPrimary: field._meta._type === 'primary',
       spec: Object.keys(spec).length > 0 ? spec : undefined,
     };
 

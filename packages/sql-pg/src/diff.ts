@@ -125,6 +125,7 @@ type IrField = {
   nullable: boolean;
   unique: boolean;
   index?: boolean;
+  isPrimary?: boolean;
   spec?: Record<string, unknown>;
 };
 
@@ -148,8 +149,8 @@ export function pgType(
       (m) => m.name.toLowerCase() === f.ref!.toLowerCase(),
     );
     if (target) {
-      const pkField = Object.values(target.fields).find(
-        (pf) => pf.type === 'primary',
+      const pkField = Object.values(target.fields).find((pf) =>
+        isPrimaryField(pf),
       );
       if (pkField) return pgType(name, pkField, irs);
     }
@@ -184,6 +185,10 @@ export function normalizePgType(type: string): string {
 
 /* ── IR → columns helper ── */
 
+function isPrimaryField(f: IrField): boolean {
+  return f.isPrimary === true || f.type === 'primary';
+}
+
 function irToColumns(
   tableName: string,
   irFields: Record<string, IrField>,
@@ -195,12 +200,12 @@ function irToColumns(
       name,
       tableName,
       dataType: pgType(name, f, irs),
-      isNullable: f.nullable && f.type !== 'primary',
+      isNullable: f.nullable && !isPrimaryField(f),
       defaultValue: null,
-      isPrimary: f.type === 'primary',
-      isUnique: f.unique || f.type === 'primary',
+      isPrimary: isPrimaryField(f),
+      isUnique: f.unique || isPrimaryField(f),
       autoIncrement:
-        f.type === 'primary' &&
+        isPrimaryField(f) &&
         f.spec?.db_type !== 'uuid' &&
         f.spec?.db_type !== 'string',
     }));
@@ -212,7 +217,7 @@ function expectedIndexes(
 ): DbIndex[] {
   const indexes: DbIndex[] = [];
   for (const [name, f] of Object.entries(irFields)) {
-    if (f.sourceModel || f.type === 'primary') continue;
+    if (f.sourceModel || isPrimaryField(f)) continue;
     // Ref fields automatically get an index
     if (f.unique || f.index || f.type === 'ref') {
       indexes.push({
@@ -233,11 +238,11 @@ function expectedForeignKeys(
 ): DbForeignKey[] {
   const fks: DbForeignKey[] = [];
   for (const [name, f] of Object.entries(irFields)) {
-    if (f.sourceModel || f.type !== 'ref' || !f.ref) continue;
+    if (f.sourceModel || !f.ref) continue;
     const target = irs.find((m) => m.name === f.ref);
     if (!target) continue;
-    const pkEntry = Object.entries(target.fields).find(
-      ([, pf]) => pf.type === 'primary',
+    const pkEntry = Object.entries(target.fields).find(([, pf]) =>
+      isPrimaryField(pf),
     );
     if (!pkEntry) continue;
     const [pkName] = pkEntry;
@@ -613,7 +618,10 @@ function opToSql(op: DiffOp): string {
       const colDefs = op.columns
         .map((c) => {
           let type = c.dataType;
-          if (c.autoIncrement && type === 'integer') type = 'serial';
+          if (c.autoIncrement) {
+            if (type === 'integer') type = 'serial';
+            else if (type === 'bigint') type = 'bigserial';
+          }
           const nullable = c.isNullable ? 'NULL' : 'NOT NULL';
           const pk = c.isPrimary ? 'PRIMARY KEY' : '';
           const uniq = c.isUnique && !c.isPrimary ? 'UNIQUE' : '';

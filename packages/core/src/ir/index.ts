@@ -37,6 +37,8 @@ export interface FieldIR {
   unique: boolean;
   /** Индексировано */
   index: boolean;
+  /** Является ли поле первичным ключом */
+  isPrimary?: boolean;
 
   /** Специфичные опции поля */
   spec?: Record<string, unknown>;

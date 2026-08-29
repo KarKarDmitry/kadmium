@@ -146,7 +146,10 @@ export class PgDdlAdapter {
     const colDefs = columns
       .map((col) => {
         let type = col.dataType;
-        if (col.autoIncrement && type === 'integer') type = 'serial';
+        if (col.autoIncrement) {
+          if (type === 'integer') type = 'serial';
+          else if (type === 'bigint') type = 'bigserial';
+        }
         const nullable = col.isNullable ? 'NULL' : 'NOT NULL';
         const pk = col.isPrimary ? 'PRIMARY KEY' : '';
         const uniq = col.isUnique && !col.isPrimary ? 'UNIQUE' : '';
