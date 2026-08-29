@@ -130,7 +130,7 @@ export class MultiQueryBuilder<
         if (this.adapter) {
           return this.adapter.execute(this.sqb) as any;
         }
-        return Promise.resolve([]);
+        throw new Error('No adapter configured; cannot execute query.');
       },
     };
   }
