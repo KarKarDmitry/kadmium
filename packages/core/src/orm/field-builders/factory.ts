@@ -46,6 +46,11 @@ function createBaseFilter(
     case 'number':
     case 'primary':
     case 'bigint':
+    case 'int':
+    case 'decimal':
+    case 'float':
+    case 'numeric':
+    case 'ref': // FK-колонка: сравнение по id целевой модели
       return new NumberFilter(sqb, field, alias);
     case 'boolean':
       return new BooleanFilter(sqb, field, alias);

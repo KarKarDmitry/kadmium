@@ -92,6 +92,7 @@ export abstract class SqlGenerator {
   protected _buildSubquerySelectClause(
     alias: string,
     selects: readonly SelectableField[] | null,
+    targetFieldNames: string[],
     values: unknown[],
     paramIndex: { p: number },
   ): string {
@@ -106,8 +107,11 @@ export abstract class SqlGenerator {
         })
         .join(', ');
     }
-    // Все поля: хотябы id
-    return `"${alias}"."id" AS "${alias}.id"`;
+    // Все поля: каждый алиасится префиксом `alias.` для последующей распаковки
+    if (targetFieldNames.length === 0) targetFieldNames = ['id'];
+    return targetFieldNames
+      .map((f) => `"${alias}"."${f}" AS "${alias}.${f}"`)
+      .join(', ');
   }
 
   protected _buildSubqueryModifiers(
@@ -148,6 +152,9 @@ export abstract class SqlGenerator {
     const selectClause = this._buildSubquerySelectClause(
       alias,
       relatedSqb.selects,
+      Object.keys((inc.targetIr as any).fields ?? {}).filter(
+        (n) => !(inc.targetIr as any).fields[n].sourceModel,
+      ),
       values,
       paramIndex,
     );
@@ -410,6 +417,7 @@ export abstract class SqlGenerator {
     if (sqb.tableContext.size !== 1)
       throw new Error('UPDATE requires exactly one table');
     const collectionName = sqb.tableContext.values().next().value;
+    const tableAlias = sqb.tableContext.keys().next().value;
     const values: unknown[] = [];
     const paramIndex = { p: 1 };
     const data = sqb.updateData;
@@ -432,7 +440,7 @@ export abstract class SqlGenerator {
     );
 
     return {
-      text: `UPDATE "${collectionName}" SET ${setClause} ${whereClause} RETURNING *`
+      text: `UPDATE "${collectionName}" AS "${tableAlias}" SET ${setClause} ${whereClause} RETURNING *`
         .trim()
         .replace(/\s+/g, ' '),
       values,
@@ -448,6 +456,7 @@ export abstract class SqlGenerator {
     if (sqb.tableContext.size !== 1)
       throw new Error('DELETE requires exactly one table');
     const collectionName = sqb.tableContext.values().next().value;
+    const tableAlias = sqb.tableContext.keys().next().value;
     const values: unknown[] = [];
     const paramIndex = { p: 1 };
     const whereClause = this._buildWhereClause(
@@ -458,7 +467,7 @@ export abstract class SqlGenerator {
     );
 
     return {
-      text: `DELETE FROM "${collectionName}" ${whereClause}`
+      text: `DELETE FROM "${collectionName}" AS "${tableAlias}" ${whereClause} RETURNING *`
         .trim()
         .replace(/\s+/g, ' '),
       values,

@@ -232,12 +232,22 @@ export class SingleQueryBuilder<
     id: TModel['~shape']['id'],
   ): IFirstQuery<TModel, R, Evaluate<IncludeResult<TModel, R>> | undefined> {
     const pkEntry = Object.entries(this.ir.fields).find(
-      ([, f]) => f.type === 'primary',
+      ([, f]) => f.type === 'primary' || f.isPrimary === true,
     );
     if (!pkEntry) throw new Error('No primary key field found');
     const [pkName] = pkEntry;
 
     return this.where(((t: any) => t[pkName].eq(id)) as any).first();
+  }
+
+  /** Создать запись и вернуть вставленную строку. */
+  create(
+    data: Record<string, unknown>,
+  ): Promise<Evaluate<IncludeResult<TModel, R>>> {
+    if (!this.adapter) throw new Error('No adapter configured; cannot create.');
+    return this.adapter.create(this.ir.collection, data) as Promise<
+      Evaluate<IncludeResult<TModel, R>>
+    >;
   }
 
   // ── UPDATE / DELETE ──

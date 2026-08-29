@@ -12,10 +12,46 @@ import type {
   SqlAdapter,
   TransactionalAdapter,
   ReadonlySqb,
+  IncludedRelation,
 } from '@karkardmitry/kadmium-sql-types';
 import { SqlGenerator } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { PgDdlAdapter } from './ddl-adapter';
+
+/**
+ * Срезает префикс `prop.` с ключей JSON-объектов include-подзапросов,
+ * превращая `{"author.id":1,"author.name":"..."}` в `{id:1,name:"..."}`.
+ */
+function stripIncludePrefix(value: unknown, prop: string): unknown {
+  if (Array.isArray(value))
+    return value.map((v) => stripIncludePrefix(v, prop));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    const prefix = `${prop}.`;
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k.startsWith(prefix) ? k.slice(prefix.length) : k] = v;
+    }
+    return out;
+  }
+  return value;
+}
+
+function unpackIncludes(
+  rows: Record<string, unknown>[],
+  includes: readonly IncludedRelation[],
+): Record<string, unknown>[] {
+  for (const row of rows) {
+    for (const inc of includes) {
+      if (row[inc.propertyName] !== undefined) {
+        row[inc.propertyName] = stripIncludePrefix(
+          row[inc.propertyName],
+          inc.propertyName,
+        );
+      }
+    }
+  }
+  return rows;
+}
 
 export interface PgAdapterConfig {
   host?: string;
@@ -77,10 +113,12 @@ class TransactionalPgAdapter
     const { text, values } = this.toSql(sqb);
     const result = await this.client.query(text, values);
     if (sqb.operation !== 'select' || sqb.tableContext.size <= 1)
-      return result.rows;
-    return ResultReshaper.reshape(result.rows, (sqb.selects || []) as any[], [
-      ...sqb.includes,
-    ]);
+      return unpackIncludes(result.rows, sqb.includes);
+    return ResultReshaper.reshape(
+      unpackIncludes(result.rows, sqb.includes),
+      (sqb.selects || []) as any[],
+      [...sqb.includes],
+    );
   }
 
   async create(
@@ -135,10 +173,12 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     const { text, values } = this.toSql(sqb);
     const result = await this.pool.query(text, values);
     if (sqb.operation !== 'select' || sqb.tableContext.size <= 1)
-      return result.rows;
-    return ResultReshaper.reshape(result.rows, (sqb.selects || []) as any[], [
-      ...sqb.includes,
-    ]);
+      return unpackIncludes(result.rows, sqb.includes);
+    return ResultReshaper.reshape(
+      unpackIncludes(result.rows, sqb.includes),
+      (sqb.selects || []) as any[],
+      [...sqb.includes],
+    );
   }
 
   async create(
@@ -167,6 +207,14 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
   }
 }
 
-export { computeDiff, applyDiff, renderSql, checkHealth, pgType, normalizePgType, diffToHealth } from './diff';
+export {
+  computeDiff,
+  applyDiff,
+  renderSql,
+  checkHealth,
+  pgType,
+  normalizePgType,
+  diffToHealth,
+} from './diff';
 export type { DiffOp, DiffResult, HealthCheckResult } from './diff';
 export { PgDdlAdapter } from './ddl-adapter';

@@ -7,6 +7,8 @@ export { default as f } from './model/fields/index';
 export type { ModelIR, FieldIR, FieldType, RelationType } from './ir/index';
 export { compileModel } from './ir/index';
 
+export { OrmManager } from './orm/orm';
+
 export {
   AppCore,
   KadmiumApp,
