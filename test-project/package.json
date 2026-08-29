@@ -1,0 +1,20 @@
+{
+  "name": "test-project",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "generate": "kadmium generate",
+    "dev": "ts-node src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@karkardmitry/kadmium-core": "file:../packages/core",
+    "@karkardmitry/kadmium-sql-pg": "file:../packages/sql-pg"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0",
+    "vitest": "^3.1.0"
+  }
+}

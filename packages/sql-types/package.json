@@ -1,0 +1,13 @@
+{
+  "name": "@karkardmitry/kadmium-sql-types",
+  "version": "0.1.0",
+  "description": "SQL adapter interface for Kadmium",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

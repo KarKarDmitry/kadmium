@@ -1,0 +1,27 @@
+{
+  "name": "@karkardmitry/kadmium-core",
+  "version": "0.1.0",
+  "description": "Metadata layer for TypeScript ORM",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "bin": {
+    "kadmium": "./bin/kadmium.js"
+  },
+  "ts-node": {
+    "transpileOnly": true,
+    "files": true
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src/",
+    "check:type": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@karkardmitry/kadmium-sql-types": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
