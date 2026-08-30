@@ -7,6 +7,7 @@
     "dev": "ts-node src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "bench": "ts-node --transpile-only bench/ir-cache.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   },
