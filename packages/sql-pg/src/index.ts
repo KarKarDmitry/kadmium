@@ -7,7 +7,7 @@
  * - pg (node-postgres) для подключения
  */
 
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types as pgTypes } from 'pg';
 import type {
   SqlAdapter,
   TransactionalAdapter,
@@ -17,6 +17,13 @@ import type {
 import { SqlGenerator } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { PgDdlAdapter } from './ddl-adapter';
+
+// int8 (bigint) → number, чтобы runtime совпадал с типом `number`.
+// ⚠️ Ограничение: значения > 2^53 теряют точность. Для больших внешних id
+// используйте PK типа uuid/string (f.pk.string / f.pk.uuid).
+pgTypes.setTypeParser(20, (val: string | null) =>
+  val === null ? null : Number(val),
+);
 
 /**
  * Срезает префикс `prop.` с ключей JSON-объектов include-подзапросов,

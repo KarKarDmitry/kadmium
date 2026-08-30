@@ -27,8 +27,9 @@ describe('seed: create via ORM layer', () => {
     expect(row.name).toBe('Dave');
     expect(row.email).toBe('dave@test.com');
     expect(row.id).toBeTruthy();
-    // bigint от pg приходит строкой
-    expect(typeof row.id).toBe('string');
+    // bigint (int8) нормализуется в number на уровне адаптера (D8)
+    expect(typeof row.id).toBe('number');
+    expect(Number.isInteger(row.id)).toBe(true);
   });
 
   it('count() matches seeded rows', async () => {
@@ -55,5 +56,23 @@ describe('seed: create via ORM layer', () => {
     expect(sql).toMatch(/VALUES:\s*\[/);
     // имя не должно быть вшито в текст запроса
     expect(sql).not.toContain("'Alice'");
+  });
+});
+
+describe('D8: bigint PK normalizes to number', () => {
+  it('findById accepts a number and returns a numeric id', async () => {
+    const found = await h.orm.single(UserModel).findById(1).go();
+    expect(found).toBeTruthy();
+    expect(typeof found!.id).toBe('number');
+    expect(Number.isInteger(found!.id)).toBe(true);
+  });
+
+  it('bigint FK column returns a number too', async () => {
+    const post = await h.orm
+      .single(PostModel)
+      .where((p) => p.title.eq('Hello Postgres'))
+      .first()
+      .go();
+    expect(typeof post!.author).toBe('number');
   });
 });

@@ -8,12 +8,12 @@
 
 - **Monorepo** (npm workspaces): `packages/core` (ORM + CLI), `packages/sql-types` (interfaces), `packages/sql-pg` (PostgreSQL adapter).
 - **Git**: initialized (`fd28a9f`). Root `.gitignore` present; `test-project/.env` is **untracked**.
-- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 11 files / 65 tests pass. `npm run test:project` + `test-project` has `typecheck`.
+- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 11 files / 67 tests pass. `npm run test:project` + `test-project` has `typecheck`.
 - **help_source/**: gitignored legacy scaffolding; clean it up eventually.
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes (incl. nested), `.default()` and `alias()` work. **Still not production-ready**: bigint id typing, IR caching and dual include models remain; no README, TS version mismatch.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes (incl. nested), `.default()`, `alias()` and bigint-id typing all work. **Still not production-ready**: IR caching and dual include models remain; no README, TS version mismatch.
 
 ---
 
@@ -26,7 +26,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | C1 | 🔴 | Decimal/float silently truncated to integer | ✅ Fixed (pre-existing, in `fd28a9f`): `decimal\|float\|bigint\|numeric` in `FieldType`/`normalizeType`/`pgType`. |
 | C2 | 🔴 | `diffToHealth` summary bug | ✅ Fixed (in `fd28a9f`): clear `tablesMissing`/`tablesExpected`/`tablesMatching`. |
 | C3 | 🔴 | No meaningful tests / no typecheck on tests | ✅ Fixed (`a36dcea`): integration harness; `test/**/*` in tsconfig + `typecheck` script. |
-| C4 | 🟠 | `findById` PK lookup | 🟡 Partial (`035696a`): locates PK via `isPrimary`. **Open**: bigint id typed `number`, runtime `string` (D8). |
+| C4 | 🟠 | `findById` PK lookup | ✅ Fixed: locates PK via `isPrimary` (`035696a`); bigint id normalized to `number` at the adapter (D8). |
 | C5 | 🟠 | `go()` silently returns `[]` without adapter | ✅ Fixed: single (in `fd28a9f`), multi (`5f217a4`). |
 | C6 | 🟠 | bigint PK defaulted to integer / PK never emitted | ✅ Fixed (`ba16cbd`): PK detected via `FieldIR.isPrimary`, DDL emits `bigserial`. |
 | D1 | 🔴 | **PK + serial never generated** → every insert failed (`id bigint NOT NULL UNIQUE`, no PK) | ✅ Fixed (`ba16cbd`). |
@@ -36,7 +36,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | D5 | 🟠 | **Includes returned only `{alias.id}`** (not the related object) | ✅ Fixed (`035696a` + `6e7d915`): to-one/to-many and **nested** (`author.posts`) all render clean. |
 | D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ✅ Fixed (`78cff3b`): `renderDefault()` renders a strict per-type SQL literal; `IntegerFieldBuilder` rejects non-integer defaults. |
 | D7 | 🟡 | **`alias()` doesn't rename the DB column** — `irToColumns` uses the field name | ✅ Fixed: column/property split threaded through WHERE/SELECT/ORDER/GROUP BY/UPDATE/create + result mapping; `alias.test.ts` covers DDL, select, filter, update, order. |
-| D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ⬜ Pending (design decision) |
+| D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ✅ Fixed: adapter parses `int8` → `number`. ⚠️ Precision limit 2^53 — use `f.pk.string`/`f.pk.uuid` for large ids. |
 
 ### 2️⃣ Architecture
 
@@ -101,7 +101,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T3.1 ✅ — Render nested includes recursively in `_buildIncludeSubquery` (D5) (`6e7d915`).
 - T3.2 ✅ — Make `.default()` reach DDL (`irToColumns`/`renderSql`) (D6) (`78cff3b`).
 - T3.3 ✅ — Make `alias()` affect the DB column name (D7).
-- T3.4 ⬜ Decide bigint id typing (`number` vs `string`) (D8).
+- T3.4 ✅ — Decide bigint id typing (`number` vs `string`) (D8): adapter normalizes `int8` → `number`; use uuid/string PK for >2^53.
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
 - T3.6 ⬜ Reduce type-layer complexity (TODO 4.1).
 - T3.7 ✅ — Correlated-subquery → LEFT JOIN LATERAL.
@@ -122,7 +122,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [x] `tsc -p packages/sql-pg` — no type errors.
 - [x] `npm run lint` — no lint errors (core + sql-pg + sql-types).
 - [x] `npm run format:check` — prettier happy (core + sql-pg + sql-types).
-- [x] `npm run test:project` — 65 pass (requires docker `db:up`).
+- [x] `npm run test:project` — 67 pass (requires docker `db:up`).
 - [x] `test-project: npm run typecheck` — tests typechecked, clean.
 - [x] `npm run build` — succeeds.
 
