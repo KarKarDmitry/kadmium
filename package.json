@@ -8,11 +8,11 @@
   ],
   "scripts": {
     "build": "npm run build -w packages/core",
-    "lint": "eslint packages/core/src/",
-    "lint:fix": "eslint packages/core/src/ --fix",
+    "lint": "eslint packages/core/src packages/sql-pg/src packages/sql-types/src",
+    "lint:fix": "eslint packages/core/src packages/sql-pg/src packages/sql-types/src --fix",
     "check:type": "tsc --noEmit -p packages/core/tsconfig.json",
-    "format": "prettier --write \"packages/core/src/**/*.ts\"",
-    "format:check": "prettier --check \"packages/core/src/**/*.ts\"",
+    "format": "prettier --write \"packages/{core,sql-pg,sql-types}/src/**/*.ts\"",
+    "format:check": "prettier --check \"packages/{core,sql-pg,sql-types}/src/**/*.ts\"",
     "test:project": "cd test-project && npm run test"
   },
   "devDependencies": {

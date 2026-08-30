@@ -6,9 +6,14 @@ import type {
   ReadonlySqb,
   WhereCondition,
   WhereGroup,
-  SelectableField,
+  SelectItem,
   IncludedRelation,
 } from '@karkardmitry/kadmium-sql-types';
+
+/** Ссылка на поле (для field-to-field сравнений) */
+interface SqlIdentifierRef {
+  getIdentifierForSql(): string;
+}
 
 export abstract class SqlGenerator {
   /** Преобразует значение WhereCondition в SQL-строку + параметры */
@@ -21,9 +26,9 @@ export abstract class SqlGenerator {
     if (
       w.value &&
       typeof w.value === 'object' &&
-      'getIdentifierForSql' in (w.value as any)
+      'getIdentifierForSql' in w.value
     ) {
-      return (w.value as any).getIdentifierForSql();
+      return (w.value as SqlIdentifierRef).getIdentifierForSql();
     }
     // null / undefined
     if (w.value === null || w.value === undefined) {
@@ -93,19 +98,14 @@ export abstract class SqlGenerator {
 
   protected _buildSubquerySelectClause(
     alias: string,
-    selects: readonly SelectableField[] | null,
+    selects: readonly SelectItem[] | null,
     targetFields: { name: string; column: string }[],
-    values: unknown[],
-    paramIndex: { p: number },
   ): string {
     if (selects && selects.length > 0) {
       return selects
         .map((sel) => {
-          const col = (sel as any).column ?? sel.fieldName;
-          if (sel.aggregate) {
-            // Агрегаты пока не поддерживаем
-            return `${sel.aggregate.toUpperCase()}(${sel.fieldName === '*' ? '*' : `"${alias}"."${col}"`}) AS "${sel.alias || sel.fieldName}"`;
-          }
+          if (sel.kind === 'aggregate') return sel.toSql();
+          const col = sel.column ?? sel.fieldName;
           return `"${alias}"."${col}" AS "${sel.alias || sel.fieldName}"`;
         })
         .join(', ');
@@ -172,14 +172,12 @@ export abstract class SqlGenerator {
     let innerSelect = this._buildSubquerySelectClause(
       alias,
       relatedSqb.selects,
-      Object.entries((inc.targetIr as any).fields ?? {})
-        .filter(([, f]: [string, any]) => !f.sourceModel)
-        .map(([name, f]: [string, any]) => ({
+      Object.entries(inc.targetIr.fields ?? {})
+        .filter(([, f]) => !f.sourceModel)
+        .map(([name, f]) => ({
           name,
           column: f.alias ?? name,
         })),
-      values,
-      paramIndex,
     );
     let innerFrom = `FROM "${collectionName}" AS "${alias}"`;
     for (const nested of relatedSqb.includes) {
@@ -311,11 +309,11 @@ export abstract class SqlGenerator {
     if (!mainTableAlias) throw new Error('No table context');
 
     // SELECT clause
-    let selectClause = '';
+    let selectClause;
     if (sqb.selects && sqb.selects.length > 0) {
       const isMultiTable = sqb.tableContext.size > 1;
       selectClause = sqb.selects
-        .map((sel: any) => {
+        .map((sel) => {
           // AggregateField (count/sum/avg/min/max)
           if (sel.kind === 'aggregate') {
             return sel.toSql();
@@ -364,14 +362,13 @@ export abstract class SqlGenerator {
     for (const island of joinIslands) {
       const islandAliases = [...island];
       const islandTablesInFrom = new Set<string>();
-      let islandFromClause = '';
       const joinsForIsland = sqb.joins.filter(
         (j) => island.has(j.left) && island.has(j.right),
       );
       const processedJoins = new Set<object>();
 
       const firstAlias = islandAliases[0];
-      islandFromClause = `FROM "${sqb.tableContext.get(firstAlias)}" AS "${firstAlias}"`;
+      let islandFromClause = `FROM "${sqb.tableContext.get(firstAlias)}" AS "${firstAlias}"`;
       islandTablesInFrom.add(firstAlias);
 
       let tablesAddedInPass = true;
@@ -483,7 +480,7 @@ export abstract class SqlGenerator {
 
     const setClause = Object.keys(data)
       .map((key) => {
-        values.push((data as any)[key]);
+        values.push(data[key]);
         return `"${key}" = $${paramIndex.p++}`;
       })
       .join(', ');

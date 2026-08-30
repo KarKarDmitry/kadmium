@@ -10,6 +10,31 @@ import type {
 } from '@karkardmitry/kadmium-sql-types';
 import { Pool, PoolClient } from 'pg';
 
+interface ColumnRow {
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+  column_default: string | null;
+  character_maximum_length: number | null;
+  is_primary: boolean;
+  is_unique: boolean;
+}
+
+interface IndexRow {
+  index_name: string;
+  column_name: string;
+  is_unique: boolean;
+}
+
+interface FkRow {
+  fk_name: string;
+  column_name: string;
+  ref_table: string;
+  ref_column: string;
+  on_delete: DbForeignKey['onDelete'];
+  on_update: DbForeignKey['onUpdate'];
+}
+
 export class PgDdlAdapter {
   constructor(private client: Pool | PoolClient) {}
 
@@ -21,7 +46,7 @@ export class PgDdlAdapter {
   }
 
   async inspectColumns(tableName: string): Promise<DbColumn[]> {
-    const result = await this.client.query<any>(
+    const result = await this.client.query<ColumnRow>(
       `SELECT
         c.column_name,
         c.data_type,
@@ -48,7 +73,7 @@ export class PgDdlAdapter {
       [tableName],
     );
 
-    return result.rows.map((r: any) => ({
+    return result.rows.map((r) => ({
       name: r.column_name,
       tableName,
       dataType: r.data_type,
@@ -62,7 +87,7 @@ export class PgDdlAdapter {
   }
 
   async inspectIndexes(tableName: string): Promise<DbIndex[]> {
-    const result = await this.client.query<any>(
+    const result = await this.client.query<IndexRow>(
       `SELECT ic.relname AS index_name, a.attname AS column_name, i.indisunique AS is_unique
       FROM pg_index i
       JOIN pg_class ic ON i.indexrelid = ic.oid
@@ -90,7 +115,7 @@ export class PgDdlAdapter {
   }
 
   async inspectForeignKeys(tableName: string): Promise<DbForeignKey[]> {
-    const result = await this.client.query<any>(
+    const result = await this.client.query<FkRow>(
       `SELECT
         tc.constraint_name AS fk_name,
         kcu.column_name,
@@ -224,7 +249,7 @@ export class PgDdlAdapter {
     );
   }
 
-  async dropIndex(indexName: string, tableName: string): Promise<void> {
+  async dropIndex(indexName: string): Promise<void> {
     await this.client.query(`DROP INDEX IF EXISTS "${indexName}"`);
   }
 
@@ -248,7 +273,10 @@ export class PgDdlAdapter {
     await this.client.query(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
   }
 
-  async raw(sql: string, params?: unknown[]): Promise<any[]> {
+  async raw(
+    sql: string,
+    params?: unknown[],
+  ): Promise<Record<string, unknown>[]> {
     const result = await this.client.query(sql, params);
     return result.rows;
   }

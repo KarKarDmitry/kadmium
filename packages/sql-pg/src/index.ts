@@ -116,7 +116,7 @@ class TransactionalPgAdapter
       return unpackIncludes(result.rows, sqb.includes);
     return ResultReshaper.reshape(
       unpackIncludes(result.rows, sqb.includes),
-      (sqb.selects || []) as any[],
+      sqb.selects || [],
       [...sqb.includes],
     );
   }
@@ -176,7 +176,7 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       return unpackIncludes(result.rows, sqb.includes);
     return ResultReshaper.reshape(
       unpackIncludes(result.rows, sqb.includes),
-      (sqb.selects || []) as any[],
+      sqb.selects || [],
       [...sqb.includes],
     );
   }

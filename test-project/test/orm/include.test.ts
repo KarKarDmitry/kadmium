@@ -27,7 +27,7 @@ describe('include: to-one / to-many / nested', () => {
     expect(post).toBeTruthy();
     expect(typeof post!.author).toBe('object');
     expect(post!.author).not.toBeNull();
-    expect((post!.author as any).name).toBe('Alice');
+    expect(post!.author!.name).toBe('Alice');
   });
 
   it('single-table to-many: User -> posts is an array', async () => {
@@ -39,8 +39,8 @@ describe('include: to-one / to-many / nested', () => {
       .go();
     console.log('[include to-many] row =', JSON.stringify(alice, null, 2));
     expect(alice).toBeTruthy();
-    expect(Array.isArray((alice! as any).posts)).toBe(true);
-    expect((alice! as any).posts.length).toBe(2);
+    expect(Array.isArray(alice!.posts)).toBe(true);
+    expect(alice!.posts.length).toBe(2);
   });
 
   it('multi-table include: reshape nests under aliases', async () => {

@@ -624,7 +624,7 @@ async function executeOp(op: DiffOp, ddl: DbDdlAdapter): Promise<void> {
       await ddl.addIndex(op.index);
       break;
     case 'drop-index':
-      await ddl.dropIndex(op.indexName, op.tableName);
+      await ddl.dropIndex(op.indexName);
       break;
     case 'add-foreign-key':
       await ddl.addForeignKey(op.fk);

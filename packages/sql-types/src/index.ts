@@ -21,12 +21,26 @@ export interface WhereGroup {
 }
 
 export interface SelectableField {
+  readonly kind: 'selectable';
   readonly tableAlias: string;
   readonly fieldName: string;
   readonly alias?: string;
   readonly aggregate?: string;
+  /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
+  readonly column?: string;
   toSql(): string;
 }
+
+export interface AggregateSelectable {
+  readonly kind: 'aggregate';
+  readonly tableAlias: string;
+  readonly fieldName: string;
+  readonly alias?: string;
+  toSql(): string;
+}
+
+/** Элемент SELECT: обычное поле или агрегат. */
+export type SelectItem = SelectableField | AggregateSelectable;
 
 export interface JoinOptions {
   left: string;
@@ -42,14 +56,21 @@ export interface IncludedRelation {
   parentField: string;
   childField: string;
   internalSqb: ReadonlySqb;
-  targetIr: { name: string; collection: string };
+  targetIr: {
+    name: string;
+    collection: string;
+    fields: Record<
+      string,
+      { type?: string; sourceModel?: string; alias?: string }
+    >;
+  };
 }
 
 export interface ReadonlySqb {
   readonly operation: 'select' | 'update' | 'delete';
   readonly tableContext: ReadonlyMap<string, string>;
   readonly wheres: WhereGroup;
-  readonly selects: readonly SelectableField[] | null;
+  readonly selects: readonly SelectItem[] | null;
   readonly joins: readonly JoinOptions[];
   readonly includes: readonly IncludedRelation[];
   readonly orders: readonly {
@@ -153,9 +174,9 @@ export interface DbDdlAdapter {
     defaultValue: string | null,
   ): Promise<void>;
   addIndex(idx: DbIndex): Promise<void>;
-  dropIndex(indexName: string, tableName: string): Promise<void>;
+  dropIndex(indexName: string): Promise<void>;
   addForeignKey(fk: DbForeignKey): Promise<void>;
   dropForeignKey(fkName: string, tableName: string): Promise<void>;
   dropTable(tableName: string): Promise<void>;
-  raw(sql: string, params?: unknown[]): Promise<any[]>;
+  raw(sql: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
 }

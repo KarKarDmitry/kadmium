@@ -120,8 +120,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 - [x] `npm run check:type` (core) — no type errors.
 - [x] `tsc -p packages/sql-pg` — no type errors.
-- [x] `npm run lint` — no lint errors.
-- [x] `npm run format:check` — prettier happy.
+- [x] `npm run lint` — no lint errors (core + sql-pg + sql-types).
+- [x] `npm run format:check` — prettier happy (core + sql-pg + sql-types).
 - [x] `npm run test:project` — 65 pass (requires docker `db:up`).
 - [x] `test-project: npm run typecheck` — tests typechecked, clean.
 - [x] `npm run build` — succeeds.
