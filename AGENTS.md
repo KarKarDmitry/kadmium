@@ -61,7 +61,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| P1 | 🟡 | Includes as correlated subqueries (N+1-like) | ⬜ Pending (TODO 2.3) |
+| P1 | 🟡 | Includes as correlated subqueries (per-row server-side re-evaluation, no shared join scan — **not** N+1) | ⬜ Pending: `_buildInclude` marked `@deprecated`; plan is LEFT JOIN LATERAL (to-one) + join & client-side grouping (to-many) |
 | P2 | 🟢 | No IR cache in hot path | ⬜ Pending |
 | P3 | 🟢 | Schema inspection sequential per table | ✅ Acceptable |
 

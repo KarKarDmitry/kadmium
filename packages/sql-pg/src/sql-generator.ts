@@ -147,7 +147,15 @@ export abstract class SqlGenerator {
     return parts.join(' ');
   }
 
-  protected _buildIncludeSubquery(
+  /**
+   * Рендерит include как коррелированный подзапрос в SELECT.
+   *
+   * @deprecated Коррелированные подзапросы оцениваются на каждую строку
+   *   внешнего запроса и не дают единого совместного плана (см. P1).
+   *   Запланирована замена на LEFT JOIN LATERAL (to-one) и LEFT JOIN +
+   *   группировка на клиенте (to-many). Пока сохраняется для обратной совместимости.
+   */
+  protected _buildInclude(
     inc: IncludedRelation,
     correlationCondition: WhereCondition,
     values: unknown[],
@@ -181,7 +189,7 @@ export abstract class SqlGenerator {
             `"${nested.parentAlias}"."${nested.parentField}"`,
         },
       };
-      selectClause += `, ${this._buildIncludeSubquery(
+      selectClause += `, ${this._buildInclude(
         nested,
         nestedCond,
         values,
@@ -331,7 +339,7 @@ export abstract class SqlGenerator {
             `"${includeParentAlias}"."${inc.parentField}"`,
         },
       };
-      selectClause += `, ${this._buildIncludeSubquery(inc, cond, values, paramIndex)}`;
+      selectClause += `, ${this._buildInclude(inc, cond, values, paramIndex)}`;
     }
 
     // FROM + JOIN islands
