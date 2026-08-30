@@ -148,24 +148,28 @@ export abstract class SqlGenerator {
   }
 
   /**
-   * Рендерит include как коррелированный подзапрос в SELECT.
+   * Рендерит include как LEFT JOIN LATERAL вместо коррелированного подзапроса
+   * в SELECT. LATERAL позволяет планировщику строить совместный план (см. P1).
    *
-   * @deprecated Коррелированные подзапросы оцениваются на каждую строку
-   *   внешнего запроса и не дают единого совместного плана (см. P1).
-   *   Запланирована замена на LEFT JOIN LATERAL (to-one) и LEFT JOIN +
-   *   группировка на клиенте (to-many). Пока сохраняется для обратной совместимости.
+   * Возвращает фрагменты:
+   *  - from:   `LEFT JOIN LATERAL (SELECT <json> ...) AS "<__inc_<prop>>" ON true`
+   *  - select: `"<__inc_<prop>>"."<prop>" AS "<prop>"`
+   * Форма результата (json-колонка с именем свойства) сохраняется, поэтому
+   * распаковка вложенных include на клиенте не меняется.
    */
   protected _buildInclude(
     inc: IncludedRelation,
     correlationCondition: WhereCondition,
     values: unknown[],
     paramIndex: { p: number },
-  ): string {
+  ): { from: string; select: string } {
     const alias = inc.propertyName;
+    const lateralAlias = `__inc_${alias}`;
     const relatedSqb = inc.internalSqb;
     const collectionName = inc.targetIr.collection;
 
-    let selectClause = this._buildSubquerySelectClause(
+    // Внутренний SELECT: поля цели + вложенные include (рекурсивно)
+    let innerSelect = this._buildSubquerySelectClause(
       alias,
       relatedSqb.selects,
       Object.entries((inc.targetIr as any).fields ?? {})
@@ -177,8 +181,7 @@ export abstract class SqlGenerator {
       values,
       paramIndex,
     );
-
-    // Вложенные includes: рендерим рекурсивно, коррелируя по родительскому подзапросу
+    let innerFrom = `FROM "${collectionName}" AS "${alias}"`;
     for (const nested of relatedSqb.includes) {
       const nestedCond: WhereCondition = {
         alias: nested.propertyName,
@@ -189,12 +192,14 @@ export abstract class SqlGenerator {
             `"${nested.parentAlias}"."${nested.parentField}"`,
         },
       };
-      selectClause += `, ${this._buildInclude(
+      const nestedLateral = this._buildInclude(
         nested,
         nestedCond,
         values,
         paramIndex,
-      )}`;
+      );
+      innerFrom += ` ${nestedLateral.from}`;
+      innerSelect += `, ${nestedLateral.select}`;
     }
 
     // WHERE: пользовательский + correlation
@@ -219,15 +224,19 @@ export abstract class SqlGenerator {
     );
 
     const subQueryText =
-      `SELECT ${selectClause} FROM "${collectionName}" AS "${alias}" ${whereClause} ${modifiers}`
+      `SELECT ${innerSelect} ${innerFrom} ${whereClause} ${modifiers}`
         .trim()
         .replace(/\s+/g, ' ');
 
-    if (inc.relationType === 'one-to-many') {
-      return `(SELECT COALESCE(json_agg(subq), '[]'::json) FROM (${subQueryText}) AS subq) AS "${alias}"`;
-    }
-    // ToOne
-    return `(SELECT row_to_json(subq) FROM (${subQueryText}) AS subq) AS "${alias}"`;
+    const jsonExpr =
+      inc.relationType === 'one-to-many'
+        ? `COALESCE(json_agg(subq), '[]'::json)`
+        : `row_to_json(subq)`;
+
+    return {
+      from: `LEFT JOIN LATERAL (SELECT ${jsonExpr} AS "${alias}" FROM (${subQueryText}) AS subq) AS "${lateralAlias}" ON true`,
+      select: `"${lateralAlias}"."${alias}" AS "${alias}"`,
+    };
   }
 
   // ═══ JOIN building ═══
@@ -325,7 +334,8 @@ export abstract class SqlGenerator {
       selectClause = `"${mainTableAlias}".*`;
     }
 
-    // INCLUDE subqueries
+    // INCLUDE subqueries (LEFT JOIN LATERAL)
+    const includeFroms: string[] = [];
     for (const inc of sqb.includes) {
       const includeParentAlias = inc.parentAlias || mainTableAlias;
       const cond: WhereCondition = {
@@ -339,7 +349,9 @@ export abstract class SqlGenerator {
             `"${includeParentAlias}"."${inc.parentField}"`,
         },
       };
-      selectClause += `, ${this._buildInclude(inc, cond, values, paramIndex)}`;
+      const lateral = this._buildInclude(inc, cond, values, paramIndex);
+      selectClause += `, ${lateral.select}`;
+      includeFroms.push(lateral.from);
     }
 
     // FROM + JOIN islands
@@ -402,6 +414,11 @@ export abstract class SqlGenerator {
       if (!fromClause)
         fromClause = islandFromClause.substring(5); // remove 'FROM '
       else fromClause += `, ${islandFromClause.substring(5)}`;
+    }
+
+    // Append include LATERAL joins (reference the main/parent table aliases)
+    if (includeFroms.length > 0) {
+      fromClause += ` ${includeFroms.join(' ')}`;
     }
 
     // WHERE

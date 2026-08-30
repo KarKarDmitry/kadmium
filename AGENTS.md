@@ -61,7 +61,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| P1 | 🟡 | Includes as correlated subqueries (per-row server-side re-evaluation, no shared join scan — **not** N+1) | ⬜ Pending: `_buildInclude` marked `@deprecated`; plan is LEFT JOIN LATERAL (to-one) + join & client-side grouping (to-many) |
+| P1 | 🟡 | Includes as correlated subqueries (per-row server-side re-evaluation, no shared join scan — **not** N+1) | ✅ Fixed: includes now render as `LEFT JOIN LATERAL`; result shape unchanged |
 | P2 | 🟢 | No IR cache in hot path | ⬜ Pending |
 | P3 | 🟢 | Schema inspection sequential per table | ✅ Acceptable |
 
@@ -104,7 +104,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T3.4 ⬜ Decide bigint id typing (`number` vs `string`) (D8).
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
 - T3.6 ⬜ Reduce type-layer complexity (TODO 4.1).
-- T3.7 ⬜ Correlated-subquery → LEFT JOIN LATERAL plan.
+- T3.7 ✅ — Correlated-subquery → LEFT JOIN LATERAL.
 - T3.8 ⬜ Security lint for DDL.
 
 ### Phase 4 — Hygiene
