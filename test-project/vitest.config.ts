@@ -8,5 +8,7 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 15000,
     hookTimeout: 30000,
+    // verbose показывает длительность каждого теста
+    reporters: ['verbose'],
   },
 });
