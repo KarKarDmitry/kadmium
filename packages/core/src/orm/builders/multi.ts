@@ -16,12 +16,7 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import type { AnySelectable } from '../types/relations';
-import {
-  RelationBuilder,
-  ToOneRelationBuilder,
-  ToManyRelationBuilder,
-  type IRelationBuilder,
-} from '../field-builders/relation';
+import { Relation, type IRelationBuilder } from '../field-builders/relation';
 
 /**
  * MultiQueryBuilder — построитель многотабличных запросов.
@@ -144,13 +139,7 @@ export class MultiQueryBuilder<
   ): MultiQueryBuilder<T, [...R, ...R2]> {
     const builders = selector(this._createRelationProxy());
     for (const builder of builders) {
-      const parentAlias = (builder as any).parentAlias as string;
-      const parentIr = this.irs.get(parentAlias);
-      if (!parentIr) throw new Error(`Alias "${parentAlias}" not found`);
-      const fieldIr = parentIr.fields[builder.originalName];
-      this.sqb.includes.push(
-        (builder as any).resolveInclude(parentAlias, fieldIr),
-      );
+      this.sqb.includes.push(builder as any);
     }
     return this as unknown as MultiQueryBuilder<T, [...R, ...R2]>;
   }
@@ -229,7 +218,7 @@ export class MultiQueryBuilder<
       get: (_, alias: string) => {
         const ir = irs.get(alias);
         if (!ir) throw new Error(`Alias "${alias}" not found`);
-        return new Proxy({} as Record<string, RelationBuilder>, {
+        return new Proxy({} as Record<string, Relation>, {
           get: (__, name: string) => {
             const fieldIr = ir.fields[name];
             if (!fieldIr || fieldIr.type !== 'ref')
@@ -240,26 +229,14 @@ export class MultiQueryBuilder<
               collection: toSnakeCase(targetName),
               fields: {},
             };
-            const isToMany =
-              !!fieldIr.sourceModel && fieldIr.relation === 'one-to-many';
-            const builder = isToMany
-              ? new ToManyRelationBuilder(
-                  sqb,
-                  name,
-                  targetIr,
-                  undefined,
-                  lookup,
-                  alias as any,
-                )
-              : new ToOneRelationBuilder(
-                  sqb,
-                  name,
-                  targetIr,
-                  undefined,
-                  lookup,
-                  alias as any,
-                );
-            return builder;
+            return new Relation(
+              sqb,
+              name,
+              targetIr,
+              fieldIr,
+              lookup,
+              alias as any,
+            );
           },
         });
       },

@@ -8,11 +8,7 @@ import type {
 import type { WhereCondition } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
-import type { IRelationBuilder } from '../field-builders/relation';
-import type {
-  ToOneRelationBuilder,
-  ToManyRelationBuilder,
-} from '../field-builders/relation';
+import type { IRelationBuilder, Relation } from '../field-builders/relation';
 import type { BuildIncludedResult } from './relations';
 
 export type NullableMethods = {
@@ -258,8 +254,8 @@ export type RelationProxy<
   [
     K in keyof RelationsOf<TModel> & string
   ]: RelationsOf<TModel>[K] extends readonly any[]
-    ? ToManyRelationBuilder<RelationsOf<TModel>[K][number], TModel, K, K>
-    : ToOneRelationBuilder<
+    ? Relation<RelationsOf<TModel>[K][number], K, K>
+    : Relation<
         NonNullable<RelationsOf<TModel>[K]> extends {
           ['~shape']: Record<string, unknown>;
           ['~rel']: Record<string, unknown>;
@@ -269,7 +265,6 @@ export type RelationProxy<
               ['~shape']: Record<string, never>;
               ['~rel']: Record<string, never>;
             },
-        TModel,
         K,
         K
       >;

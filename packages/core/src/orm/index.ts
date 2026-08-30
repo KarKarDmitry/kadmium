@@ -11,11 +11,7 @@ export {
   DateFilter,
   addNullable,
 } from './field-builders/filters';
-export {
-  RelationBuilder,
-  ToOneRelationBuilder,
-  ToManyRelationBuilder,
-} from './field-builders/relation';
+export { Relation, type IRelationBuilder } from './field-builders/relation';
 export type {
   FilterProxy,
   SelectProxy,

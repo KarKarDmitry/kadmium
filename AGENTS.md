@@ -13,7 +13,7 @@
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes (incl. nested), `.default()`, `alias()` and bigint-id typing all work. **Still not production-ready**: IR caching and dual include models remain; no README, TS version mismatch.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes (incl. nested), `.default()`, `alias()`, bigint-id typing and IR caching all work; include models unified. **Still not production-ready**: no README, TS version mismatch.
 
 ---
 
@@ -43,7 +43,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
 | A1 | 🟠 | Dead SQL renderers `single.ts:469-513` (`_renderIncludes`/`_formatGroup`/`_isCondition`) | ✅ Resolved (already removed — stale finding) |
-| A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ⬜ Pending |
+| A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ✅ Fixed: single `Relation` class (DSL + runtime + phantom types); `resolveInclude` and ToOne/ToMany subclasses removed; `IncludedRelation` is its adapter-facing projection. |
 | A3 | 🟠 | `toSql()` requires a live adapter | ⬜ By design |
 | A4 | 🟡 | Type layer is ~60% of ORM code | ⬜ Pending (TODO 4.1) |
 | A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ✅ Fixed: `OrmManager` reuses the registry IR (compiled once at register); `compileCount` stays 0 in the hot path. |
@@ -91,7 +91,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 ### Phase 2 — Architecture debt
 
 - T2.1 ✅ — Delete dead SQL renderers (done, stale).
-- T2.2 ⬜ Unify include mental model.
+- T2.2 ✅ — Unify include mental model (single `Relation` class).
 - T2.3 ⬜ Make `toSql()` adapter-independent.
 - T2.4 ✅ — Add IR cache in hot path (reuse registry IR; `compileCount` test).
 - T2.5 ⬜ Clean `help_source/`.

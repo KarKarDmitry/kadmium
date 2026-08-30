@@ -3,12 +3,7 @@ import type { WhereCondition, WhereGroup } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { AggregateField } from '../ast/aggregate';
 import { createFilter } from '../field-builders/factory';
-import {
-  RelationBuilder,
-  ToOneRelationBuilder,
-  ToManyRelationBuilder,
-  type IRelationBuilder,
-} from '../field-builders/relation';
+import { Relation, type IRelationBuilder } from '../field-builders/relation';
 import type { ModelIR } from '../../ir/index';
 import { toSnakeCase } from '../../ir/index';
 import type {
@@ -165,7 +160,7 @@ export class SingleQueryBuilder<
   ): SingleQueryBuilder<TModel, [...R, ...R2]> {
     const builders = selector(this._createRelationProxy());
     for (const builder of builders) {
-      this.sqb.includes.push(this._resolveInclude(builder as any));
+      this.sqb.includes.push(builder as any);
     }
     return this as unknown as SingleQueryBuilder<TModel, [...R, ...R2]>;
   }
@@ -516,6 +511,7 @@ export class SingleQueryBuilder<
     const ir = this.ir;
     const sqb = this.sqb;
     const lookup = this.irLookup;
+    const parentAlias = [...this.sqb.tableContext.keys()][0] ?? '';
     return new Proxy({} as RelationProxy<TModel>, {
       get: (_, name: string) => {
         const fieldIr = ir.fields[name];
@@ -527,17 +523,15 @@ export class SingleQueryBuilder<
           collection: toSnakeCase(targetName),
           fields: {},
         };
-        const isToMany =
-          !!fieldIr.sourceModel && fieldIr.relation === 'one-to-many';
-        const Ctor = isToMany ? ToManyRelationBuilder : ToOneRelationBuilder;
-        return new Ctor(sqb, name, targetIr, undefined, lookup);
+        return new Relation(
+          sqb,
+          name,
+          targetIr,
+          fieldIr,
+          lookup,
+          parentAlias as any,
+        );
       },
     });
-  }
-
-  private _resolveInclude(builder: RelationBuilder): IncludedRelation {
-    const parentAlias = [...this.sqb.tableContext.keys()][0] ?? '';
-    const fieldIr = this.ir.fields[builder.originalName];
-    return builder.resolveInclude(parentAlias, fieldIr);
   }
 }

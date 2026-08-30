@@ -34,57 +34,89 @@ export interface IRelationBuilder<
   readonly __nested?: TNested;
 }
 
-// ── RelationBuilder base class ──
-
 /**
- * RelationBuilder — базовый класс для include-связей.
+ * Единое представление include-связи: одновременно и билдер (DSL + фантомные
+ * типы для вывода IncludeResult), и рантайм-структура, которую читает
+ * SQL-генератор (implements IncludedRelation). Метаданные связи
+ * (relationType/parentField/childField) вычисляются в конструкторе из fieldIr,
+ * поэтому отдельного шага resolveInclude нет.
  */
-export class RelationBuilder<
-  TModel extends { ['~shape']: Record<string, unknown> } = {
-    ['~shape']: Record<string, never>;
-  },
+export class Relation<
+  TModel extends {
+    ['~shape']: Record<string, unknown>;
+    ['~rel']: Record<string, unknown>;
+  } = { ['~shape']: Record<string, never>; ['~rel']: Record<string, never> },
   TName extends string = string,
   TAlias extends string = TName,
+  TNested extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
   TParentAlias extends string = string,
-> {
+  TSelects = never,
+>
+  implements
+    IRelationBuilder<TName, TAlias, TNested, TParentAlias, TSelects>,
+    IncludedRelation
+{
   public internalSqb: KadmiumSqb;
   public readonly originalName: TName;
   public alias: TAlias;
+  public readonly parentAlias: TParentAlias;
+  public readonly relationType: 'one-to-one' | 'one-to-many' | 'many-to-one';
   public readonly parentField: string;
   public readonly childField: string;
-  /** Parent alias (для multi-запросов) */
-  public readonly parentAlias: TParentAlias;
   /** Phantom: выбранные поля (для type-level) */
-  declare readonly _selects: unknown;
+  declare readonly _selects: TSelects;
+  /** Phantom: список вложенных include для рекурсивного типа */
+  declare readonly __nested?: TNested;
 
   constructor(
     protected parentSqb: KadmiumSqb,
     name: TName,
     public readonly targetIr: ModelIR,
-    alias?: TAlias,
+    fieldIr: FieldIR | undefined,
     /** Опциональная функция для поиска IR связанной модели по имени */
     public readonly irLookup?: (name: string) => ModelIR | undefined,
     /** Parent alias (для multi-запросов) */
     parentAlias?: TParentAlias,
   ) {
     this.originalName = name;
-    this.alias = (alias ?? name) as TAlias;
-    this.parentAlias = (parentAlias ?? alias ?? name) as TParentAlias;
+    this.alias = name as unknown as TAlias;
+    this.parentAlias = (parentAlias ?? name) as TParentAlias;
+
+    let parentField = fieldIr?.foreignKey ?? '';
+    let childField = 'id';
+    const relationType: 'one-to-one' | 'one-to-many' | 'many-to-one' =
+      fieldIr?.sourceModel
+        ? 'one-to-many'
+        : fieldIr?.relation === 'one-to-one'
+          ? 'one-to-one'
+          : 'many-to-one';
+    // Для обратных связей (one-to-many): parentField = PK, childField = FK
+    if (relationType === 'one-to-many') {
+      parentField = 'id';
+      childField = fieldIr?.foreignKey ?? '';
+    }
+    this.relationType = relationType;
+    this.parentField = parentField;
+    this.childField = childField;
+
     this.internalSqb = new KadmiumSqb();
     this.internalSqb.tableContext.set(this.alias, targetIr.name);
-
-    // parentField/childField заполняются в resolveInclude
-    this.parentField = '';
-    this.childField = 'id';
   }
 
-  as<A extends string>(alias: A): any {
+  /** Ключ в результате — совпадает с alias (для IncludedRelation). */
+  get propertyName(): string {
+    return this.alias as string;
+  }
+
+  as<A extends string>(
+    alias: A,
+  ): Relation<TModel, TName, A, TNested, TParentAlias, TSelects> {
     const clone = this.internalSqb.clone();
     clone.tableContext.delete(this.alias);
     clone.tableContext.set(alias, this.targetIr.name);
     this.internalSqb = clone;
     this.alias = alias as unknown as TAlias;
-    return this;
+    return this as any;
   }
 
   where(fn: (t: RealFilterProxy<TModel>) => WhereCondition): this {
@@ -98,7 +130,11 @@ export class RelationBuilder<
     dir: 'asc' | 'desc' = 'asc',
   ): this {
     const field = fn(this._createOrderProxy());
-    this.internalSqb.orders.push({ field: field.fieldName, direction: dir });
+    this.internalSqb.orders.push({
+      field: field.fieldName,
+      column: field.column,
+      direction: dir,
+    });
     return this;
   }
 
@@ -113,49 +149,23 @@ export class RelationBuilder<
     return this;
   }
 
-  /** Вложенный include */
-  include(
-    fn: (
-      ...args: any[]
-    ) => readonly IRelationBuilder<any, any, any, any, any>[],
-  ): any {
+  /** Вложенный include: дочерний Relation пушится прямо в internalSqb.includes. */
+  include<const R extends readonly IRelationBuilder<any, any, any, any, any>[]>(
+    fn: (t: RelationProxy<TModel>) => R,
+  ): Relation<
+    TModel,
+    TName,
+    TAlias,
+    [...TNested, ...R],
+    TParentAlias,
+    TSelects
+  > {
     const proxy = this._createRelationProxy();
     const builders = fn(proxy);
     for (const builder of builders) {
-      this.internalSqb.includes.push(this._resolveInclude(builder as any));
+      this.internalSqb.includes.push(builder as any);
     }
-    return this;
-  }
-
-  /** Превратить этот RelationBuilder в IncludedRelation */
-  resolveInclude(
-    parentAlias: string,
-    fieldIr: FieldIR | undefined,
-  ): IncludedRelation {
-    let parentField = fieldIr?.foreignKey ?? '';
-    let childField = 'id';
-    const relationType: 'one-to-one' | 'one-to-many' | 'many-to-one' =
-      fieldIr?.sourceModel
-        ? 'one-to-many'
-        : fieldIr?.relation === 'one-to-one'
-          ? 'one-to-one'
-          : 'many-to-one';
-
-    // Для обратных связей (one-to-many): parentField = PK, childField = FK
-    if (relationType === 'one-to-many') {
-      parentField = 'id'; // FK родителя (PK текущей таблицы)
-      childField = fieldIr?.foreignKey ?? '';
-    }
-
-    return {
-      parentAlias,
-      propertyName: this.alias,
-      relationType,
-      targetIr: this.targetIr,
-      parentField,
-      childField,
-      internalSqb: this.internalSqb,
-    };
+    return this as any;
   }
 
   protected _createFilterProxy(): Record<string, BaseFilter | NullableFilter> {
@@ -174,27 +184,38 @@ export class RelationBuilder<
 
   protected _createFieldProxy(): SelectProxy<TModel> {
     const alias = this.alias;
+    const ir = this.targetIr;
     return new Proxy({} as SelectProxy<TModel>, {
-      get: (_, field: string) => new SelectableField(alias, field),
+      get: (_, field: string) =>
+        new SelectableField(
+          alias,
+          field,
+          undefined,
+          undefined,
+          ir.fields[field]?.alias,
+        ),
     });
   }
 
   private _createOrderProxy(): OrderProxy<TModel> {
     const alias = this.alias;
+    const ir = this.targetIr;
     return new Proxy({} as OrderProxy<TModel>, {
       get: (_, field: string) => ({
         tableAlias: alias,
         fieldName: field as string,
+        column: ir.fields[field]?.alias,
       }),
     });
   }
 
   /** Создаёт прокси для вложенных include */
-  protected _createRelationProxy(): Record<string, RelationBuilder> {
+  protected _createRelationProxy(): RelationProxy<TModel> {
     const sqb = this.internalSqb;
     const ir = this.targetIr;
     const lookup = this.irLookup;
-    return new Proxy({} as Record<string, RelationBuilder>, {
+    const parentAlias = this.alias;
+    return new Proxy({} as Record<string, Relation>, {
       get: (_, name: string) => {
         const fieldIr = ir.fields[name];
         if (!fieldIr || fieldIr.type !== 'ref')
@@ -205,134 +226,15 @@ export class RelationBuilder<
           collection: toSnakeCase(targetName),
           fields: {},
         };
-        const isToMany =
-          !!fieldIr.sourceModel && fieldIr.relation === 'one-to-many';
-        return isToMany
-          ? new ToManyRelationBuilder(sqb, name, targetIr, undefined, lookup)
-          : new ToOneRelationBuilder(sqb, name, targetIr, undefined, lookup);
+        return new Relation(
+          sqb,
+          name,
+          targetIr,
+          fieldIr,
+          lookup,
+          parentAlias as any,
+        );
       },
-    });
-  }
-
-  /** Превращает дочерний RelationBuilder в IncludedRelation для internalSqb */
-  protected _resolveInclude(builder: RelationBuilder): IncludedRelation {
-    const fieldIr = this.targetIr.fields[builder.originalName];
-    return builder.resolveInclude(this.alias, fieldIr);
-  }
-}
-
-// ── ToOneRelationBuilder ──
-
-export class ToOneRelationBuilder<
-  T extends {
-    ['~shape']: Record<string, unknown>;
-    ['~rel']: Record<string, unknown>;
-  } = {
-    ['~shape']: Record<string, never>;
-    ['~rel']: Record<string, never>;
-  },
-  TParent extends {
-    ['~shape']: Record<string, unknown>;
-    ['~rel']: Record<string, unknown>;
-  } = { ['~shape']: Record<string, never>; ['~rel']: Record<string, never> },
-  TName extends string = string,
-  TAlias extends string = TName,
-  TNested extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
-  TParentAlias extends string = string,
-  TSelects = never,
-> extends RelationBuilder<T, TName, TAlias, TParentAlias> {
-  /** Phantom: список вложенных include для рекурсивного типа */
-  declare readonly __nested?: TNested;
-  /** Phantom: явно выбранные поля (когда вызывается .select() на builder) */
-  declare readonly _selects: TSelects;
-
-  /** Переименовать с новым TAlias */
-  as<A extends string>(
-    alias: A,
-  ): ToOneRelationBuilder<
-    T,
-    TParent,
-    TName,
-    A,
-    TNested,
-    TParentAlias,
-    TSelects
-  > {
-    super.as(alias);
-    return this as any;
-  }
-
-  /** Вложенный include с аккумуляцией TNested */
-  include<const R extends readonly IRelationBuilder<any, any, any, any, any>[]>(
-    fn: (t: RelationProxy<T>) => R,
-  ): ToOneRelationBuilder<
-    T,
-    TParent,
-    TName,
-    TAlias,
-    [...TNested, ...R],
-    TParentAlias,
-    TSelects
-  > {
-    super.include(fn as any);
-    return this as any;
-  }
-}
-
-// ── ToManyRelationBuilder ──
-
-export class ToManyRelationBuilder<
-  T extends {
-    ['~shape']: Record<string, unknown>;
-    ['~rel']: Record<string, unknown>;
-  } = {
-    ['~shape']: Record<string, never>;
-    ['~rel']: Record<string, never>;
-  },
-  TParent extends {
-    ['~shape']: Record<string, unknown>;
-    ['~rel']: Record<string, unknown>;
-  } = { ['~shape']: Record<string, never>; ['~rel']: Record<string, never> },
-  TName extends string = string,
-  TAlias extends string = TName,
-  TNested extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
-  TParentAlias extends string = string,
-  TSelects = never,
-> extends RelationBuilder<T, TName, TAlias, TParentAlias> {
-  /** Phantom: список вложенных include для рекурсивного типа */
-  declare readonly __nested?: TNested;
-  /** Phantom: явно выбранные поля (когда вызывается .select() на builder) */
-  declare readonly _selects: TSelects;
-
-  /** Переименовать с новым TAlias */
-  as<A extends string>(
-    alias: A,
-  ): ToManyRelationBuilder<
-    T,
-    TParent,
-    TName,
-    A,
-    TNested,
-    TParentAlias,
-    TSelects
-  > {
-    super.as(alias);
-    return this as any;
-  }
-
-  /** Вложенный include с аккумуляцией TNested */
-  include<const R extends readonly IRelationBuilder<any, any, any, any, any>[]>(
-    fn: (t: RelationProxy<T>) => R,
-  ): ToManyRelationBuilder<
-    T,
-    TParent,
-    TName,
-    TAlias,
-    [...TNested, ...R],
-    TParentAlias,
-    TSelects
-  > {
-    super.include(fn as any);
-    return this as any;
+    }) as unknown as RelationProxy<TModel>;
   }
 }
