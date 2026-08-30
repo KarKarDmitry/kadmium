@@ -8,7 +8,7 @@
 
 - **Monorepo** (npm workspaces): `packages/core` (ORM + CLI), `packages/sql-types` (interfaces), `packages/sql-pg` (PostgreSQL adapter).
 - **Git**: initialized (`fd28a9f`). Root `.gitignore` present; `test-project/.env` is **untracked**.
-- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 11 files / 67 tests pass. `npm run test:project` + `test-project` has `typecheck`.
+- **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 12 files / 69 tests pass. `npm run test:project` + `test-project` has `typecheck`.
 - **help_source/**: gitignored legacy scaffolding; clean it up eventually.
 
 ## Verdict
@@ -46,7 +46,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ⬜ Pending |
 | A3 | 🟠 | `toSql()` requires a live adapter | ⬜ By design |
 | A4 | 🟡 | Type layer is ~60% of ORM code | ⬜ Pending (TODO 4.1) |
-| A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ⬜ Pending |
+| A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ✅ Fixed: `OrmManager` reuses the registry IR (compiled once at register); `compileCount` stays 0 in the hot path. |
 | A6 | 🟡 | `help_source/` confusing coexistence | ⬜ Pending (cleanup) |
 
 ### 3️⃣ Security
@@ -62,7 +62,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
 | P1 | 🟡 | Includes as correlated subqueries (per-row server-side re-evaluation, no shared join scan — **not** N+1) | ✅ Fixed: includes now render as `LEFT JOIN LATERAL`; result shape unchanged |
-| P2 | 🟢 | No IR cache in hot path | ⬜ Pending |
+| P2 | 🟢 | No IR cache in hot path | ✅ Fixed via A5 |
 | P3 | 🟢 | Schema inspection sequential per table | ✅ Acceptable |
 
 ### 5️⃣ Readability / Hygiene
@@ -93,7 +93,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T2.1 ✅ — Delete dead SQL renderers (done, stale).
 - T2.2 ⬜ Unify include mental model.
 - T2.3 ⬜ Make `toSql()` adapter-independent.
-- T2.4 ⬜ Add IR cache in hot path.
+- T2.4 ✅ — Add IR cache in hot path (reuse registry IR; `compileCount` test).
 - T2.5 ⬜ Clean `help_source/`.
 
 ### Phase 3 — Medium effort
@@ -122,7 +122,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [x] `tsc -p packages/sql-pg` — no type errors.
 - [x] `npm run lint` — no lint errors (core + sql-pg + sql-types).
 - [x] `npm run format:check` — prettier happy (core + sql-pg + sql-types).
-- [x] `npm run test:project` — 67 pass (requires docker `db:up`).
+- [x] `npm run test:project` — 69 pass (requires docker `db:up`).
 - [x] `test-project: npm run typecheck` — tests typechecked, clean.
 - [x] `npm run build` — succeeds.
 

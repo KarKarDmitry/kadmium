@@ -39,15 +39,47 @@ function buildIrLookup(app?: AppCore): (name: string) => ModelIR | undefined {
 
 /**
  * OrmManager — менеджер ORM-запросов, привязанный к AppCore.
+ *
+ * IR кешируется: модели компилируются один раз при регистрации в AppCore
+ * (ModelRegistry), а `single()`/`query()` читают из реестра (O(1)) вместо
+ * повторной компиляции на каждый запрос.
  */
 export class OrmManager {
+  private _irCache = new Map<string, ModelIR>();
+  private _irLookup: (name: string) => ModelIR | undefined;
+
+  /** Сколько раз IR компилировался в горячем пути (не из кеша). */
+  public compileCount = 0;
+
   constructor(
     private appCore: AppCore,
     private _txAdapter?: SqlAdapter,
-  ) {}
+  ) {
+    this._irLookup = buildIrLookup(this.appCore);
+  }
 
   private get _adapter(): SqlAdapter | undefined {
     return this._txAdapter ?? this.appCore.sqlAdapter;
+  }
+
+  /** IR по классу модели: из реестра AppCore, иначе скомпилировать + закешировать. */
+  private _irFor<TModel>(modelClass: { new (): TModel }): ModelIR {
+    const name = modelClass.name;
+    const cached = this._irCache.get(name);
+    if (cached) return cached;
+
+    try {
+      const ir = this.appCore.ir(name);
+      this._irCache.set(name, ir);
+      return ir;
+    } catch {
+      // не в реестре — компилируем
+    }
+
+    this.compileCount++;
+    const ir = compileModel(new (modelClass as unknown as { new (): Model })());
+    this._irCache.set(name, ir);
+    return ir;
   }
 
   single<
@@ -56,11 +88,10 @@ export class OrmManager {
       ['~rel']: Record<string, unknown>;
     },
   >(modelClass: { new (): TModel }, ir?: ModelIR): SingleQueryBuilder<TModel> {
-    const instance = new (modelClass as unknown as { new (): Model })();
-    const compiled = ir ?? compileModel(instance);
+    const compiled = ir ?? this._irFor(modelClass);
     return new SingleQueryBuilder<TModel>(
       compiled,
-      buildIrLookup(this.appCore),
+      this._irLookup,
       this._adapter,
     );
   }
@@ -104,21 +135,18 @@ export class OrmManager {
   >(aliases: T): MultiQueryBuilder<T> {
     const irs = new Map<string, ModelIR>();
     for (const [alias, cls] of Object.entries(aliases)) {
-      const instance = new (cls as unknown as { new (): Model })();
-      const ir = compileModel(instance);
-      irs.set(alias, ir);
+      irs.set(alias, this._irFor(cls as { new (): object }));
     }
-    return new MultiQueryBuilder<T>(
-      irs,
-      buildIrLookup(this.appCore),
-      this._adapter,
-    );
+    return new MultiQueryBuilder<T>(irs, this._irLookup, this._adapter);
   }
 }
 
 /**
  * Автономный orm — без AppCore (irLookup только через Model.resolve).
+ * IR кешируется на уровне модуля.
  */
+const standaloneCache = new Map<string, ModelIR>();
+
 export const orm = {
   single<
     TModel extends {
@@ -126,8 +154,14 @@ export const orm = {
       ['~rel']: Record<string, unknown>;
     },
   >(modelClass: { new (): TModel }, ir?: ModelIR): SingleQueryBuilder<TModel> {
-    const instance = new (modelClass as unknown as { new (): Model })();
-    const compiled = ir ?? compileModel(instance);
+    const name = modelClass.name;
+    let compiled = ir ?? standaloneCache.get(name);
+    if (!compiled) {
+      compiled = compileModel(
+        new (modelClass as unknown as { new (): Model })(),
+      );
+      standaloneCache.set(name, compiled);
+    }
     return new SingleQueryBuilder<TModel>(compiled, buildIrLookup());
   },
 };
