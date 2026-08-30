@@ -104,6 +104,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T3.4 ✅ — Decide bigint id typing (`number` vs `string`) (D8): adapter normalizes `int8` → `number`; use uuid/string PK for >2^53.
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
 - T3.6 🟡 Reduce type-layer complexity (TODO 4.1) — type-only files extracted to `.d.ts`; shipping built declarations deferred.
+- T3.9 ⬜ Ship built declarations: set `main`/`types` → `dist` (`.js` + `.d.ts`) so consumers load pre-compiled output instead of `.ts` source — this is what actually delivers the consumer compile-speed win (T3.6 follow-up).
 - T3.7 ✅ — Correlated-subquery → LEFT JOIN LATERAL.
 - T3.8 ⬜ Security lint for DDL.
 
