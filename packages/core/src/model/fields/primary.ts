@@ -1,4 +1,4 @@
-import { _DBOptions } from '../types/_base';
+import type { _DBOptions } from '../types/_base';
 import type {
   PrimaryField,
   BigIntPrimaryField,

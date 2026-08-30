@@ -45,7 +45,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A1 | 🟠 | Dead SQL renderers `single.ts:469-513` (`_renderIncludes`/`_formatGroup`/`_isCondition`) | ✅ Resolved (already removed — stale finding) |
 | A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ✅ Fixed: single `Relation` class (DSL + runtime + phantom types); `resolveInclude` and ToOne/ToMany subclasses removed; `IncludedRelation` is its adapter-facing projection. |
 | A3 | 🟠 | `toSql()` requires a live adapter | ⬜ By design |
-| A4 | 🟡 | Type layer is ~60% of ORM code | ⬜ Pending (TODO 4.1) |
+| A4 | 🟡 | Type layer is ~60% of ORM code | 🟡 Partial: pure type files moved to `.d.ts` (`orm/types/*`, `model/types/*`). Real consumer compile-speed win still needs shipping built `.d.ts` (`main`/`types` → `dist`) — deferred. |
 | A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ✅ Fixed: `OrmManager` reuses the registry IR (compiled once at register); `compileCount` stays 0 in the hot path. |
 | A6 | 🟡 | `help_source/` confusing coexistence | ⬜ Pending (cleanup) |
 
@@ -103,7 +103,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T3.3 ✅ — Make `alias()` affect the DB column name (D7).
 - T3.4 ✅ — Decide bigint id typing (`number` vs `string`) (D8): adapter normalizes `int8` → `number`; use uuid/string PK for >2^53.
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
-- T3.6 ⬜ Reduce type-layer complexity (TODO 4.1).
+- T3.6 🟡 Reduce type-layer complexity (TODO 4.1) — type-only files extracted to `.d.ts`; shipping built declarations deferred.
 - T3.7 ✅ — Correlated-subquery → LEFT JOIN LATERAL.
 - T3.8 ⬜ Security lint for DDL.
 
