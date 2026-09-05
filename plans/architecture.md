@@ -2,7 +2,7 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Verified 2026-09-04 against actual code.
-> Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`).
+> Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`).
 
 ---
 
@@ -152,11 +152,9 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 **Краткое описание:** `PgAdapter.create()` (lines 191-205) и `TransactionalPgAdapter.create()` (lines 131-145) генерируют одинаковый INSERT SQL. `execute()` аналогично дублируется.
 
-**Риски изменений:**
-- Вынести генерацию SQL в `SqlGenerator` — безопасно
-- Оставить как есть — дублирование Acceptable для 2 классов
+**Статус:** ✅ Вынесены shared-хелперы `createRow()` и `rawQuery()` в `9e45588`. `execute()` оставлен в классах (7 строк, дублирование минимальное).
 
 **Связанные файлы:**
 - `packages/sql-pg/src/index.ts` (PgAdapter, TransactionalPgAdapter)
 
-**Коммит:**
+**Коммит:** `9e45588`
