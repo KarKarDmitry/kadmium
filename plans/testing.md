@@ -30,7 +30,7 @@
 - `packages/core/package.json` (добавлен vitest + test script)
 - `packages/core/tsconfig.json` (добавлен test includes)
 
-**Коммит:** (pending)
+**Коммит:** `aa8b2a0`
 
 ---
 
@@ -65,15 +65,20 @@
 
 **Важность:** 🟢 Medium
 
-**Краткое описание:** В AGENTS.md указано: "`pgType`/`diffToHealth`/`compile` unit tests were **removed**; pure functions now covered only indirectly." Чистые функции теперь покрыты только косвенно.
+**Статус:** ✅ Добавлены unit-тесты для diff/types.ts (54 cases) и diffToHealth (8 cases) в `packages/sql-pg/test/diff/`. Тесты для compileModel не добавлены — требуют сложного мока иерархии Model.
 
-**Риски изменений:**
-- Вернуть unit-тесты для чистых функций — безопасно
-- Оставить как есть — минимум риска, но худшее покрытие
-- Риск: минимальный
+**Покрыто:**
+- `pgType` — все типы полей + ref resolution + db_type (18 cases)
+- `normalizePgType` — все нормализации + case insensitive (11 cases)
+- `isPrimaryField` — isPrimary + type=primary (3 cases)
+- `renderDefault` — все типы + escape + Date (8 cases)
+- `irToColumns` — sourceModel фильтрация + alias + autoIncrement (4 cases)
+- `expectedIndexes` — unique/ref/index/sourceModel/alias (6 cases)
+- `expectedForeignKeys` — ref/sourceModel/unknown target/alias (4 cases)
+- `diffToHealth` — все варианты summary + комбинации (8 cases)
 
 **Связанные файлы:**
-- `packages/sql-pg/src/diff.ts` (pgType, diffToHealth)
-- `packages/core/src/ir/compile.ts` (compileModel)
+- `packages/sql-pg/test/diff/types.test.ts` (создан)
+- `packages/sql-pg/test/diff/health.test.ts` (создан)
 
-**Коммит:**
+**Коммит:** (pending)
