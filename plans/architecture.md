@@ -2,7 +2,7 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Verified 2026-09-04 against actual code.
-> Updated 2026-09-05 — added importance fields, new findings (A3-A6).
+> Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`).
 
 ---
 
@@ -109,16 +109,14 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 **Краткое описание:** `BaseWhereBuilder` (49 строк) в `base.ts` определяет generic класс для WHERE-дерева, но ни `SingleQueryBuilder`, ни `MultiQueryBuilder` его не используют. Оба имеют собственные `_or()` методы с дублирующейся логикой.
 
-**Риски изменений:**
-- Удалить `base.ts` — безопасно
-- Рефакторить builders чтобы наследоваться от `BaseWhereBuilder` — средний риск
+**Статус:** ✅ Удалён в `f3917da` вместе с A6.
 
 **Связанные файлы:**
-- `packages/core/src/orm/builders/base.ts` (49 строк)
-- `packages/core/src/orm/builders/single.ts` (_or lines 90-114)
-- `packages/core/src/orm/builders/multi.ts` (_or lines 73-93)
+- `packages/core/src/orm/builders/base.ts` (удалён)
+- `packages/core/src/orm/builders/single.ts`
+- `packages/core/src/orm/builders/multi.ts`
 
-**Коммит:**
+**Коммит:** `f3917da`
 
 ---
 
@@ -132,15 +130,14 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 Оба обрабатывают: пустые условия, смену оператора, оборачивание в группу. `BaseWhereBuilder` (A5) содержит похожую логику `_add()`, но не используется.
 
-**Риски изменений:**
-- Вынести в shared helper — безопасно
-- Использовать `BaseWhereBuilder` (если не удалять A5) — средний риск
+**Статус:** ✅ Вынесено в `where-helpers.ts` с shared-функцией `addOrCondition()`. Удалены дублирующие `_or()` из обоих builders. Удалён мёртвый `BaseWhereBuilder`.
 
 **Связанные файлы:**
-- `packages/core/src/orm/builders/single.ts` (_or)
-- `packages/core/src/orm/builders/multi.ts` (_or)
+- `packages/core/src/orm/builders/where-helpers.ts` (создан)
+- `packages/core/src/orm/builders/single.ts` (_or удалён)
+- `packages/core/src/orm/builders/multi.ts` (_or удалён)
 
-**Коммит:**
+**Коммит:** `f3917da`
 
 ---
 
