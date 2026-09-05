@@ -295,6 +295,8 @@ export abstract class SqlGenerator {
         return this._buildUpdateQuery(sqb);
       case 'delete':
         return this._buildDeleteQuery(sqb);
+      case 'upsert':
+        return this._buildUpsertQuery(sqb);
       default:
         throw new Error(`Operation "${sqb.operation}" not implemented`);
     }
@@ -494,6 +496,55 @@ export abstract class SqlGenerator {
 
     return {
       text: `UPDATE "${collectionName}" AS "${tableAlias}" SET ${setClause} ${whereClause} RETURNING *`
+        .trim()
+        .replace(/\s+/g, ' '),
+      values,
+    };
+  }
+
+  // ═══ UPSERT ═══
+
+  private _buildUpsertQuery(sqb: ReadonlySqb): {
+    text: string;
+    values: unknown[];
+  } {
+    if (sqb.tableContext.size !== 1)
+      throw new Error('UPSERT requires exactly one table');
+    const collectionName = sqb.tableContext.values().next().value;
+    const data = sqb.upsertData;
+
+    if (!data || Object.keys(data).length === 0)
+      throw new Error('No data provided for UPSERT');
+
+    const keys = Object.keys(data);
+    const columns = keys.map((k) => `"${k}"`).join(', ');
+    const values: unknown[] = [];
+    const paramIndex = { p: 1 };
+    const placeholders = keys
+      .map((k) => {
+        values.push(data[k]);
+        return `$${paramIndex.p++}`;
+      })
+      .join(', ');
+
+    let onConflict = '';
+    if (sqb.conflictTarget?.length) {
+      const target = sqb.conflictTarget.map((c) => `"${c}"`).join(', ');
+      if (sqb.doNothing) {
+        onConflict = ` ON CONFLICT (${target}) DO NOTHING`;
+      } else {
+        const updateCols = keys
+          .filter((k) => !sqb.conflictTarget!.includes(k))
+          .map((k) => `"${k}" = EXCLUDED."${k}"`)
+          .join(', ');
+        onConflict = updateCols
+          ? ` ON CONFLICT (${target}) DO UPDATE SET ${updateCols}`
+          : ` ON CONFLICT (${target}) DO NOTHING`;
+      }
+    }
+
+    return {
+      text: `INSERT INTO "${collectionName}" (${columns}) VALUES (${placeholders})${onConflict} RETURNING *`
         .trim()
         .replace(/\s+/g, ' '),
       values,
