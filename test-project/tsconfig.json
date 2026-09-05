@@ -9,6 +9,6 @@
   "ts-node": {
     "files": true,
   },
-  "include": ["src/**/*", ".types/**/*", "test/**/*"],
+  "include": ["src/**/*", ".types/**/*", "test/**/*", "bench/**.*"],
   "exclude": ["node_modules"],
 }

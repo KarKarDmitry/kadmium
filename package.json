@@ -8,13 +8,14 @@
   ],
   "scripts": {
     "build": "npm run build -w packages/core",
-    "lint": "eslint packages/core/src packages/sql-pg/src packages/sql-types/src",
+    "lint": "eslint packages/core/src packages/sql-pg/src packages/sql-types/src test-project",
     "lint:fix": "eslint packages/core/src packages/sql-pg/src packages/sql-types/src --fix",
     "check:type": "tsc --noEmit -p packages/core/tsconfig.json",
     "format": "prettier --write \"packages/{core,sql-pg,sql-types}/src/**/*.ts\"",
     "format:check": "prettier --check \"packages/{core,sql-pg,sql-types}/src/**/*.ts\"",
     "test:project": "cd test-project && npm run test",
-    "test:sql-pg": "npm run test -w packages/sql-pg"
+    "test:sql-pg": "npm run test -w packages/sql-pg",
+    "test:core": "npm run test -w packages/core"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
