@@ -2,8 +2,7 @@ import { KadmiumSqb, type IncludedRelation } from '../sqb';
 import type { WhereCondition } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import type { FieldIR, ModelIR } from '../../ir/index';
-import { toSnakeCase } from '../../ir/index';
-import { createFilter, type NullableFilter } from './factory';
+import { type NullableFilter } from './factory';
 import { BaseFilter } from './base-filter';
 import type {
   OrderField,
@@ -12,6 +11,13 @@ import type {
   RelationProxy,
   SelectProxy,
 } from '../types/proxy';
+import {
+  createFilterProxy,
+  createSelectProxy,
+  createOrderProxy,
+  createRelationProxy,
+  type RelationFactory,
+} from '../builders/query-proxies';
 
 // ── IRelationBuilder interface ──
 
@@ -169,72 +175,25 @@ export class Relation<
   }
 
   protected _createFilterProxy(): Record<string, BaseFilter | NullableFilter> {
-    const alias = this.alias;
-    const ir = this.targetIr;
-    const sqb = this.internalSqb;
-    return new Proxy({} as Record<string, BaseFilter | NullableFilter>, {
-      get: (_, field: string) => {
-        const fieldIr = ir.fields[field];
-        if (!fieldIr)
-          throw new Error(`Field "${field}" not found in ${ir.name}`);
-        return createFilter(sqb, field, alias, fieldIr);
-      },
-    });
+    return createFilterProxy(this.alias, this.targetIr, this.internalSqb) as unknown as Record<string, BaseFilter | NullableFilter>;
   }
 
   protected _createFieldProxy(): SelectProxy<TModel> {
-    const alias = this.alias;
-    const ir = this.targetIr;
-    return new Proxy({} as SelectProxy<TModel>, {
-      get: (_, field: string) =>
-        new SelectableField(
-          alias,
-          field,
-          undefined,
-          undefined,
-          ir.fields[field]?.alias,
-        ),
-    });
+    return createSelectProxy(this.alias, this.targetIr);
   }
 
   private _createOrderProxy(): OrderProxy<TModel> {
-    const alias = this.alias;
-    const ir = this.targetIr;
-    return new Proxy({} as OrderProxy<TModel>, {
-      get: (_, field: string) => ({
-        tableAlias: alias,
-        fieldName: field as string,
-        column: ir.fields[field]?.alias,
-      }),
-    });
+    return createOrderProxy(this.alias, this.targetIr);
   }
 
   /** Создаёт прокси для вложенных include */
   protected _createRelationProxy(): RelationProxy<TModel> {
-    const sqb = this.internalSqb;
-    const ir = this.targetIr;
-    const lookup = this.irLookup;
-    const parentAlias = this.alias;
-    return new Proxy({} as Record<string, Relation>, {
-      get: (_, name: string) => {
-        const fieldIr = ir.fields[name];
-        if (!fieldIr || fieldIr.type !== 'ref')
-          throw new Error(`Relation "${name}" not found in ${ir.name}`);
-        const targetName = fieldIr.sourceModel ?? fieldIr.ref ?? name;
-        const targetIr: ModelIR = lookup?.(targetName) ?? {
-          name: targetName,
-          collection: toSnakeCase(targetName),
-          fields: {},
-        };
-        return new Relation(
-          sqb,
-          name,
-          targetIr,
-          fieldIr,
-          lookup,
-          parentAlias as any,
-        );
-      },
-    }) as unknown as RelationProxy<TModel>;
+    return createRelationProxy(
+      this.alias,
+      this.targetIr,
+      this.internalSqb,
+      Relation as unknown as RelationFactory,
+      this.irLookup,
+    );
   }
 }

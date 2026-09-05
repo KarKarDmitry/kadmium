@@ -2,10 +2,8 @@ import { KadmiumSqb, type IncludedRelation } from '../sqb';
 import type { WhereCondition, WhereGroup } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { AggregateField } from '../ast/aggregate';
-import { createFilter } from '../field-builders/factory';
 import { Relation, type IRelationBuilder } from '../field-builders/relation';
 import type { ModelIR } from '../../ir/index';
-import { toSnakeCase } from '../../ir/index';
 import type {
   FilterProxy,
   SelectProxy,
@@ -27,6 +25,12 @@ import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { addOrCondition } from './where-helpers';
+import {
+  createFilterProxy,
+  createSelectProxy,
+  createOrderProxy,
+  createRelationProxy,
+} from './query-proxies';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -442,71 +446,28 @@ export class SingleQueryBuilder<
   }
 
   private _createFilterProxy(): FilterProxy<TModel> {
-    const alias = [...this.sqb.tableContext.keys()][0] ?? this.ir.name;
-    const ir = this.ir;
-    const sqb = this.sqb;
-    return new Proxy({} as FilterProxy<TModel>, {
-      get: (_, field: string) => {
-        const fieldIr = ir.fields[field];
-        if (!fieldIr)
-          throw new Error(`Field "${field}" not found in ${ir.name}`);
-        return createFilter(sqb, field, alias, fieldIr);
-      },
-    });
+    return createFilterProxy(this._alias(), this.ir, this.sqb);
   }
 
   private _createSelectProxy(): SelectProxy<TModel> {
-    const alias = [...this.sqb.tableContext.keys()][0] ?? this.ir.name;
-    const ir = this.ir;
-    return new Proxy({} as SelectProxy<TModel>, {
-      get: (_, field: string) =>
-        new SelectableField(
-          alias,
-          field,
-          undefined,
-          undefined,
-          ir.fields[field]?.alias,
-        ),
-    });
+    return createSelectProxy(this._alias(), this.ir);
   }
 
   private _createOrderProxy(): OrderProxy<TModel> {
-    const alias = [...this.sqb.tableContext.keys()][0] ?? this.ir.name;
-    const ir = this.ir;
-    return new Proxy({} as OrderProxy<TModel>, {
-      get: (_, field: string) => ({
-        tableAlias: alias,
-        fieldName: field as string,
-        column: ir.fields[field]?.alias,
-      }),
-    });
+    return createOrderProxy(this._alias(), this.ir);
   }
 
   private _createRelationProxy(): RelationProxy<TModel> {
-    const ir = this.ir;
-    const sqb = this.sqb;
-    const lookup = this.irLookup;
-    const parentAlias = [...this.sqb.tableContext.keys()][0] ?? '';
-    return new Proxy({} as RelationProxy<TModel>, {
-      get: (_, name: string) => {
-        const fieldIr = ir.fields[name];
-        if (!fieldIr || fieldIr.type !== 'ref')
-          throw new Error(`Relation "${name}" not found in ${ir.name}`);
-        const targetName = fieldIr.sourceModel ?? fieldIr.ref ?? name;
-        const targetIr: ModelIR = lookup(targetName) ?? {
-          name: targetName,
-          collection: toSnakeCase(targetName),
-          fields: {},
-        };
-        return new Relation(
-          sqb,
-          name,
-          targetIr,
-          fieldIr,
-          lookup,
-          parentAlias as any,
-        );
-      },
-    });
+    return createRelationProxy(
+      this._alias(),
+      this.ir,
+      this.sqb,
+      Relation as unknown as import('./query-proxies').RelationFactory,
+      this.irLookup,
+    );
+  }
+
+  private _alias(): string {
+    return [...this.sqb.tableContext.keys()][0] ?? this.ir.name;
   }
 }
