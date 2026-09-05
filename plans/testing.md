@@ -37,15 +37,13 @@
 
 **Краткое описание:** `ResultReshaper.reshape()` — критический компонент, но нет unit-тестов. Баги в reshape приводят к неправильным результатам.
 
-**Риски изменений:**
-- Добавить unit-тесты с mock-данными — безопасно
-- Покрыть edge cases (пустые строки, null values, nested includes) — безопасно
-- Риск: минимальный
+**Статус:** ✅ Добавлены unit-тесты (11 cases) в `packages/sql-pg/test/result-reshaper.test.ts` в `36951f7`. Vitest настроен в sql-pg.
 
 **Связанные файлы:**
 - `packages/sql-pg/src/result-reshaper.ts`
+- `packages/sql-pg/test/result-reshaper.test.ts` (создан)
 
-**Коммит:**
+**Коммит:** `36951f7`
 
 ---
 
