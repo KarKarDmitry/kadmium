@@ -1,5 +1,5 @@
 import { KadmiumSqb } from '../sqb';
-import type { WhereCondition, WhereGroup } from '../ast/where';
+import type { WhereCondition } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import type { ModelIR } from '../../ir/index';
@@ -17,6 +17,7 @@ import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import type { AnySelectable } from '../types/relations';
 import { Relation, type IRelationBuilder } from '../field-builders/relation';
+import { addOrCondition } from './where-helpers';
 
 /**
  * MultiQueryBuilder — построитель многотабличных запросов.
@@ -66,30 +67,8 @@ export class MultiQueryBuilder<
 
   or(fn: (t: MultiFilterProxy<T>) => WhereCondition): this {
     const condition = fn(this._createFilterProxy());
-    this._or(condition);
+    addOrCondition(this.sqb.wheres, condition);
     return this;
-  }
-
-  private _or(condition: WhereCondition): void {
-    if (this.sqb.wheres.conditions.length === 0) {
-      this.sqb.wheres.conditions.push(condition);
-      return;
-    }
-    if (this.sqb.wheres.op === 'OR') {
-      this.sqb.wheres.conditions.push(condition);
-      return;
-    }
-    if (this.sqb.wheres.conditions.length === 1) {
-      this.sqb.wheres.op = 'OR';
-      this.sqb.wheres.conditions.push(condition);
-    } else {
-      const prev: WhereGroup = {
-        op: this.sqb.wheres.op,
-        conditions: [...this.sqb.wheres.conditions],
-      };
-      this.sqb.wheres.op = 'OR';
-      this.sqb.wheres.conditions = [prev, condition];
-    }
   }
 
   // ── join ──

@@ -26,6 +26,7 @@ import type {
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import { addOrCondition } from './where-helpers';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -63,7 +64,7 @@ export class SingleQueryBuilder<
 
   or(fn: (t: FilterProxy<TModel>) => WhereCondition): this {
     const proxy = this._createFilterProxy();
-    this._or(fn(proxy));
+    addOrCondition(this.sqb.wheres, fn(proxy));
     return this;
   }
 
@@ -85,32 +86,6 @@ export class SingleQueryBuilder<
     }
 
     return this;
-  }
-
-  private _or(condition: WhereCondition): void {
-    if (this.sqb.wheres.conditions.length === 0) {
-      this.sqb.wheres.conditions.push(condition);
-      return;
-    }
-    // Если текущий оператор уже OR — просто добавляем
-    if (this.sqb.wheres.op === 'OR') {
-      this.sqb.wheres.conditions.push(condition);
-      return;
-    }
-    // Меняем оператор
-    if (this.sqb.wheres.conditions.length === 1) {
-      // Всего одно условие — не нужно оборачивать в группу
-      this.sqb.wheres.op = 'OR';
-      this.sqb.wheres.conditions.push(condition);
-    } else {
-      // Несколько условий с AND — оборачиваем в группу для сохранения приоритета
-      const prev: WhereGroup = {
-        op: this.sqb.wheres.op,
-        conditions: [...this.sqb.wheres.conditions],
-      };
-      this.sqb.wheres.op = 'OR';
-      this.sqb.wheres.conditions = [prev, condition];
-    }
   }
 
   // ── select overloads ──
@@ -146,7 +121,7 @@ export class SingleQueryBuilder<
             ),
         );
     } else {
-      this.sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      this.sqb.selects = fn(this._createSelectProxy(), aggregates);
     }
     return this._buildSelectFinalizer();
   }
@@ -254,7 +229,7 @@ export class SingleQueryBuilder<
     if (!pkEntry) throw new Error('No primary key field found');
     const [pkName] = pkEntry;
 
-    return this.where(((t: any) => t[pkName].eq(id)) as any).first();
+    return this.where((t: any) => t[pkName].eq(id)).first();
   }
 
   /** Создать запись и вернуть вставленную строку. */
