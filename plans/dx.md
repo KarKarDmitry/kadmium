@@ -63,18 +63,21 @@ orm.single(User).include(t => [t.postt]).go();
 
 **Важность:** 🟡 High
 
-**Краткое описание:** Нет механизма для логирования SQL-запросов. В production невозможно отследить, что отправляется в БД.
+**Статус:** ✅ Добавлена опция `logger` в `PgAdapterConfig`. Вызывается перед каждым запросом в `PgAdapter.execute()` и `TransactionalPgAdapter.execute()`.
 
-**Риски изменений:**
-- Добавить hook/logger в SqlAdapter — безопасно
-- Добавить `debug` опцию в PgAdapter — безопасно
-- Риск: минимальный
+**Пример:**
+```typescript
+const adapter = new PgAdapter({
+  host: 'localhost',
+  database: 'mydb',
+  logger: (sql, params) => console.log(sql, params),
+});
+```
 
 **Связанные файлы:**
-- `packages/sql-pg/src/index.ts` (PgAdapter)
-- `packages/sql-types/src/index.ts` (SqlAdapter)
+- `packages/sql-pg/src/index.ts` (PgAdapterConfig, PgAdapter, TransactionalPgAdapter)
 
-**Коммит:**
+**Коммит:** (pending)
 
 ---
 

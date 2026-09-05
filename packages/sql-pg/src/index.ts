@@ -103,6 +103,8 @@ export interface PgAdapterConfig {
   login?: string;
   password?: string;
   poolSize?: number;
+  /** Called before each query with the SQL text and bound parameters. */
+  logger?: (sql: string, params: unknown[]) => void;
 }
 
 // ═══ Transactional Adapter ═══
@@ -114,11 +116,13 @@ class TransactionalPgAdapter
   private client: PoolClient;
   private _released = false;
   public ddl: PgDdlAdapter;
+  private logger?: (sql: string, params: unknown[]) => void;
 
-  constructor(client: PoolClient) {
+  constructor(client: PoolClient, logger?: (sql: string, params: unknown[]) => void) {
     super();
     this.client = client;
     this.ddl = new PgDdlAdapter(client);
+    this.logger = logger;
   }
 
   beginTransaction(): Promise<TransactionalAdapter> {
@@ -154,6 +158,7 @@ class TransactionalPgAdapter
 
   async execute(sqb: ReadonlySqb): Promise<Record<string, unknown>[]> {
     const { text, values } = this.toSql(sqb);
+    this.logger?.(text, values);
     const result = await this.client.query(text, values);
     if (sqb.operation !== 'select' || sqb.tableContext.size <= 1)
       return unpackIncludes(result.rows, sqb.includes);
@@ -181,6 +186,7 @@ class TransactionalPgAdapter
 export class PgAdapter extends SqlGenerator implements SqlAdapter {
   private pool: Pool;
   public ddl: PgDdlAdapter;
+  private logger?: (sql: string, params: unknown[]) => void;
 
   constructor(config: PgAdapterConfig) {
     super();
@@ -194,16 +200,18 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       max: config.poolSize ?? 10,
     });
     this.ddl = new PgDdlAdapter(this.pool);
+    this.logger = config.logger;
   }
 
   async beginTransaction(): Promise<TransactionalAdapter> {
     const client = await this.pool.connect();
     await client.query('BEGIN');
-    return new TransactionalPgAdapter(client);
+    return new TransactionalPgAdapter(client, this.logger);
   }
 
   async execute(sqb: ReadonlySqb): Promise<Record<string, unknown>[]> {
     const { text, values } = this.toSql(sqb);
+    this.logger?.(text, values);
     const result = await this.pool.query(text, values);
     if (sqb.operation !== 'select' || sqb.tableContext.size <= 1)
       return unpackIncludes(result.rows, sqb.includes);
