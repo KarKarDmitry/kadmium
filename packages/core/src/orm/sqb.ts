@@ -33,7 +33,7 @@ export type JoinOptions = {
  * Каждый RelationBuilder создаёт свой SQB для вложенных include.
  */
 export class KadmiumSqb {
-  public operation: 'select' | 'update' | 'delete' = 'select';
+  public operation: 'select' | 'update' | 'delete' | 'upsert' = 'select';
   public tableContext: Map<string, string> = new Map(); // alias → table name
   public wheres: WhereGroup = createWhereGroup();
   public selects: AnySelectableField[] | null = null;
@@ -49,6 +49,12 @@ export class KadmiumSqb {
   public groupBy: string[] = [];
   /** Data for UPDATE operations */
   public updateData: Record<string, unknown> | null = null;
+  /** Data for UPSERT operations */
+  public upsertData: Record<string, unknown> | null = null;
+  /** Column(s) for ON CONFLICT clause */
+  public conflictTarget: string[] | null = null;
+  /** ON CONFLICT DO NOTHING instead of DO UPDATE */
+  public doNothing: boolean = false;
 
   constructor() {}
 
@@ -68,6 +74,11 @@ export class KadmiumSqb {
     c.offset = this.offset;
     c.groupBy = [...this.groupBy];
     c.updateData = this.updateData ? { ...this.updateData } : null;
+    c.upsertData = this.upsertData ? { ...this.upsertData } : null;
+    c.conflictTarget = this.conflictTarget
+      ? [...this.conflictTarget]
+      : null;
+    c.doNothing = this.doNothing;
     return c;
   }
 
