@@ -18,6 +18,42 @@ import { SqlGenerator } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { PgDdlAdapter } from './ddl-adapter';
 
+type QueryFn = (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }>;
+
+function buildInsertSql(
+  collectionName: string,
+  data: Record<string, unknown>,
+): { text: string; values: unknown[] } {
+  const keys = Object.keys(data);
+  const columns = keys.map((k) => `"${k}"`).join(', ');
+  const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+  const values = keys.map((key) => data[key]);
+  const text =
+    `INSERT INTO "${collectionName}" (${columns}) VALUES (${placeholders}) RETURNING *`
+      .trim()
+      .replace(/\s+/g, ' ');
+  return { text, values };
+}
+
+async function createRow(
+  queryFn: QueryFn,
+  collectionName: string,
+  data: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const { text, values } = buildInsertSql(collectionName, data);
+  const result = await queryFn(text, values);
+  return result.rows[0] as Record<string, unknown>;
+}
+
+async function rawQuery<T = unknown>(
+  queryFn: QueryFn,
+  sql: string,
+  params?: unknown[],
+): Promise<T[]> {
+  const result = await queryFn(sql, params);
+  return result.rows as T[];
+}
+
 // int8 (bigint) → number, чтобы runtime совпадал с типом `number`.
 // ⚠️ Ограничение: значения > 2^53 теряют точность. Для больших внешних id
 // используйте PK типа uuid/string (f.pk.string / f.pk.uuid).
@@ -132,21 +168,11 @@ class TransactionalPgAdapter
     collectionName: string,
     data: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const keys = Object.keys(data);
-    const columns = keys.map((k) => `"${k}"`).join(', ');
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const values = keys.map((key) => data[key]);
-    const text =
-      `INSERT INTO "${collectionName}" (${columns}) VALUES (${placeholders}) RETURNING *`
-        .trim()
-        .replace(/\s+/g, ' ');
-    const result = await this.client.query(text, values);
-    return result.rows[0];
+    return createRow((t, v) => this.client.query(t, v), collectionName, data);
   }
 
   async raw<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
-    const result = await this.client.query(sql, params);
-    return result.rows as T[];
+    return rawQuery<T>((t, v) => this.client.query(t, v), sql, params);
   }
 }
 
@@ -192,21 +218,11 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     collectionName: string,
     data: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const keys = Object.keys(data);
-    const columns = keys.map((k) => `"${k}"`).join(', ');
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const values = keys.map((key) => data[key]);
-    const text =
-      `INSERT INTO "${collectionName}" (${columns}) VALUES (${placeholders}) RETURNING *`
-        .trim()
-        .replace(/\s+/g, ' ');
-    const result = await this.pool.query(text, values);
-    return result.rows[0];
+    return createRow((t, v) => this.pool.query(t, v), collectionName, data);
   }
 
   async raw<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
-    const result = await this.pool.query(sql, params);
-    return result.rows as T[];
+    return rawQuery<T>((t, v) => this.pool.query(t, v), sql, params);
   }
 
   async end(): Promise<void> {
