@@ -10,6 +10,7 @@
 import { Pool, PoolClient, types as pgTypes } from 'pg';
 import type {
   SqlAdapter,
+  SqlRenderer,
   TransactionalAdapter,
   ReadonlySqb,
   IncludedRelation,
@@ -250,3 +251,11 @@ export {
 } from './diff';
 export type { DiffOp, DiffResult, HealthCheckResult } from './diff';
 export { PgDdlAdapter } from './ddl-adapter';
+
+/**
+ * Standalone SQL renderer — generates parameterized SQL without a connection.
+ * Useful for debugging and toSql() without a database.
+ */
+export function createSqlRenderer(): SqlRenderer {
+  return new SqlGenerator();
+}

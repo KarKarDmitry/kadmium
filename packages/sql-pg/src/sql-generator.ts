@@ -8,6 +8,7 @@ import type {
   WhereGroup,
   SelectItem,
   IncludedRelation,
+  SqlRenderer,
 } from '@karkardmitry/kadmium-sql-types';
 
 /** Ссылка на поле (для field-to-field сравнений) */
@@ -15,7 +16,7 @@ interface SqlIdentifierRef {
   getIdentifierForSql(): string;
 }
 
-export abstract class SqlGenerator {
+export class SqlGenerator implements SqlRenderer {
   /** Преобразует значение WhereCondition в SQL-строку + параметры */
   protected _renderValue(
     w: WhereCondition,

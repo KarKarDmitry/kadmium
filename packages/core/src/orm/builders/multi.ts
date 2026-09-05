@@ -12,7 +12,7 @@ import type {
   AliasesMap,
   FinalResult,
 } from '../types/proxy';
-import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type { SqlAdapter, SqlRenderer } from '@karkardmitry/kadmium-sql-types';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import type { AnySelectable } from '../types/relations';
@@ -36,12 +36,12 @@ export class MultiQueryBuilder<
   public sqb: KadmiumSqb;
   private irs: Map<string, ModelIR>;
   private irLookup: (name: string) => ModelIR | undefined;
-  private adapter: SqlAdapter | null = null;
+  private adapter: SqlAdapter | SqlRenderer | null = null;
 
   constructor(
     irs: Map<string, ModelIR>,
     irLookup?: (name: string) => ModelIR | undefined,
-    adapter?: SqlAdapter,
+    adapter?: SqlAdapter | SqlRenderer,
   ) {
     this.irs = irs;
     this.irLookup = irLookup ?? (() => undefined);
@@ -101,8 +101,8 @@ export class MultiQueryBuilder<
     return {
       toSql: () => this.toSql(),
       go: () => {
-        if (this.adapter) {
-          return this.adapter.execute(this.sqb) as any;
+        if (this.adapter && 'execute' in this.adapter) {
+          return (this.adapter as SqlAdapter).execute(this.sqb) as any;
         }
         throw new Error('No adapter configured; cannot execute query.');
       },

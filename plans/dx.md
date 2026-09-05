@@ -9,26 +9,25 @@
 
 **Важность:** 🟡 High
 
-**Краткое описание:** `toSql()` выбрасывает ошибку, если адаптер не настроен. Невозможно посмотреть SQL без подключения к БД. Усложняет отладку и тестирование.
+**Статус:** ✅ Добавлен `SqlRenderer` интерфейс в `sql-types` и `createSqlRenderer()` в `sql-pg`. `SingleQueryBuilder` и `MultiQueryBuilder` теперь принимают `SqlAdapter | SqlRenderer`. `toSql()` работает с любым рендерером, `execute()` требует полный `SqlAdapter`.
 
 **Пример:**
 ```typescript
+import { createSqlRenderer } from '@karkardmitry/kadmium-sql-pg';
+const renderer = createSqlRenderer();
 const q = orm.single(User).where(t => t.name.eq('Alice'));
-console.log(q.toSql());
-// Error: No SQL adapter configured
+// БЕЗ adapter — toSql() работает:
+console.log(new SingleQueryBuilder(ir, undefined, renderer).where(...).toSql());
 ```
 
-**Риски изменений:**
-- Добавить standalone `renderSql(sqb)` в sql-types — безопасно, но потребует реализации в адаптерах
-- Добавить fallback-рендерер в core — безопасно, но дублирование
-- Риск: минимальный
-
 **Связанные файлы:**
-- `packages/core/src/orm/builders/single.ts` (toSql)
-- `packages/core/src/orm/builders/multi.ts` (toSql)
-- `packages/sql-types/src/index.ts`
+- `packages/sql-types/src/index.ts` (SqlRenderer interface)
+- `packages/sql-pg/src/index.ts` (createSqlRenderer)
+- `packages/sql-pg/src/sql-generator.ts` (SqlGenerator implements SqlRenderer)
+- `packages/core/src/orm/builders/single.ts` (accepts SqlAdapter | SqlRenderer)
+- `packages/core/src/orm/builders/multi.ts` (accepts SqlAdapter | SqlRenderer)
 
-**Коммит:**
+**Коммит:** (pending)
 
 ---
 

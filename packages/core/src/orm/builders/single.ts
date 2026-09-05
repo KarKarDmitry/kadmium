@@ -23,7 +23,7 @@ import type {
 } from '../types/relations';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
-import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type { SqlAdapter, SqlRenderer } from '@karkardmitry/kadmium-sql-types';
 import { addOrCondition } from './where-helpers';
 import {
   createFilterProxy,
@@ -42,12 +42,12 @@ export class SingleQueryBuilder<
   public sqb: KadmiumSqb;
   private ir: ModelIR;
   private irLookup: (name: string) => ModelIR | undefined;
-  private adapter: SqlAdapter | null = null;
+  private adapter: SqlAdapter | SqlRenderer | null = null;
 
   constructor(
     ir: ModelIR,
     irLookup?: (name: string) => ModelIR | undefined,
-    adapter?: SqlAdapter,
+    adapter?: SqlAdapter | SqlRenderer,
   ) {
     this.ir = ir;
     this.irLookup = irLookup ?? (() => undefined);
@@ -240,12 +240,13 @@ export class SingleQueryBuilder<
   create(
     data: Record<string, unknown>,
   ): Promise<Evaluate<IncludeResult<TModel, R>>> {
-    if (!this.adapter) throw new Error('No adapter configured; cannot create.');
+    if (!this.adapter || !('create' in this.adapter))
+      throw new Error('No adapter configured; cannot create.');
     const mapped: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = v;
     }
-    return this.adapter
+    return (this.adapter as SqlAdapter)
       .create(this.ir.collection, mapped)
       .then((row) => this._mapRow(row)) as Promise<
       Evaluate<IncludeResult<TModel, R>>
@@ -264,11 +265,11 @@ export class SingleQueryBuilder<
     this.sqb.updateData = mapped as any;
 
     const go = async () => {
-      if (!this.adapter)
+      if (!this.adapter || !('execute' in this.adapter))
         throw new Error(
           'No adapter configured; call .go() only with an adapter.',
         );
-      const rows = await this.adapter.execute(this.sqb);
+      const rows = await (this.adapter as SqlAdapter).execute(this.sqb);
       return rows.map((r) => this._mapRow(r));
     };
     const sql = () => this.toSql();
@@ -288,11 +289,11 @@ export class SingleQueryBuilder<
     this.sqb.operation = 'delete';
 
     const go = async () => {
-      if (!this.adapter)
+      if (!this.adapter || !('execute' in this.adapter))
         throw new Error(
           'No adapter configured; call .go() only with an adapter.',
         );
-      const rows = await this.adapter.execute(this.sqb);
+      const rows = await (this.adapter as SqlAdapter).execute(this.sqb);
       return rows.map((r) => this._mapRow(r));
     };
     const sql = () => this.toSql();
@@ -337,8 +338,8 @@ export class SingleQueryBuilder<
             ),
         );
     }
-    if (this.adapter) {
-      return this.adapter.execute(this.sqb) as Promise<
+    if (this.adapter && 'execute' in this.adapter) {
+      return (this.adapter as SqlAdapter).execute(this.sqb) as Promise<
         IncludeResult<TModel, R>[]
       >;
     }

@@ -87,10 +87,12 @@ export interface ReadonlySqb {
 
 // ── Adapter interface ──
 
-export interface SqlAdapter {
-  /** Convert SQB to SQL with parameters */
+/** Lightweight SQL renderer — generates parameterized SQL without a connection. */
+export interface SqlRenderer {
   toSql(sqb: ReadonlySqb): { text: string; values: unknown[] };
+}
 
+export interface SqlAdapter extends SqlRenderer {
   /** Execute a query */
   execute(sqb: ReadonlySqb): Promise<Record<string, unknown>[]>;
 
