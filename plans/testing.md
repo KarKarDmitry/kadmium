@@ -9,25 +9,28 @@
 
 **Важность:** 🟡 High
 
-**Краткое описание:** Все тесты — интеграционные в `test-project/test/`. Нет unit-тестов для:
-- Proxy-системы (FilterProxy, SelectProxy, RelationProxy)
-- KadmiumSqb (clone, where group building)
-- Relation (as(), where(), select(), include())
-- SingleQueryBuilder / MultiQueryBuilder
+**Статус:** ✅ Добавлены unit-тесты (147 cases) в `packages/core/test/orm/`. Vitest настроен в core.
 
-**Риски изменений:**
-- Добавить unit-тесты — безопасно, улучшит покрытие
-- Использовать mocks для adapter — безопасно
-- Риск: минимальный
+**Покрыто:**
+- Proxy-система (FilterProxy, SelectProxy, OrderProxy, RelationProxy) — `query-proxies.test.ts`
+- KadmiumSqb (clone, where group building) — `sqb.test.ts`
+- Relation (constructor, as(), where(), select(), include(), propertyName) — `relation.test.ts`
+- SingleQueryBuilder (where, and, or, group, select, first, findById, create, update, delete, count, exists, toSql, go) — `single-builder.test.ts`
+- MultiQueryBuilder (where, join, select, include, groupBy, limit, offset, order, toSql) — `multi-builder.test.ts`
+- BaseFilter (clause, getIdentifierForSql) — `base-filter.test.ts`
+- Filters (StringFilter, NumberFilter, BooleanFilter, DateFilter, addNullable) — `filters.test.ts`
+- createFilter routing + nullable — `factory.test.ts`
+- Aggregates (count, sum, avg, min, max, toSql) — `aggregates.test.ts`
+- addOrCondition (AND, OR, nested) — `where-helpers.test.ts`
 
 **Связанные файлы:**
-- `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/multi.ts`
-- `packages/core/src/orm/field-builders/relation.ts`
-- `packages/core/src/orm/field-builders/filters.ts`
-- `packages/core/src/orm/sqb.ts`
+- `packages/core/test/orm/*.test.ts` (созданы)
+- `packages/core/test/orm/helpers.ts` (создан — mock adapter, IR fixtures)
+- `packages/core/vitest.config.ts` (создан)
+- `packages/core/package.json` (добавлен vitest + test script)
+- `packages/core/tsconfig.json` (добавлен test includes)
 
-**Коммит:**
+**Коммит:** (pending)
 
 ---
 
@@ -51,18 +54,10 @@
 
 **Важность:** 🟡 High
 
-**Краткое описание:** Proxy-объекты (FilterProxy, SelectProxy, RelationProxy) создаются через `new Proxy()`, но их поведение не проверяется изолированно.
-
-**Риски изменений:**
-- Добавить unit-тесты для proxy — безопасно
-- Проверить типы через type-level tests — безопасно
-- Риск: минимальный
+**Статус:** ✅ Покрыто в `query-proxies.test.ts` — тесты для `createFilterProxy`, `createSelectProxy`, `createOrderProxy`, `createRelationProxy`. Включено в TG1.
 
 **Связанные файлы:**
-- `packages/core/src/orm/builders/single.ts` (_createFilterProxy, _createSelectProxy)
-- `packages/core/src/orm/builders/multi.ts` (_createFilterProxy, _createSelectProxy)
-
-**Коммит:**
+- `packages/core/test/orm/query-proxies.test.ts` (создан)
 
 ---
 
