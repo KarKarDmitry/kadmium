@@ -16,7 +16,6 @@ export class ResultReshaper {
     return flatRows.map((flatRow) => {
       const nestedRow: Record<string, unknown> = {};
 
-      // Получить или создать вложенный объект под ключом `key`
       const child = (key: string): Record<string, unknown> => {
         const cur = nestedRow[key];
         if (!cur || typeof cur !== 'object' || Array.isArray(cur)) {
@@ -43,9 +42,9 @@ export class ResultReshaper {
       }
 
       for (const incl of includes) {
-        const propertyName = incl.propertyName;
-        if (flatRow[propertyName] !== undefined) {
-          child(incl.parentAlias)[propertyName] = flatRow[propertyName];
+        if (flatRow[incl.propertyName] !== undefined) {
+          child(incl.parentAlias)[incl.propertyName] =
+            flatRow[incl.propertyName];
         }
       }
 

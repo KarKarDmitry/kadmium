@@ -26,7 +26,7 @@ export type RelationFactory = new (
   targetIr: ModelIR,
   fieldIr: ModelIR['fields'][string] | undefined,
   irLookup?: (name: string) => ModelIR | undefined,
-  parentAlias?: any,
+  parentAlias?: string,
 ) => IRelationBuilder<any, any, any, any, any>;
 
 type Model = {
@@ -42,8 +42,7 @@ export function createFilterProxy<TModel extends Model>(
   return new Proxy({} as FilterProxy<TModel>, {
     get: (_, field: string) => {
       const fieldIr = ir.fields[field];
-      if (!fieldIr)
-        throw new Error(`Field "${field}" not found in ${ir.name}`);
+      if (!fieldIr) throw new Error(`Field "${field}" not found in ${ir.name}`);
       return createFilter(sqb, field, alias, fieldIr);
     },
   });
@@ -96,14 +95,7 @@ export function createRelationProxy<TModel extends Model>(
         collection: toSnakeCase(targetName),
         fields: {},
       };
-      return new relationFactory(
-        sqb,
-        name,
-        targetIr,
-        fieldIr,
-        irLookup,
-        alias,
-      );
+      return new relationFactory(sqb, name, targetIr, fieldIr, irLookup, alias);
     },
   });
 }

@@ -175,7 +175,11 @@ export class Relation<
   }
 
   protected _createFilterProxy(): Record<string, BaseFilter | NullableFilter> {
-    return createFilterProxy(this.alias, this.targetIr, this.internalSqb) as unknown as Record<string, BaseFilter | NullableFilter>;
+    return createFilterProxy(
+      this.alias,
+      this.targetIr,
+      this.internalSqb,
+    ) as unknown as Record<string, BaseFilter | NullableFilter>;
   }
 
   protected _createFieldProxy(): SelectProxy<TModel> {

@@ -3,11 +3,7 @@
  */
 
 import type { DbDdlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type {
-  DiffOp,
-  DiffResult,
-  IrField,
-} from './types';
+import type { DiffOp, DiffResult, IrField } from './types';
 import {
   pgType,
   normalizePgType,

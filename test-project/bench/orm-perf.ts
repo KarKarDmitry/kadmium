@@ -49,7 +49,7 @@ async function largeSeed(h: { orm: OrmManager; adapter: SqlAdapter }) {
         };
       },
     );
-    const created = await h.orm.single(UserModel).createMany(batch);
+    const created = await h.orm.single(UserModel).createMany(batch).go();
     userIds.push(...created.map((r) => r.id));
   }
 
@@ -70,7 +70,7 @@ async function largeSeed(h: { orm: OrmManager; adapter: SqlAdapter }) {
         author: userIds[userIdx],
       };
     });
-    const created = await h.orm.single(PostModel).createMany(batch);
+    const created = await h.orm.single(PostModel).createMany(batch).go();
     postIds.push(...created.map((r) => r.id));
   }
 
@@ -88,7 +88,7 @@ async function largeSeed(h: { orm: OrmManager; adapter: SqlAdapter }) {
         user: userIds[c % userIds.length],
       };
     });
-    await h.orm.single(CommentModel).createMany(batch);
+    await h.orm.single(CommentModel).createMany(batch).go();
   }
 
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
@@ -128,7 +128,7 @@ async function bench(
 async function main() {
   const kadmium = new KadmiumApp();
   await kadmium.init();
-  const h = { orm: kadmium.orm, adapter: kadmium.appCore.sqlAdapter as any };
+  const h = { orm: kadmium.orm, adapter: kadmium.appCore.sqlAdapter! };
 
   // Clean + schema
   for (const t of await h.adapter.ddl.inspectTables()) {
@@ -156,7 +156,7 @@ async function main() {
   await bench('2. where() + select() — filtered (≈3333 rows)', async () => {
     await h.orm
       .single(UserModel)
-      .where((u: any) => u.active.eq(true))
+      .where((u) => u.active.eq(true))
       .go();
   });
 
@@ -166,7 +166,7 @@ async function main() {
     async () => {
       await h.orm
         .single(UserModel)
-        .include((u: any) => [u.posts])
+        .include((u) => [u.posts])
         .go();
     },
   );
@@ -175,7 +175,7 @@ async function main() {
   await bench('4. include() nested — user → posts → author', async () => {
     await h.orm
       .single(UserModel)
-      .include((u: any) => [u.posts.include((p: any) => [p.author])])
+      .include((u) => [u.posts.include((p) => [p.author])])
       .go();
   });
 
@@ -185,8 +185,8 @@ async function main() {
     async () => {
       h.orm
         .single(UserModel)
-        .include((u: any) => [u.posts])
-        .where((u: any) => u.active.eq(true))
+        .include((u) => [u.posts])
+        .where((u) => u.active.eq(true))
         .toSql();
     },
     20,
@@ -207,7 +207,7 @@ async function main() {
     async () => {
       benchRun++;
       for (let i = 0; i < N; i++) {
-        await h.orm.single(UserModel).create(makeUserRow(i));
+        await h.orm.single(UserModel).create(makeUserRow(i)).go();
       }
     },
     3,
@@ -219,10 +219,100 @@ async function main() {
       benchRun++;
       await h.orm
         .single(UserModel)
-        .createMany(Array.from({ length: N }, (_, i) => makeUserRow(i)));
+        .createMany(Array.from({ length: N }, (_, i) => makeUserRow(i))).go();
     },
     3,
   );
+
+  // ── Timing breakdown for include ──
+  console.log('\n' + '═'.repeat(60));
+  console.log('INCLUDE TIMING BREAKDOWN');
+  console.log('═'.repeat(60));
+
+  {
+    const origToSql = h.adapter.toSql.bind(h.adapter);
+    const origExecute = h.adapter.execute.bind(h.adapter);
+    let sqlGenMs = 0,
+      dbExecMs = 0,
+      reshapeMs = 0;
+
+    h.adapter.toSql = (sqb) => {
+      const t0 = performance.now();
+      const result = origToSql(sqb);
+      sqlGenMs += performance.now() - t0;
+      return result;
+    };
+    h.adapter.execute = async (sqb) => {
+      const t1 = performance.now();
+      const rows = await origExecute(sqb);
+      dbExecMs += performance.now() - t1;
+      return rows;
+    };
+
+    // Monkey-patch ResultReshaper to measure reshape time
+    const { ResultReshaper } = await import('@karkardmitry/kadmium-sql-pg');
+    const origReshape = ResultReshaper.reshape;
+    ResultReshaper.reshape = (...args) => {
+      const t2 = performance.now();
+      const result = origReshape.apply(ResultReshaper, args);
+      reshapeMs += performance.now() - t2;
+      return result;
+    };
+
+    // Warmup
+    await h.orm
+      .single(UserModel)
+      .include((u) => [u.posts])
+      .go();
+
+    // Benchmark with timing
+    const ITERS = 5;
+    const totals: { sql: number; db: number; reshape: number }[] = [];
+    for (let i = 0; i < ITERS; i++) {
+      sqlGenMs = 0;
+      dbExecMs = 0;
+      reshapeMs = 0;
+      await h.orm
+        .single(UserModel)
+        .include((u) => [u.posts])
+        .go();
+      totals.push({ sql: sqlGenMs, db: dbExecMs, reshape: reshapeMs });
+    }
+
+    // Restore
+    h.adapter.toSql = origToSql;
+    h.adapter.execute = origExecute;
+    ResultReshaper.reshape = origReshape;
+
+    const avgSql = totals.reduce((s, t) => s + t.sql, 0) / ITERS;
+    const avgDb = totals.reduce((s, t) => s + t.db, 0) / ITERS;
+    const avgReshape = totals.reduce((s, t) => s + t.reshape, 0) / ITERS;
+    const total = avgSql + avgDb + avgReshape;
+
+    console.log(`include() to-many (5000 users × 10 posts):`);
+    console.log(
+      `  SQL generation:  ${avgSql.toFixed(1)}ms (${((avgSql / total) * 100).toFixed(0)}%)`,
+    );
+    console.log(
+      `  DB execution:    ${avgDb.toFixed(1)}ms (${((avgDb / total) * 100).toFixed(0)}%)`,
+    );
+    console.log(
+      `  Reshape:         ${avgReshape.toFixed(1)}ms (${((avgReshape / total) * 100).toFixed(0)}%)`,
+    );
+    console.log(`  Total:           ${total.toFixed(1)}ms`);
+  }
+
+  // ── Show actual SQL for include ──
+  console.log('\n' + '═'.repeat(60));
+  console.log('GENERATED SQL (include to-many)');
+  console.log('═'.repeat(60));
+  const includeQuery = h.orm
+    .single(UserModel)
+    .include((u) => [u.posts])
+    .limit(3);
+  const sql = h.adapter.toSql(includeQuery.sqb);
+  console.log(sql.text);
+  console.log('params:', sql.values);
 
   console.log('\n' + '═'.repeat(60));
   console.log('Done. All benchmarks completed.');
