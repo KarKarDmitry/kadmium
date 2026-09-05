@@ -65,14 +65,23 @@ function buildInsertManySql(
   return { text, values };
 }
 
+/** Max rows per single INSERT to stay under PostgreSQL's 65535 parameter limit. */
+const MAX_BATCH_ROWS = 1000;
+
 async function createManyRows(
   queryFn: QueryFn,
   collectionName: string,
   rows: Record<string, unknown>[],
 ): Promise<Record<string, unknown>[]> {
-  const { text, values } = buildInsertManySql(collectionName, rows);
-  const result = await queryFn(text, values);
-  return result.rows as Record<string, unknown>[];
+  if (rows.length === 0) return [];
+  const results: Record<string, unknown>[] = [];
+  for (let i = 0; i < rows.length; i += MAX_BATCH_ROWS) {
+    const batch = rows.slice(i, i + MAX_BATCH_ROWS);
+    const { text, values } = buildInsertManySql(collectionName, batch);
+    const result = await queryFn(text, values);
+    results.push(...(result.rows as Record<string, unknown>[]));
+  }
+  return results;
 }
 
 async function rawQuery<T = unknown>(

@@ -17,61 +17,83 @@ import {
 } from '../src/models';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
-const USERS = 500;
+const USERS = 5000;
 const POSTS_PER_USER = 10;
 const COMMENTS_PER_POST = 5;
 
 // ── Seed ──
 
 async function largeSeed(h: { orm: OrmManager; adapter: SqlAdapter }) {
+  const totalPosts = USERS * POSTS_PER_USER;
+  const totalComments = totalPosts * COMMENTS_PER_POST;
   console.log(
-    `Seeding: ${USERS} users × ${POSTS_PER_USER} posts × ${COMMENTS_PER_POST} comments...`,
+    `Seeding: ${USERS} users × ${POSTS_PER_USER} posts × ${COMMENTS_PER_POST} comments (${totalComments} comments)...`,
   );
   const t0 = performance.now();
 
+  // Users — generate and insert in batches
   const userIds: number[] = [];
-  for (let i = 0; i < USERS; i++) {
-    const u = await h.orm.single(UserModel).create({
-      name: `User ${i}`,
-      email: `user${i}@bench.test`,
-      age: 20 + (i % 50),
-      active: i % 3 !== 0,
-      registeredAt: new Date(
-        `2024-01-${String((i % 28) + 1).padStart(2, '0')}`,
-      ),
-    });
-    userIds.push(u.id);
+  for (let offset = 0; offset < USERS; offset += 1000) {
+    const batch = Array.from(
+      { length: Math.min(1000, USERS - offset) },
+      (_, i) => {
+        const idx = offset + i;
+        return {
+          name: `User ${idx}`,
+          email: `user${idx}@bench.test`,
+          age: 20 + (idx % 50),
+          active: idx % 3 !== 0,
+          registeredAt: new Date(
+            `2024-01-${String((idx % 28) + 1).padStart(2, '0')}`,
+          ),
+        };
+      },
+    );
+    const created = await h.orm.single(UserModel).createMany(batch);
+    userIds.push(...created.map((r) => r.id));
   }
 
+  // Posts — generate and insert in batches of 1000 rows
   const postIds: number[] = [];
-  for (const uid of userIds) {
-    for (let p = 0; p < POSTS_PER_USER; p++) {
-      const post = await h.orm.single(PostModel).create({
+  const totalPostRows = userIds.length * POSTS_PER_USER;
+  for (let offset = 0; offset < totalPostRows; offset += 1000) {
+    const batchSize = Math.min(1000, totalPostRows - offset);
+    const batch = Array.from({ length: batchSize }, (_, i) => {
+      const globalIdx = offset + i;
+      const userIdx = Math.floor(globalIdx / POSTS_PER_USER);
+      const p = globalIdx % POSTS_PER_USER;
+      return {
         title: `Post ${p} by user`,
         content: `Content for post ${p}`,
         published: p % 2 === 0,
         views: p * 10,
-        author: uid,
-      });
-      postIds.push(post.id);
-    }
+        author: userIds[userIdx],
+      };
+    });
+    const created = await h.orm.single(PostModel).createMany(batch);
+    postIds.push(...created.map((r) => r.id));
   }
 
-  let commentCount = 0;
-  for (const pid of postIds) {
-    for (let c = 0; c < COMMENTS_PER_POST; c++) {
-      await h.orm.single(CommentModel).create({
+  // Comments — generate and insert in batches of 1000 rows
+  const totalCommentRows = postIds.length * COMMENTS_PER_POST;
+  for (let offset = 0; offset < totalCommentRows; offset += 1000) {
+    const batchSize = Math.min(1000, totalCommentRows - offset);
+    const batch = Array.from({ length: batchSize }, (_, i) => {
+      const globalIdx = offset + i;
+      const postIdx = Math.floor(globalIdx / COMMENTS_PER_POST);
+      const c = globalIdx % COMMENTS_PER_POST;
+      return {
         text: `Comment ${c}`,
-        post: pid,
+        post: postIds[postIdx],
         user: userIds[c % userIds.length],
-      });
-      commentCount++;
-    }
+      };
+    });
+    await h.orm.single(CommentModel).createMany(batch);
   }
 
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
   console.log(
-    `Seeded: ${userIds.length} users, ${postIds.length} posts, ${commentCount} comments in ${elapsed}s\n`,
+    `Seeded: ${userIds.length} users, ${postIds.length} posts, ${totalCommentRows} comments in ${elapsed}s\n`,
   );
 }
 
@@ -126,12 +148,12 @@ async function main() {
   console.log('═'.repeat(60));
 
   // 1. Select all fields — single table
-  await bench('1. select() all fields — single table (500 rows)', async () => {
+  await bench('1. select() all fields — single table (5000 rows)', async () => {
     await h.orm.single(UserModel).go();
   });
 
   // 2. Select with where — single table
-  await bench('2. where() + select() — filtered (≈167 rows)', async () => {
+  await bench('2. where() + select() — filtered (≈3333 rows)', async () => {
     await h.orm
       .single(UserModel)
       .where((u: any) => u.active.eq(true))
@@ -180,19 +202,27 @@ async function main() {
     active: i % 2 === 0,
   });
 
-  await bench(`6a. create() × ${N} — loop (1 query per row)`, async () => {
-    benchRun++;
-    for (let i = 0; i < N; i++) {
-      await h.orm.single(UserModel).create(makeUserRow(i));
-    }
-  }, 3);
+  await bench(
+    `6a. create() × ${N} — loop (1 query per row)`,
+    async () => {
+      benchRun++;
+      for (let i = 0; i < N; i++) {
+        await h.orm.single(UserModel).create(makeUserRow(i));
+      }
+    },
+    3,
+  );
 
-  await bench(`6b. createMany(${N}) — single batch query`, async () => {
-    benchRun++;
-    await h.orm
-      .single(UserModel)
-      .createMany(Array.from({ length: N }, (_, i) => makeUserRow(i)));
-  }, 3);
+  await bench(
+    `6b. createMany(${N}) — single batch query`,
+    async () => {
+      benchRun++;
+      await h.orm
+        .single(UserModel)
+        .createMany(Array.from({ length: N }, (_, i) => makeUserRow(i)));
+    },
+    3,
+  );
 
   console.log('\n' + '═'.repeat(60));
   console.log('Done. All benchmarks completed.');
