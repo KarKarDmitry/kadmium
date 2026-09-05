@@ -23,7 +23,7 @@ describe('transactions: commit and rollback', () => {
         age: 50,
         active: true,
         registeredAt: new Date(),
-      });
+      }).go();
     });
     const found = await h.orm
       .single(UserModel)
@@ -42,7 +42,7 @@ describe('transactions: commit and rollback', () => {
           age: 51,
           active: true,
           registeredAt: new Date(),
-        });
+        }).go();
         throw new Error('boom');
       }),
     ).rejects.toThrow('boom');

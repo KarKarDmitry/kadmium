@@ -22,7 +22,7 @@ describe('seed: create via ORM layer', () => {
       age: 22,
       active: true,
       registeredAt: new Date(),
-    });
+    }).go();
     expect(row).toBeTruthy();
     expect(row.name).toBe('Dave');
     expect(row.email).toBe('dave@test.com');

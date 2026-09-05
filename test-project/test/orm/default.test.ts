@@ -117,7 +117,7 @@ describe('defaults reach DDL and apply on insert (integration)', () => {
       title: 'No Views',
       content: 'body',
       published: true,
-    });
+    }).go();
     expect(post.views).toBe(0);
   });
 
@@ -126,7 +126,7 @@ describe('defaults reach DDL and apply on insert (integration)', () => {
       title: 'No Published',
       content: 'body',
       views: 1,
-    });
+    }).go();
     expect(post.published).toBe(true);
   });
 
@@ -134,7 +134,7 @@ describe('defaults reach DDL and apply on insert (integration)', () => {
     const comment = await h.orm.single(CommentModel).create({
       post: null,
       user: null,
-    });
+    }).go();
     expect(comment.text).toBe('');
   });
 });

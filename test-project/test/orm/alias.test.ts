@@ -27,7 +27,7 @@ describe('alias(): property name vs DB column name', () => {
       flagged: true,
       post: null,
       user: null,
-    });
+    }).go();
     expect(comment.flagged).toBe(true);
     expect('flagged' in comment).toBe(true);
     expect('is_flagged' in comment).toBe(false);
@@ -39,7 +39,7 @@ describe('alias(): property name vs DB column name', () => {
       flagged: true,
       post: null,
       user: null,
-    });
+    }).go();
     const rows = await h.orm
       .single(CommentModel)
       .where((c) => c.text.eq('flag read'))
@@ -57,13 +57,13 @@ describe('alias(): property name vs DB column name', () => {
       flagged: true,
       post: null,
       user: null,
-    });
+    }).go();
     await h.orm.single(CommentModel).create({
       text: 'no flag',
       flagged: false,
       post: null,
       user: null,
-    });
+    }).go();
     const rows = await h.orm
       .single(CommentModel)
       .where((c) => c.flagged.eq(true))
@@ -80,7 +80,7 @@ describe('alias(): property name vs DB column name', () => {
       flagged: false,
       post: null,
       user: null,
-    });
+    }).go();
     const updated = await h.orm
       .single(CommentModel)
       .update({ flagged: true })
