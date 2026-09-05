@@ -31,6 +31,7 @@ import {
   createOrderProxy,
   createRelationProxy,
 } from './query-proxies';
+import { buildCreateFinalizer, buildCreateManyFinalizer } from './upsert-helpers';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -236,28 +237,33 @@ export class SingleQueryBuilder<
     return this.where((t: any) => t[pkName].eq(id)).first();
   }
 
-  /** Создать запись и вернуть вставленную строку. */
+  /** Создать запись. Цепочка: .onConflict().doNothing().go() */
   create(
     data: Record<string, unknown>,
-  ): Promise<Evaluate<IncludeResult<TModel, R>>> {
+  ): import('./upsert-helpers').CreateFinalizer<TModel> {
     if (!this.adapter) throw new Error('No adapter configured; cannot create.');
     const mapped: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = v;
     }
-    return this.adapter
-      .create(this.ir.collection, mapped)
-      .then((row) => this._mapRow(row)) as Promise<
-      Evaluate<IncludeResult<TModel, R>>
-    >;
+    return buildCreateFinalizer<TModel>(this.sqb, this.adapter, this.ir, mapped);
   }
 
-  /** Создать несколько записей одним запросом и вернуть вставленные строки. */
+  /** Создать несколько записей. Цепочка: .onConflict().doNothing().go() */
   createMany(
     data: Record<string, unknown>[],
-  ): Promise<Evaluate<IncludeResult<TModel, R>>[]> {
-    if (!this.adapter) throw new Error('No adapter configured; cannot createMany.');
-    if (data.length === 0) return Promise.resolve([]);
+    options?: import('./upsert-helpers').CreateManyOptions,
+  ): import('./upsert-helpers').CreateManyFinalizer<TModel> {
+    if (!this.adapter)
+      throw new Error('No adapter configured; cannot createMany.');
+    if (data.length === 0) {
+      return {
+        onConflict: () => this.createMany(data, options),
+        doNothing: () => this.createMany(data, options),
+        go: () => Promise.resolve([]),
+        sql: () => '',
+      };
+    }
     const mapped = data.map((row) => {
       const m: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(row)) {
@@ -265,11 +271,7 @@ export class SingleQueryBuilder<
       }
       return m;
     });
-    return this.adapter
-      .createMany(this.ir.collection, mapped)
-      .then((rows) => rows.map((row) => this._mapRow(row))) as Promise<
-      Evaluate<IncludeResult<TModel, R>>[]
-    >;
+    return buildCreateManyFinalizer<TModel>(this.sqb, this.adapter, this.ir, mapped, options);
   }
 
   // ── UPDATE / DELETE ──
