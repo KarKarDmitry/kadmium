@@ -45,6 +45,36 @@ async function createRow(
   return result.rows[0] as Record<string, unknown>;
 }
 
+function buildInsertManySql(
+  collectionName: string,
+  rows: Record<string, unknown>[],
+): { text: string; values: unknown[] } {
+  if (rows.length === 0) throw new Error('createMany requires at least one row');
+  const keys = Object.keys(rows[0]);
+  const columns = keys.map((k) => `"${k}"`).join(', ');
+  const values: unknown[] = [];
+  const valuePlaceholders = rows.map((row) => {
+    const placeholders = keys.map((_, i) => `$${values.length + i + 1}`);
+    values.push(...keys.map((k) => row[k]));
+    return `(${placeholders.join(', ')})`;
+  });
+  const text =
+    `INSERT INTO "${collectionName}" (${columns}) VALUES ${valuePlaceholders.join(', ')} RETURNING *`
+      .trim()
+      .replace(/\s+/g, ' ');
+  return { text, values };
+}
+
+async function createManyRows(
+  queryFn: QueryFn,
+  collectionName: string,
+  rows: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  const { text, values } = buildInsertManySql(collectionName, rows);
+  const result = await queryFn(text, values);
+  return result.rows as Record<string, unknown>[];
+}
+
 async function rawQuery<T = unknown>(
   queryFn: QueryFn,
   sql: string,
@@ -178,6 +208,13 @@ class TransactionalPgAdapter
     return createRow((t, v) => this.client.query(t, v), collectionName, data);
   }
 
+  async createMany(
+    collectionName: string,
+    rows: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    return createManyRows((t, v) => this.client.query(t, v), collectionName, rows);
+  }
+
   async raw<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
     return rawQuery<T>((t, v) => this.client.query(t, v), sql, params);
   }
@@ -231,6 +268,13 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     return createRow((t, v) => this.pool.query(t, v), collectionName, data);
   }
 
+  async createMany(
+    collectionName: string,
+    rows: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    return createManyRows((t, v) => this.pool.query(t, v), collectionName, rows);
+  }
+
   async raw<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
     return rawQuery<T>((t, v) => this.pool.query(t, v), sql, params);
   }
@@ -264,6 +308,7 @@ export function createDebugAdapter(): SqlAdapter {
     toSql: (sqb) => gen.toSql(sqb),
     execute: () => { throw new Error(NOT_ALLOWED); },
     create: () => { throw new Error(NOT_ALLOWED); },
+    createMany: () => { throw new Error(NOT_ALLOWED); },
     raw: () => { throw new Error(NOT_ALLOWED); },
     ddl: new Proxy({} as PgDdlAdapter, {
       get: () => { throw new Error(NOT_ALLOWED); },
