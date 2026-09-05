@@ -118,17 +118,9 @@ orm.single(Order)
 
 **Краткое описание:** Нет batch-операций. Приходится делать цикл с одиночными запросами.
 
-**Риски изменений:**
-- Добавить batch-методы — потребует изменений в SqlGenerator
-- Использовать raw() — unsafe
-- Риск: средний, потребует изменений в нескольких слоях
+**Статус:** ✅ createMany() реализован. update/delete уже работают как mass-операции через WHERE.
 
-**Связанные файлы:**
-- `packages/core/src/orm/builders/single.ts`
-- `packages/sql-pg/src/sql-generator.ts`
-- `packages/sql-pg/src/index.ts`
-
-**Коммит:**
+**Коммит:** `47245f8`, `0bf0748`, `5f82635`, `328c732`
 
 ---
 
