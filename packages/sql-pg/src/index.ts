@@ -18,7 +18,10 @@ import { SqlGenerator } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { PgDdlAdapter } from './ddl-adapter';
 
-type QueryFn = (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }>;
+type QueryFn = (
+  text: string,
+  values?: unknown[],
+) => Promise<{ rows: unknown[] }>;
 
 function buildInsertSql(
   collectionName: string,
@@ -49,7 +52,8 @@ function buildInsertManySql(
   collectionName: string,
   rows: Record<string, unknown>[],
 ): { text: string; values: unknown[] } {
-  if (rows.length === 0) throw new Error('createMany requires at least one row');
+  if (rows.length === 0)
+    throw new Error('createMany requires at least one row');
   const keys = Object.keys(rows[0]);
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
@@ -159,7 +163,10 @@ class TransactionalPgAdapter
   public ddl: PgDdlAdapter;
   private logger?: (sql: string, params: unknown[]) => void;
 
-  constructor(client: PoolClient, logger?: (sql: string, params: unknown[]) => void) {
+  constructor(
+    client: PoolClient,
+    logger?: (sql: string, params: unknown[]) => void,
+  ) {
     super();
     this.client = client;
     this.ddl = new PgDdlAdapter(client);
@@ -220,8 +227,14 @@ class TransactionalPgAdapter
   async createMany(
     collectionName: string,
     rows: Record<string, unknown>[],
+    options?: { transaction?: boolean },
   ): Promise<Record<string, unknown>[]> {
-    return createManyRows((t, v) => this.client.query(t, v), collectionName, rows);
+    // Already in a transaction — ignore options.transaction
+    return createManyRows(
+      (t, v) => this.client.query(t, v),
+      collectionName,
+      rows,
+    );
   }
 
   async raw<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
@@ -280,8 +293,38 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
   async createMany(
     collectionName: string,
     rows: Record<string, unknown>[],
+    options?: { transaction?: boolean },
   ): Promise<Record<string, unknown>[]> {
-    return createManyRows((t, v) => this.pool.query(t, v), collectionName, rows);
+    if (rows.length === 0) return [];
+    const needsTransaction =
+      options?.transaction !== false && rows.length > MAX_BATCH_ROWS;
+    if (!needsTransaction) {
+      return createManyRows(
+        (t, v) => this.pool.query(t, v),
+        collectionName,
+        rows,
+      );
+    }
+    // Multi-chunk: wrap in transaction
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const results: Record<string, unknown>[] = [];
+      for (let i = 0; i < rows.length; i += MAX_BATCH_ROWS) {
+        const batch = rows.slice(i, i + MAX_BATCH_ROWS);
+        const { text, values } = buildInsertManySql(collectionName, batch);
+        this.logger?.(text, values);
+        const result = await client.query(text, values);
+        results.push(...(result.rows as Record<string, unknown>[]));
+      }
+      await client.query('COMMIT');
+      return results;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   async raw<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
@@ -315,14 +358,26 @@ export function createDebugAdapter(): SqlAdapter {
   const gen = new DebugSqlGenerator();
   return {
     toSql: (sqb) => gen.toSql(sqb),
-    execute: () => { throw new Error(NOT_ALLOWED); },
-    create: () => { throw new Error(NOT_ALLOWED); },
-    createMany: () => { throw new Error(NOT_ALLOWED); },
-    raw: () => { throw new Error(NOT_ALLOWED); },
+    execute: () => {
+      throw new Error(NOT_ALLOWED);
+    },
+    create: () => {
+      throw new Error(NOT_ALLOWED);
+    },
+    createMany: () => {
+      throw new Error(NOT_ALLOWED);
+    },
+    raw: () => {
+      throw new Error(NOT_ALLOWED);
+    },
     ddl: new Proxy({} as PgDdlAdapter, {
-      get: () => { throw new Error(NOT_ALLOWED); },
+      get: () => {
+        throw new Error(NOT_ALLOWED);
+      },
     }),
-    beginTransaction: () => { throw new Error(NOT_ALLOWED); },
+    beginTransaction: () => {
+      throw new Error(NOT_ALLOWED);
+    },
   };
 }
 
@@ -338,3 +393,4 @@ export {
 } from './diff';
 export type { DiffOp, DiffResult, HealthCheckResult } from './diff';
 export { PgDdlAdapter } from './ddl-adapter';
+export { ResultReshaper } from './result-reshaper';
