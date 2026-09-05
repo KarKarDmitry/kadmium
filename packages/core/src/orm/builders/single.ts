@@ -252,6 +252,26 @@ export class SingleQueryBuilder<
     >;
   }
 
+  /** Создать несколько записей одним запросом и вернуть вставленные строки. */
+  createMany(
+    data: Record<string, unknown>[],
+  ): Promise<Evaluate<IncludeResult<TModel, R>>[]> {
+    if (!this.adapter) throw new Error('No adapter configured; cannot createMany.');
+    if (data.length === 0) return Promise.resolve([]);
+    const mapped = data.map((row) => {
+      const m: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(row)) {
+        m[this.ir.fields[k]?.alias ?? k] = v;
+      }
+      return m;
+    });
+    return this.adapter
+      .createMany(this.ir.collection, mapped)
+      .then((rows) => rows.map((row) => this._mapRow(row))) as Promise<
+      Evaluate<IncludeResult<TModel, R>>[]
+    >;
+  }
+
   // ── UPDATE / DELETE ──
 
   update(data: Record<string, unknown>): UpdateFinalizer<TModel> {
