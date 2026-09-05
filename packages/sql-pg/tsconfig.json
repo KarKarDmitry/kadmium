@@ -2,8 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "typeRoots": ["../../node_modules/@types", "./node_modules/@types"],
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "test/**/*"],
 }
