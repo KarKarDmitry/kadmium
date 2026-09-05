@@ -72,9 +72,11 @@ function unpackIncludeValue(value: unknown, inc: IncludedRelation): unknown {
     const out: Record<string, unknown> = {};
     const prefix = `${inc.propertyName}.`;
     const nested = inc.internalSqb.includes;
+    // O(1) lookup вместо O(k) find на каждый ключ
+    const nestedMap = new Map(nested.map((n) => [n.propertyName, n]));
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       const clean = k.startsWith(prefix) ? k.slice(prefix.length) : k;
-      const nestedInc = nested.find((n) => n.propertyName === clean);
+      const nestedInc = nestedMap.get(clean);
       out[clean] = nestedInc ? unpackIncludeValue(v, nestedInc) : v;
     }
     return out;

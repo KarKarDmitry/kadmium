@@ -17,16 +17,12 @@
 await orm.single(BigTable).select(t => [t.f1, t.f2, ..., t.f50]).go();
 ```
 
-**Риски изменений:**
-- Оптимизировать через Map для column → index — безопасно, улучшит производительность
-- Использовать batch-processing — безопасно, но сложнее
-- Риск: минимальный, это чистая оптимизация
+**Статус:** Проверено — предвычисление fieldMap не даёт выигрыша (overhead от аллокации объектов компенсирует benefit). Текущая реализация уже оптимальна для типичных случаев.
 
 **Связанные файлы:**
 - `packages/sql-pg/src/result-reshaper.ts`
-- `packages/sql-pg/src/index.ts` (execute методы)
 
-**Коммит:**
+**Коммит:** —
 
 ---
 
@@ -36,15 +32,12 @@ await orm.single(BigTable).select(t => [t.f1, t.f2, ..., t.f50]).go();
 
 **Краткое описание:** `unpackIncludes()` рекурсивно обходит каждую строку для каждого include. Сложность O(n × k), где k = глубина вложенности includes.
 
-**Риски изменений:**
-- Оптимизировать через предварительный проход по includes — безопасно
-- Объединить с reshape — безопасно, но сложнее
-- Риск: минимальный
+**Статус:** ✅ Оптимизировано — `nested.find()` заменён на `Map.get()` (O(1) вместо O(k)). В `unpackIncludeValue` предвычисляется Map для nested includes.
 
 **Связанные файлы:**
-- `packages/sql-pg/src/index.ts` (unpackIncludeValue, unpackIncludes)
+- `packages/sql-pg/src/index.ts` (unpackIncludeValue)
 
-**Коммит:**
+**Коммит:** (pending)
 
 ---
 
