@@ -3,6 +3,21 @@
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Verified 2026-09-04 against actual code.
 > Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 resolved (`53a69b2`).
+> Updated 2026-09-05 — BREAKING: create()/createMany() return builders, not Promises. All callers must add `.go()`.
+
+---
+
+## Principle: All methods until go() build AST, only go() is terminal
+
+```typescript
+// ✗ BAD — old pattern (no longer works):
+await orm.single(User).create(data)
+
+// ✓ GOOD — new pattern:
+await orm.single(User).create(data).go()
+await orm.single(User).create(data).onConflict(t => [t.email]).go()
+await orm.single(User).update(data).where(t => t.id.eq(1)).go()
+```
 
 ---
 

@@ -1,7 +1,7 @@
 # Отсутствующие фичи
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
-> Updated 2026-09-05 — added importance fields.
+> Updated 2026-09-05 — F1 resolved, F6 updated.
 
 ---
 
@@ -11,17 +11,24 @@
 
 **Краткое описание:** Нет поддержки upsert-операций. Приходится делать select + update/create в two-step.
 
-**Риски изменений:**
-- Добавить `upsert()` метод в SingleQueryBuilder — потребует изменений в SqlGenerator
-- Использовать raw() — unsafe, нет parameterization
-- Риск: средний, потребует изменений в нескольких слоях
+**Статус:** ✅ Реализовано. `create()` и `createMany()` возвращают финализаторы с `.onConflict()`, `.doNothing()`, `.go()`.
 
-**Связанные файлы:**
-- `packages/core/src/orm/builders/single.ts`
-- `packages/sql-pg/src/sql-generator.ts`
-- `packages/sql-pg/src/index.ts`
+**API:**
+```typescript
+// Insert
+orm.single(User).create(data).go()
 
-**Коммит:**
+// Upsert (ON CONFLICT DO UPDATE)
+orm.single(User).create(data).onConflict(t => [t.email]).go()
+
+// Upsert (ON CONFLICT DO NOTHING)
+orm.single(User).create(data).onConflict(t => [t.email]).doNothing().go()
+
+// Batch upsert
+orm.single(User).createMany([...]).onConflict(t => [t.email]).go()
+```
+
+**Коммиты:** `933bcb6` (sql-types), `b4c9c73` (core AST), `04e5502` (sql-generator), `703222b` (core builders), `719a38c` (pg adapter), `29a250f` (tests)
 
 ---
 
@@ -120,7 +127,11 @@ orm.single(Order)
 
 **Статус:** ✅ createMany() реализован. update/delete уже работают как mass-операции через WHERE.
 
-**Коммиты:** `328c732` (sql-types), `5f82635` (sql-pg), `0bf0748` (core), `47245f8` (tests), `2138569` (docs)
+**Дополнительно:**
+- `createMany()` с автотранзакцией при >1000 строк (`{ transaction: true }` по умолчанию)
+- `createMany()` возвращает финализатор с `.onConflict()`, `.doNothing()`, `.go()`
+
+**Коммиты:** `328c732` (sql-types), `5f82635` (sql-pg), `0bf0748` (core), `47245f8` (tests), `2138569` (docs), `933bcb6` (options), `719a38c` (transaction), `29a250f` (tests)
 
 ---
 
