@@ -2,16 +2,6 @@ import type { StandardField } from './_base';
 
 export type RelationType = 'one-to-many' | 'many-to-one' | 'one-to-one';
 
-/** Маппинг прямой связи → обратной */
-export function invertRelation(r: RelationType): RelationType {
-  const map: Record<RelationType, RelationType> = {
-    'one-to-many': 'many-to-one',
-    'many-to-one': 'one-to-many',
-    'one-to-one': 'one-to-one',
-  };
-  return map[r];
-}
-
 export interface ModelSchema {
   _meta: { _: 'model'; name: string };
   fields: Record<string, StandardField>;

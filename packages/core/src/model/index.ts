@@ -1,5 +1,5 @@
 import f from './fields/index';
-import { invertRelation } from './types/model';
+import { invertRelation } from './fields/model';
 import type { ModelSchema, ModelRelation } from './types/model';
 import type { StandardField } from './types/_base';
 import type { ReferenceField } from './types/ref';

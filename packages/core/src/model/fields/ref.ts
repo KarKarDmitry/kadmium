@@ -1,6 +1,6 @@
 import { StandartFieldBuilder } from './_base';
 import type { ReferenceField } from '../types/ref';
-import { invertRelation } from '../types/model';
+import { invertRelation } from '../fields/model';
 import type { RelationType } from '../types/model';
 
 export class ReferenceFieldBuilder extends StandartFieldBuilder {
