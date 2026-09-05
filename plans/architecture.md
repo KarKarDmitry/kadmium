@@ -2,7 +2,7 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Verified 2026-09-04 against actual code.
-> Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`).
+> Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`).
 
 ---
 
@@ -92,14 +92,19 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 Нарушает SRP. Тяжело навигировать и тестировать изолированно.
 
-**Риски изменений:**
-- Разделить на `pg-type-mapper.ts`, `diff-computer.ts`, `diff-applier.ts`, `diff-renderer.ts`, `health.ts` — безопасно, но много файлов
-- Оставить как есть — принимаемо для текущего масштаба
+**Статус:** ✅ Разделён на `diff/` директорию в `c138f7b`:
+- `diff/types.ts` — типы + маппинг
+- `diff/compute.ts` — computeDiff
+- `diff/apply.ts` — applyDiff
+- `diff/render.ts` — renderSql
+- `diff/index.ts` — barrel + health check
+
+Публичный API не изменился (`from './diff'` → `diff/index.ts`).
 
 **Связанные файлы:**
-- `packages/sql-pg/src/diff.ts`
+- `packages/sql-pg/src/diff/` (директория)
 
-**Коммит:**
+**Коммит:** `c138f7b`
 
 ---
 
