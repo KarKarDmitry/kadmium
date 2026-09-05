@@ -67,7 +67,7 @@ export interface IncludedRelation {
 }
 
 export interface ReadonlySqb {
-  readonly operation: 'select' | 'update' | 'delete';
+  readonly operation: 'select' | 'update' | 'delete' | 'upsert';
   readonly tableContext: ReadonlyMap<string, string>;
   readonly wheres: WhereGroup;
   readonly selects: readonly SelectItem[] | null;
@@ -83,6 +83,12 @@ export interface ReadonlySqb {
   readonly groupBy: readonly string[];
   /** Data for UPDATE operations */
   readonly updateData: Record<string, unknown> | null;
+  /** Data for UPSERT operations */
+  readonly upsertData: Record<string, unknown> | null;
+  /** Column(s) for ON CONFLICT clause */
+  readonly conflictTarget: string[] | null;
+  /** ON CONFLICT DO NOTHING instead of DO UPDATE */
+  readonly doNothing: boolean;
 }
 
 // ── Adapter interface ──
@@ -107,6 +113,7 @@ export interface SqlAdapter {
   createMany(
     collectionName: string,
     data: Record<string, unknown>[],
+    options?: { transaction?: boolean },
   ): Promise<Record<string, unknown>[]>;
 
   /** DDL operations */
