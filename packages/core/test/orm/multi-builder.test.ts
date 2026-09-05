@@ -105,7 +105,7 @@ describe('MultiQueryBuilder — modifiers', () => {
 describe('MultiQueryBuilder — toSql', () => {
   it('throws without adapter', () => {
     const b = multiBuilder();
-    expect(() => b.toSql()).toThrow('No SQL adapter configured');
+    expect(() => b.toSql()).toThrow('No adapter configured');
   });
 
   it('returns formatted string with adapter', () => {

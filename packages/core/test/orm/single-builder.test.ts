@@ -255,7 +255,7 @@ describe('SingleQueryBuilder — exists', () => {
 describe('SingleQueryBuilder — toSql', () => {
   it('throws without adapter', () => {
     const b = builder();
-    expect(() => b.toSql()).toThrow('No SQL adapter configured');
+    expect(() => b.toSql()).toThrow('No adapter configured');
   });
 
   it('returns formatted string', () => {

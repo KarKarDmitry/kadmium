@@ -10,7 +10,6 @@
 import { Pool, PoolClient, types as pgTypes } from 'pg';
 import type {
   SqlAdapter,
-  SqlRenderer,
   TransactionalAdapter,
   ReadonlySqb,
   IncludedRelation,
@@ -239,6 +238,38 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
   }
 }
 
+// ═══ Debug Adapter ═══
+
+const NOT_ALLOWED = 'Debug adapter: use a real adapter for database queries.';
+
+/** Concrete SqlGenerator for debug adapter (no abstract class issues). */
+class DebugSqlGenerator extends SqlGenerator {}
+
+/**
+ * Debug adapter — renders SQL without a database connection.
+ * Useful for previewing generated SQL during development.
+ *
+ * toSql() works normally. execute()/create()/raw() throw errors.
+ *
+ * @example
+ *   import { createDebugAdapter } from '@karkardmitry/kadmium-sql-pg';
+ *   const adapter = createDebugAdapter();
+ *   orm.single(User, adapter).where(u => u.name.eq('Alice')).toSql();
+ */
+export function createDebugAdapter(): SqlAdapter {
+  const gen = new DebugSqlGenerator();
+  return {
+    toSql: (sqb) => gen.toSql(sqb),
+    execute: () => { throw new Error(NOT_ALLOWED); },
+    create: () => { throw new Error(NOT_ALLOWED); },
+    raw: () => { throw new Error(NOT_ALLOWED); },
+    ddl: new Proxy({} as PgDdlAdapter, {
+      get: () => { throw new Error(NOT_ALLOWED); },
+    }),
+    beginTransaction: () => { throw new Error(NOT_ALLOWED); },
+  };
+}
+
 export {
   computeDiff,
   applyDiff,
@@ -251,11 +282,3 @@ export {
 } from './diff';
 export type { DiffOp, DiffResult, HealthCheckResult } from './diff';
 export { PgDdlAdapter } from './ddl-adapter';
-
-/**
- * Standalone SQL renderer — generates parameterized SQL without a connection.
- * Useful for debugging and toSql() without a database.
- */
-export function createSqlRenderer(): SqlRenderer {
-  return new SqlGenerator();
-}
