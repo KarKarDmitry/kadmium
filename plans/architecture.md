@@ -2,7 +2,7 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Verified 2026-09-04 against actual code.
-> Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`).
+> Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 resolved (`53a69b2`).
 
 ---
 
@@ -67,15 +67,17 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `select()` / `first()` — return type `any` в implementation signature (lines 132, 188)
 - `_buildSelectFinalizer()` — 10 методов с `as any` (lines 413-456)
 
-**Риски изменений:**
-- Извлечь proxy-создание (lines 469-536) в отдельный файл — безопасно
-- Извлечь finalizer-билдеры (lines 413-467) в отдельный файл — безопасно
-- Заменить `any` на конкретные типы в критичных путях — средний риск
+**Статус:** ✅ Частично решено в `53a69b2`:
+- Proxy-фабрики (4 шт.) извлечены в `query-proxies.ts`
+- single.ts: 512 → 469 строк, relation.ts: 246 → 197 строк
+- Дублирование между single.ts и relation.ts устранено (~135 строк)
+- Осталось: finalizer-билдеры и замена `any` в критичных путях
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts`
+- `packages/core/src/orm/builders/query-proxies.ts` (создан)
 
-**Коммит:**
+**Коммит:** `53a69b2`
 
 ---
 
