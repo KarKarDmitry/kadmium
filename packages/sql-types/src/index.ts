@@ -103,6 +103,12 @@ export interface SqlAdapter {
     data: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
 
+  /** Create multiple records in a single query */
+  createMany(
+    collectionName: string,
+    data: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]>;
+
   /** DDL operations */
   ddl: DbDdlAdapter;
 
