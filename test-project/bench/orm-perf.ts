@@ -219,7 +219,8 @@ async function main() {
       benchRun++;
       await h.orm
         .single(UserModel)
-        .createMany(Array.from({ length: N }, (_, i) => makeUserRow(i))).go();
+        .createMany(Array.from({ length: N }, (_, i) => makeUserRow(i)))
+        .go();
     },
     3,
   );
@@ -317,7 +318,7 @@ async function main() {
   console.log('\n' + '═'.repeat(60));
   console.log('Done. All benchmarks completed.');
 
-  await h.adapter.end();
+  if (h.adapter.end) await h.adapter.end();
 }
 
 main().catch(console.error);

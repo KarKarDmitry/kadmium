@@ -3,7 +3,12 @@ import { KadmiumApp } from '@karkardmitry/kadmium-core';
 async function main() {
   const app = new KadmiumApp();
   await app.init('.');
-  const adapter = app.appCore.sqlAdapter!;
+  const adapter = app.appCore.sqlAdapter;
+
+  if (!adapter) {
+    console.log('failed bench: adapter undefined');
+    return;
+  }
 
   console.log('=== LEFT JOIN + GROUP BY ===');
   const gj = await adapter.raw(
@@ -39,7 +44,7 @@ async function main() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   lat.forEach((r: any) => console.log(r['QUERY PLAN']));
 
-  await adapter.end();
+  if (adapter.end) await adapter.end();
   process.exit(0);
 }
 main();
