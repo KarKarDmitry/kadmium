@@ -46,6 +46,7 @@ describe('createFilter', () => {
   });
 
   it('unknown type → BaseFilter', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const jsonbIr = { type: 'jsonb' as any, alias: 'data', tsType: 'any', nullable: false, unique: false, index: false };
     const f = createFilter(sqb, 'data', 'u', jsonbIr);
     expect(f).toBeInstanceOf(BaseFilter);

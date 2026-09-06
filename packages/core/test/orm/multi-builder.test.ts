@@ -22,17 +22,20 @@ describe('MultiQueryBuilder — constructor', () => {
 describe('MultiQueryBuilder — where', () => {
   it('pushes condition via MultiFilterProxy', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((t: any) => t.u.name.eq('Alice'));
     expect(b.sqb.wheres.conditions.length).toBe(1);
   });
 
   it('invalid alias throws', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => b.where((t: any) => t.x.name.eq('Alice'))).toThrow('Alias "x" not found');
   });
 
   it('invalid field throws', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => b.where((t: any) => t.u.nonexistent.eq('Alice'))).toThrow('Field "nonexistent" not found');
   });
 });
@@ -40,6 +43,7 @@ describe('MultiQueryBuilder — where', () => {
 describe('MultiQueryBuilder — join', () => {
   it('default direction is inner', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
     expect(b.sqb.joins.length).toBe(1);
     expect(b.sqb.joins[0].direction).toBe('inner');
@@ -47,6 +51,7 @@ describe('MultiQueryBuilder — join', () => {
 
   it('custom direction is stored', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.join({ left: 'u', right: 'p', direction: 'left', on: (t: any) => t.u.id.eq(t.p.author) });
     expect(b.sqb.joins[0].direction).toBe('left');
   });
@@ -55,6 +60,7 @@ describe('MultiQueryBuilder — join', () => {
 describe('MultiQueryBuilder — select', () => {
   it('returns toSql and go', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = b.select((t: any) => [t.u.name, t.p.title]);
     expect(typeof result.toSql).toBe('function');
     expect(typeof result.go).toBe('function');
@@ -62,6 +68,7 @@ describe('MultiQueryBuilder — select', () => {
 
   it('go throws without adapter', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = b.select((t: any) => [t.u.name]);
     expect(() => result.go()).toThrow('No adapter configured');
   });
@@ -70,6 +77,7 @@ describe('MultiQueryBuilder — select', () => {
 describe('MultiQueryBuilder — include', () => {
   it('pushes builder into sqb.includes', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.include((t: any) => [t.u.posts]);
     expect(b.sqb.includes.length).toBe(1);
   });
@@ -90,6 +98,7 @@ describe('MultiQueryBuilder — modifiers', () => {
 
   it('order', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((t: any) => t.u.name, 'desc');
     expect(b.sqb.orders.length).toBe(1);
     expect(b.sqb.orders[0].direction).toBe('desc');
@@ -97,6 +106,7 @@ describe('MultiQueryBuilder — modifiers', () => {
 
   it('groupBy', () => {
     const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.groupBy((t: any) => [t.u.name]);
     expect(b.sqb.groupBy).toContain('name');
   });

@@ -28,12 +28,14 @@ export function makeMockAdapter(): MockAdapter {
     execute: vi.fn().mockResolvedValue([]),
     create: vi.fn().mockResolvedValue({ id: 1 }),
     raw: vi.fn().mockResolvedValue([]),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ddl: {} as any,
     beginTransaction: vi.fn().mockResolvedValue({
       toSql: vi.fn().mockReturnValue({ text: 'BEGIN', values: [] }),
       execute: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({}),
       raw: vi.fn().mockResolvedValue([]),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ddl: {} as any,
       commit: vi.fn(),
       rollback: vi.fn(),

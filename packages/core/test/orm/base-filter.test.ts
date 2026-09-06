@@ -6,6 +6,7 @@ describe('BaseFilter', () => {
   it('clause() returns correct shape', () => {
     const sqb = makeSqb();
     const filter = new BaseFilter(sqb, 'name', 'u', 'user_name');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = (filter as any).clause('=', 'Alice');
 
     expect(result).toEqual({
@@ -20,6 +21,7 @@ describe('BaseFilter', () => {
   it('clause() without column', () => {
     const sqb = makeSqb();
     const filter = new BaseFilter(sqb, 'name', 'u');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = (filter as any).clause('!=', 'Bob');
 
     expect(result.column).toBeUndefined();

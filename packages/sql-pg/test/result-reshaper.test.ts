@@ -29,6 +29,7 @@ function incl(
     relationType: 'many-to-one',
     parentField: 'id',
     childField: 'id',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     internalSqb: {} as any,
     targetIr: { name: 'X', collection: 'x', fields: {} },
   };
@@ -142,6 +143,7 @@ describe('ResultReshaper.reshape', () => {
 
   it('skips aggregate selects (kind=aggregate)', () => {
     const flat = [{ 'u.id': 1, cnt: 5 }];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const selects: any[] = [
       sel('u', 'id'),
       { kind: 'aggregate', tableAlias: 'u', fieldName: '*', alias: 'cnt' },

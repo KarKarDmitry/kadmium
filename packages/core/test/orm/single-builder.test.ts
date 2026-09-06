@@ -4,7 +4,11 @@ import { makeUserIR, makeMockAdapter, type MockAdapter } from './helpers';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
 function builder(adapter?: MockAdapter) {
-  return new SingleQueryBuilder(makeUserIR(), undefined, adapter as unknown as SqlAdapter);
+  return new SingleQueryBuilder(
+    makeUserIR(),
+    undefined,
+    adapter as unknown as SqlAdapter,
+  );
 }
 
 describe('SingleQueryBuilder — constructor', () => {
@@ -17,19 +21,23 @@ describe('SingleQueryBuilder — constructor', () => {
 describe('SingleQueryBuilder — where/and/or', () => {
   it('where pushes condition', () => {
     const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => u.name.eq('Alice'));
     expect(b.sqb.wheres.conditions.length).toBe(1);
   });
 
   it('and is alias for where', () => {
     const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.and((u: any) => u.name.eq('Alice'));
     expect(b.sqb.wheres.conditions.length).toBe(1);
   });
 
   it('or uses addOrCondition', () => {
     const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => u.name.eq('Alice'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.or((u: any) => u.name.eq('Bob'));
     expect(b.sqb.wheres.op).toBe('OR');
   });
@@ -44,10 +52,13 @@ describe('SingleQueryBuilder — group', () => {
 
   it('with conditions pushes group', () => {
     const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.group((q: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       q.where((u: any) => u.name.eq('Alice'));
     });
     expect(b.sqb.wheres.conditions.length).toBe(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const group = b.sqb.wheres.conditions[0] as any;
     expect(group.op).toBe('AND');
     expect(group.conditions).toBeDefined();
@@ -60,7 +71,9 @@ describe('SingleQueryBuilder — group', () => {
       b.group(() => {
         throw new Error('test');
       });
-    } catch {}
+    } catch {
+      /* expected */
+    }
     expect(b.sqb.wheres).toBe(original);
   });
 });
@@ -68,7 +81,7 @@ describe('SingleQueryBuilder — group', () => {
 describe('SingleQueryBuilder — select', () => {
   it('no-arg selects all non-sourceModel fields', () => {
     const b = builder();
-    const q = b.select();
+    b.select();
     expect(b.sqb.selects).not.toBeNull();
     // User has: id, name, email, age, active, posts(sourceModel) → 5 fields
     expect(b.sqb.selects!.length).toBe(5);
@@ -76,7 +89,7 @@ describe('SingleQueryBuilder — select', () => {
 
   it('with selector passes aggregates', () => {
     const b = builder();
-    const q = b.select((t: any, agg) => [t.name]);
+    b.select((t, _agg) => [t.name]);
     expect(b.sqb.selects).not.toBeNull();
     expect(b.sqb.selects!.length).toBe(1);
   });
@@ -93,12 +106,14 @@ describe('SingleQueryBuilder — first', () => {
 describe('SingleQueryBuilder — modifiers', () => {
   it('groupBy pushes to sqb.groupBy', () => {
     const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.groupBy((t: any) => [t.name]);
     expect(b.sqb.groupBy).toContain('name');
   });
 
   it('order pushes to sqb.orders', () => {
     const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((t: any) => t.name, 'desc');
     expect(b.sqb.orders.length).toBe(1);
     expect(b.sqb.orders[0].direction).toBe('desc');
@@ -138,7 +153,21 @@ describe('SingleQueryBuilder — modifiers', () => {
 
 describe('SingleQueryBuilder — findById', () => {
   it('throws when no PK', () => {
-    const ir = { name: 'X', collection: 'x', fields: { name: { type: 'string' as const, alias: 'name', tsType: 'string', nullable: false, unique: false, index: false } } };
+    const ir = {
+      name: 'X',
+      collection: 'x',
+      fields: {
+        name: {
+          type: 'string' as const,
+          alias: 'name',
+          tsType: 'string',
+          nullable: false,
+          unique: false,
+          index: false,
+        },
+      },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const b = new SingleQueryBuilder(ir as any);
     expect(() => b.findById(1)).toThrow('No primary key field found');
   });
@@ -154,14 +183,17 @@ describe('SingleQueryBuilder — findById', () => {
 describe('SingleQueryBuilder — create', () => {
   it('throws without adapter', () => {
     const b = builder();
-    expect(() => b.create({ name: 'Alice' } as any)).toThrow('No adapter configured');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => b.create({ name: 'Alice' } as any)).toThrow(
+      'No adapter configured',
+    );
   });
 
-  it('maps aliases and calls adapter.create', async () => {
+  it('maps aliases and calls adapter.execute', async () => {
     const adapter = makeMockAdapter();
     const b = builder(adapter);
-    await b.create({ name: 'Alice' });
-    expect(adapter.create).toHaveBeenCalledWith('users', { name: 'Alice' });
+    await b.create({ name: 'Alice' }).go();
+    expect(adapter.execute).toHaveBeenCalledWith(expect.objectContaining({ operation: 'upsert', upsertData: { name: 'Alice' } }));
   });
 });
 
@@ -195,6 +227,7 @@ describe('SingleQueryBuilder — update', () => {
   it('finalizer where pushes condition', () => {
     const b = builder();
     const f = b.update({ name: 'Alice' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.where((u: any) => u.id.eq(1));
     expect(b.sqb.wheres.conditions.length).toBe(1);
   });

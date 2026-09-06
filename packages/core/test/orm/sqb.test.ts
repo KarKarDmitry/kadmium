@@ -38,6 +38,7 @@ describe('KadmiumSqb', () => {
   it('clone deep-copies wheres', () => {
     const sqb = new KadmiumSqb();
     sqb.wheres.conditions.push({ field: 'name', op: '=', value: 'Alice' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nested: any = {
       op: 'AND',
       conditions: [{ field: 'age', op: '>', value: 18 }],
@@ -47,10 +48,14 @@ describe('KadmiumSqb', () => {
     const cloned = sqb.clone();
 
     // Mutate original
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (sqb.wheres.conditions[0] as any).value = 'Bob';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (sqb.wheres.conditions[1] as any).conditions[0].value = 25;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((cloned.wheres.conditions[0] as any).value).toBe('Alice');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((cloned.wheres.conditions[1] as any).conditions[0].value).toBe(18);
   });
 
