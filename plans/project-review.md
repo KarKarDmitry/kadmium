@@ -88,10 +88,11 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| TG1 | 🟡 | **No unit tests for ORM layer** — proxy system, query builders, relation builder | ⬜ Open — see testing.md |
-| TG2 | 🟡 | **ResultReshaper not tested** — critical component, no unit tests | ⬜ Open — see testing.md |
-| TG3 | 🟡 | **Proxy system not tested in isolation** — FilterProxy, SelectProxy, RelationProxy | ⬜ Open — see testing.md |
-| TG4 | 🟢 | **pgType/diffToHealth/compile unit tests removed** — pure functions covered only indirectly | ⬜ Open — see testing.md |
+| TG1 | 🟡 | **No unit tests for ORM layer** — proxy system, query builders, relation builder | ✅ Fixed (`dec901e`): 147 cases in `packages/core/test/orm/` |
+| TG2 | 🟡 | **ResultReshaper not tested** — critical component, no unit tests | ✅ Fixed (`36951f7`): 11 cases in `packages/sql-pg/test/result-reshaper.test.ts` |
+| TG3 | 🟡 | **Proxy system not tested in isolation** — FilterProxy, SelectProxy, RelationProxy | ✅ Fixed: covered in `query-proxies.test.ts` (included in TG1) |
+| TG4 | 🟢 | **pgType/diffToHealth/compile unit tests removed** — pure functions covered only indirectly | ✅ Fixed (`dec901e`): compileModel 30 cases + TG5 below |
+| TG5 | 🟡 | **No unit tests for Model DSL, field builders, codegen, DDL adapter, sql-generator** | ✅ Fixed (`dec901e`): 226 cases across 19 new test files |
 
 ---
 
@@ -143,6 +144,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [x] `npm run lint` — no lint errors (core + sql-pg + sql-types).
 - [x] `npm run format:check` — prettier happy (core + sql-pg + sql-types).
 - [x] `npm run test:project` — 69 pass (requires docker `db:up`).
+- [x] `npx vitest run` (root) — 438 pass, 0 fail (packages/core + packages/sql-pg).
 - [x] `test-project: npm run typecheck` — tests typechecked, clean.
 - [x] `npm run build` — succeeds.
 

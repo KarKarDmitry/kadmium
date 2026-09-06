@@ -65,7 +65,7 @@
 
 **Важность:** 🟢 Medium
 
-**Статус:** ✅ Добавлены unit-тесты для diff/types.ts (54 cases) и diffToHealth (8 cases) в `packages/sql-pg/test/diff/`. Тесты для compileModel не добавлены — требуют сложного мока иерархии Model.
+**Статус:** ✅ Добавлены unit-тесты для diff/types.ts (54 cases), diffToHealth (8 cases) в `packages/sql-pg/test/diff/`. compileModel — 30 cases в `packages/core/test/ir/compile.test.ts`.
 
 **Покрыто:**
 - `pgType` — все типы полей + ref resolution + db_type (18 cases)
@@ -76,9 +76,39 @@
 - `expectedIndexes` — unique/ref/index/sourceModel/alias (6 cases)
 - `expectedForeignKeys` — ref/sourceModel/unknown target/alias (4 cases)
 - `diffToHealth` — все варианты summary + комбинации (8 cases)
+- `compileModel` — normalizeType, basic compilation, isPrimary, alias, tsType, spec, ref fields, inverse refs, sourceFile, db options (30 cases)
 
 **Связанные файлы:**
 - `packages/sql-pg/test/diff/types.test.ts` (создан)
 - `packages/sql-pg/test/diff/health.test.ts` (создан)
+- `packages/core/test/ir/compile.test.ts` (создан)
 
-**Коммит:** (pending)
+**Коммит:** `dec901e`
+
+---
+
+## TG5: Нет unit-тестов для Model DSL, field builders, codegen, DDL adapter, sql-generator
+
+**Важность:** 🟡 High
+
+**Статус:** ✅ Добавлены unit-тесты (226 cases) + root vitest config.
+
+**Покрыто:**
+- Model base class ($build, $relations, $refs, registry, inheritance, MODEL_MARKER) — `model.test.ts` (16 cases)
+- Field builders: string, number, boolean, datetime, primary, ref, index, model (invertRelation) — `fields/*.test.ts` (65 cases)
+- Codegen: generateModel (13 cases), runner/generateAll/generateToFile/checkSync (9 cases) — `codegen/*.test.ts`
+- DDL adapter: inspectTables, inspectColumns, inspectIndexes, inspectForeignKeys, createTable, addColumn, alterType, alterNullable, alterDefault, addIndex, addForeignKey, drop*, raw — `ddl-adapter.test.ts` (32 cases)
+- SqlGenerator split: render-value (8), where-clause (9), select (18), update (5), upsert (7), delete (4), includes (6), join-islands (4) — `sql-generator/*.test.ts` (61 cases)
+- ESLint: все ошибки и warnings исправлены в test файлах
+
+**Связанные файлы:**
+- `packages/core/test/model/model.test.ts` (создан)
+- `packages/core/test/model/fields/*.test.ts` (8 файлов создано)
+- `packages/core/test/codegen/generate-model.test.ts` (создан)
+- `packages/core/test/codegen/runner.test.ts` (создан)
+- `packages/sql-pg/test/ddl-adapter.test.ts` (создан)
+- `packages/sql-pg/test/sql-generator/*.test.ts` (8 файлов создано)
+- `vitest.config.ts` (создан — root config)
+- `package.json` (добавлен `test` script)
+
+**Коммит:** `dec901e`
