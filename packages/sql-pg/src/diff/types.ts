@@ -4,7 +4,6 @@
 
 import type {
   DbColumn,
-  DbDdlAdapter,
   DbIndex,
   DbForeignKey,
 } from '@karkardmitry/kadmium-sql-types';

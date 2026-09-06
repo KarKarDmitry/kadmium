@@ -172,7 +172,6 @@ export class MultiQueryBuilder<
   private _createFilterProxy(): MultiFilterProxy<T> {
     const sqb = this.sqb;
     const irs = this.irs;
-    const lookup = this.irLookup;
     return new Proxy({} as MultiFilterProxy<T>, {
       get: (_, alias: string) => {
         const ir = irs.get(alias);

@@ -1,7 +1,6 @@
-import { KadmiumSqb, type IncludedRelation } from '../sqb';
+import { KadmiumSqb } from '../sqb';
 import type { WhereCondition, WhereGroup } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
-import { AggregateField } from '../ast/aggregate';
 import { Relation, type IRelationBuilder } from '../field-builders/relation';
 import type { ModelIR } from '../../ir/index';
 import type {
@@ -31,7 +30,10 @@ import {
   createOrderProxy,
   createRelationProxy,
 } from './query-proxies';
-import { buildCreateFinalizer, buildCreateManyFinalizer } from './upsert-helpers';
+import {
+  buildCreateFinalizer,
+  buildCreateManyFinalizer,
+} from './upsert-helpers';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -246,7 +248,12 @@ export class SingleQueryBuilder<
     for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = v;
     }
-    return buildCreateFinalizer<TModel>(this.sqb, this.adapter, this.ir, mapped);
+    return buildCreateFinalizer<TModel>(
+      this.sqb,
+      this.adapter,
+      this.ir,
+      mapped,
+    );
   }
 
   /** Создать несколько записей. Цепочка: .onConflict().doNothing().go() */
@@ -271,7 +278,13 @@ export class SingleQueryBuilder<
       }
       return m;
     });
-    return buildCreateManyFinalizer<TModel>(this.sqb, this.adapter, this.ir, mapped, options);
+    return buildCreateManyFinalizer<TModel>(
+      this.sqb,
+      this.adapter,
+      this.ir,
+      mapped,
+      options,
+    );
   }
 
   // ── UPDATE / DELETE ──

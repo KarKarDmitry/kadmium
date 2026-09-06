@@ -51,9 +51,7 @@ function extractFieldNames(
 ): string[] {
   const proxy = createSelectProxy('__upsert', ir);
   const fields = fn(proxy);
-  return fields.map(
-    (f) => ir.fields[f.fieldName]?.alias ?? f.fieldName,
-  );
+  return fields.map((f) => ir.fields[f.fieldName]?.alias ?? f.fieldName);
 }
 
 function _buildSql(sqb: KadmiumSqb, adapter: SqlAdapter): string {
@@ -112,7 +110,11 @@ export function buildCreateManyFinalizer<TModel extends Model>(
     },
     go: async () => {
       if (!baseSqb.conflictTarget?.length) {
-        const rows = await adapter.createMany(ir.collection, mappedRows, options);
+        const rows = await adapter.createMany(
+          ir.collection,
+          mappedRows,
+          options,
+        );
         return rows.map((r) => mapRow(ir, r)) as TModel['~shape'][];
       }
       // With ON CONFLICT: each row needs its own INSERT
@@ -125,7 +127,13 @@ export function buildCreateManyFinalizer<TModel extends Model>(
         sqb.conflictTarget = [...baseSqb.conflictTarget!];
         sqb.doNothing = baseSqb.doNothing;
         const result = await adapter.execute(sqb);
-        if (result[0]) results.push(mapRow(ir, result[0] as Record<string, unknown>) as TModel['~shape']);
+        if (result[0])
+          results.push(
+            mapRow(
+              ir,
+              result[0] as Record<string, unknown>,
+            ) as TModel['~shape'],
+          );
       }
       return results;
     },

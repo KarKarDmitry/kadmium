@@ -75,9 +75,7 @@ export class KadmiumSqb {
     c.groupBy = [...this.groupBy];
     c.updateData = this.updateData ? { ...this.updateData } : null;
     c.upsertData = this.upsertData ? { ...this.upsertData } : null;
-    c.conflictTarget = this.conflictTarget
-      ? [...this.conflictTarget]
-      : null;
+    c.conflictTarget = this.conflictTarget ? [...this.conflictTarget] : null;
     c.doNothing = this.doNothing;
     return c;
   }

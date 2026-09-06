@@ -227,7 +227,7 @@ class TransactionalPgAdapter
   async createMany(
     collectionName: string,
     rows: Record<string, unknown>[],
-    options?: { transaction?: boolean },
+    _options?: { transaction?: boolean },
   ): Promise<Record<string, unknown>[]> {
     // Already in a transaction — ignore options.transaction
     return createManyRows(
@@ -293,11 +293,11 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
   async createMany(
     collectionName: string,
     rows: Record<string, unknown>[],
-    options?: { transaction?: boolean },
+    _options?: { transaction?: boolean },
   ): Promise<Record<string, unknown>[]> {
     if (rows.length === 0) return [];
     const needsTransaction =
-      options?.transaction !== false && rows.length > MAX_BATCH_ROWS;
+      _options?.transaction !== false && rows.length > MAX_BATCH_ROWS;
     if (!needsTransaction) {
       return createManyRows(
         (t, v) => this.pool.query(t, v),
