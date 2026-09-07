@@ -116,7 +116,7 @@ export class MultiQueryBuilder<
 
   // ── include ──
 
-  include<C extends MultiIncludeConfig<T>>(
+  include<const C extends MultiIncludeConfig<T>>(
     config: C,
   ): MultiQueryBuilder<T, C> {
     this._includeConfigs = config as Record<string, Record<string, any>>;

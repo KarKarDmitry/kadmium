@@ -133,7 +133,7 @@ export class SingleQueryBuilder<
 
   // ── include — returns this with updated TInclude ──
 
-  include<C extends IncludeConfig<TModel>>(
+  include<const C extends IncludeConfig<TModel>>(
     config: C,
   ): SingleQueryBuilder<TModel, TSelect, C, TMode> {
     this._resolveIncludes(config);

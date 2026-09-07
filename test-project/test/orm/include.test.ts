@@ -33,8 +33,10 @@ describe('include: to-one / to-many / nested', () => {
     const alice = await h.orm
       .single(UserModel)
       .where((u) => u.name.eq('Alice'))
-      .include({ posts: true })
-      .first()
+      .include({
+        posts: { select: (p) => [p.author.as('aut'), p.id] },
+      })
+      .first((u) => [u.email])
       .go();
     console.log('[include to-many] row =', JSON.stringify(alice, null, 2));
     expect(alice).toBeTruthy();

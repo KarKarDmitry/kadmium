@@ -76,6 +76,13 @@ export type FlatFinalResult<S extends readonly any[]> = {
   [E in S[number] as GetFieldName<E>]: GetFieldType<E>;
 };
 
+/** Извлечь return type select callback */
+type ExtractSelectResult<C> =
+  C extends { select: (t: any) => infer R } ? R : never;
+
+/** Извлечь alias из include config */
+type ExtractIncludeAlias<C> = C extends { alias: infer A extends string } ? A : never;
+
 // ── Include Config ──
 
 /** Proxy для select callback внутри include */
@@ -99,7 +106,7 @@ type IncludeRelationConfig<M, K extends string> =
           alias?: string;
           select?: (
             t: IncludeSelectProxy<RelTarget<M, K>>,
-          ) => readonly SelectableField[];
+          ) => readonly AnySelectable[];
           where?: (t: IncludeFilterProxy<RelTarget<M, K>>) => WhereCondition;
           order?: (t: IncludeFilterProxy<RelTarget<M, K>>) => OrderField;
           limit?: number;
@@ -120,26 +127,51 @@ export type IncludeConfig<M> = {
 // ── Result Computation ──
 
 /** Вычислить тип одного relation по config */
-type ResolveRelation<M, K extends string, C> = C extends true
-  ? RelationResult<M, K>
-  : C extends { include: infer Nested }
-    ? RelKind<M, K> extends 'one-to-many'
-      ? (TargetShape<M, K> & ResolveIncludes<RelTarget<M, K>, Nested>)[]
-      : TargetShape<M, K> & ResolveIncludes<RelTarget<M, K>, Nested>
+type ResolveRelation<M, K extends string, C> =
+  C extends true
+    ? RelationResult<M, K>
+    : C extends { select: infer S; include: infer Nested }
+      ? RelKind<M, K> extends 'one-to-many'
+        ? (Evaluate<FlatFinalResult<ExtractSelectResult<C>>> &
+            ResolveIncludes<RelTarget<M, K>, Nested>)[]
+        : Evaluate<FlatFinalResult<ExtractSelectResult<C>>> &
+            ResolveIncludes<RelTarget<M, K>, Nested>
+    : C extends { select: infer S }
+      ? RelKind<M, K> extends 'one-to-many'
+        ? Evaluate<FlatFinalResult<ExtractSelectResult<C>>>[]
+        : Evaluate<FlatFinalResult<ExtractSelectResult<C>>>
+    : C extends { include: infer Nested }
+      ? RelKind<M, K> extends 'one-to-many'
+        ? (TargetShape<M, K> & ResolveIncludes<RelTarget<M, K>, Nested>)[]
+        : TargetShape<M, K> & ResolveIncludes<RelTarget<M, K>, Nested>
     : RelationResult<M, K>;
 
-/** Вычислить вложенные include */
+/** Вычислить вложенные include (two-pass: raw keys → alias remap) */
 type ResolveIncludes<M, C> =
   C extends Record<string, any>
-    ? {
-        [
-          K in keyof C &
+    ? RemapIncludeAliases<
+        {
+          [K in keyof C &
             keyof (M extends { ['~relInfo']: infer R }
               ? R
-              : Record<never, never>) as K & string
-        ]: ResolveRelation<M, K & string, C[K]>;
-      }
+              : Record<never, never>)
+          ]: ResolveRelation<M, K & string, C[K]>;
+        },
+        C
+      >
     : Record<never, never>;
+
+/** Remap keys of raw include result using alias from config.
+ *  Separated so C is concrete when the as clause evaluates. */
+type RemapIncludeAliases<Raw, C> = {
+  [
+    K in keyof Raw as K extends string
+      ? C extends Record<K, { alias: infer A extends string }>
+        ? A
+        : K
+      : never
+  ]: Raw[K];
+};
 
 /** Финальный result type из include config (без select) */
 export type IncludeResult<M, C> = Evaluate<
