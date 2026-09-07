@@ -8,7 +8,8 @@ import type {
 import type { WhereCondition } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
-import type { IncludeConfig, IncludeResult } from './includes';
+import type { IncludeConfig, IncludeResult, FlatFinalResult, AnySelectable } from './includes';
+import type { AggregateFunctions } from '../field-builders/aggregates';
 
 export type NullableMethods = {
   readonly null: WhereCondition;
@@ -71,7 +72,19 @@ export type OrderProxy<TModel extends { ['~shape']: Record<string, unknown> }> =
 export interface UpdateFinalizer<
   TModel extends { ['~shape']: Record<string, unknown> },
 > {
+  returning<S extends readonly AnySelectable[]>(
+    fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+  ): {
+    go: () => Promise<FlatFinalResult<S>[]>;
+    sql: () => string;
+  };
   where(clause: (t: FilterProxy<TModel>) => WhereCondition): {
+    returning<S extends readonly AnySelectable[]>(
+      fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+    ): {
+      go: () => Promise<FlatFinalResult<S>[]>;
+      sql: () => string;
+    };
     go: () => Promise<TModel['~shape'][]>;
     sql: () => string;
   };

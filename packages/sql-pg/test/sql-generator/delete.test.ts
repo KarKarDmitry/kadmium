@@ -4,6 +4,7 @@ import type {
   ReadonlySqb,
   WhereCondition,
   WhereGroup,
+  SelectItem,
 } from '@karkardmitry/kadmium-sql-types';
 
 class TestGenerator extends SqlGenerator {}
@@ -45,6 +46,39 @@ function group(
   return { op, conditions };
 }
 
+/** Поле, повторяющее реальный SelectableField.toSql() из core. */
+function selectable(
+  tableAlias: string,
+  fieldName: string,
+  alias?: string,
+  column?: string,
+): SelectItem {
+  return {
+    kind: 'selectable',
+    tableAlias,
+    fieldName,
+    alias,
+    column,
+    toSql: () => {
+      const col = column ?? fieldName;
+      return alias
+        ? `"${tableAlias}"."${col}" AS "${alias}"`
+        : `"${tableAlias}"."${col}"`;
+    },
+  };
+}
+
+/** Агрегат, повторяющий реальный AggregateField.toSql() из core. */
+function aggregate(sql: string, alias: string): SelectItem {
+  return {
+    kind: 'aggregate',
+    tableAlias: 'u',
+    fieldName: '*',
+    alias,
+    toSql: () => `${sql} AS "${alias}"`,
+  };
+}
+
 describe('SqlGenerator — toSql: delete', () => {
   const gen = new TestGenerator();
 
@@ -82,5 +116,32 @@ describe('SqlGenerator — toSql: delete', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (q as any).operation = 'drop';
     expect(() => gen.toSql(q)).toThrow('Operation "drop" not implemented');
+  });
+
+  it('RETURNING selected field with alias', () => {
+    const q = sqb({
+      operation: 'delete',
+      selects: [selectable('u', 'name', 'displayName')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('RETURNING "u"."name" AS "displayName"');
+  });
+
+  it('RETURNING aggregate', () => {
+    const q = sqb({
+      operation: 'delete',
+      selects: [aggregate('COUNT(*)', 'total')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('RETURNING COUNT(*) AS "total"');
+  });
+
+  it('RETURNING mixed field and aggregate', () => {
+    const q = sqb({
+      operation: 'delete',
+      selects: [selectable('u', 'id'), aggregate('COUNT(*)', 'total')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('RETURNING "u"."id", COUNT(*) AS "total"');
   });
 });

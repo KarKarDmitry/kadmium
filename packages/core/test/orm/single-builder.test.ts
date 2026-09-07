@@ -249,6 +249,108 @@ describe('SingleQueryBuilder — delete', () => {
   });
 });
 
+describe('SingleQueryBuilder — update returning', () => {
+  it('finalizer has returning directly and after where', () => {
+    const f = builder().update({ name: 'Alice' });
+    expect(typeof f.returning).toBe('function');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(typeof f.where((u: any) => u.id.eq(1)).returning).toBe('function');
+  });
+
+  it('returning sets sqb.selects', () => {
+    const b = builder();
+    const f = b.update({ name: 'Alice' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    f.returning((u: any) => [u.id]);
+    expect(b.sqb.selects).not.toBeNull();
+    expect(b.sqb.selects!.length).toBe(1);
+  });
+
+  it('returning with aggregate sets select list', () => {
+    const b = builder();
+    const f = b.update({ name: 'Alice' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    f.returning((u: any, a: any) => [u.id, a.count('*').as('total')]);
+    expect(b.sqb.selects!.length).toBe(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((b.sqb.selects![1] as any).kind).toBe('aggregate');
+  });
+
+  it('returning go throws without adapter', async () => {
+    const f = builder().update({ name: 'Alice' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect(f.returning((u: any) => [u.id]).go()).rejects.toThrow(
+      'No adapter configured',
+    );
+  });
+
+  it('returning go maps rows by alias', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ n: 'Alice' }]);
+    const b = builder(adapter);
+    const f = b.update({ name: 'new' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await f.returning((u: any) => [u.name.as('n')]).go();
+    expect(adapter.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'update' }),
+    );
+    expect(result).toEqual([{ n: 'Alice' }]);
+  });
+
+  it('returning go drops unselected fields', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ id: 1, name: 'Alice' }]);
+    const b = builder(adapter);
+    const f = b.update({ name: 'new' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await f.returning((u: any) => [u.id]).go();
+    expect(result).toEqual([{ id: 1 }]);
+    expect('name' in result[0]).toBe(false);
+  });
+
+  it('where().returning().go() applies where and maps rows', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ id: 42 }]);
+    const b = builder(adapter);
+    const f = b.update({ name: 'new' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await f
+      .where((u: any) => u.id.eq(1))
+      .returning((u: any) => [u.id])
+      .go();
+    expect(b.sqb.wheres.conditions.length).toBe(1);
+    expect(result).toEqual([{ id: 42 }]);
+  });
+});
+
+describe('SingleQueryBuilder — delete returning', () => {
+  it('finalizer has returning directly and after where', () => {
+    const f = builder().delete();
+    expect(typeof f.returning).toBe('function');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(typeof f.where((u: any) => u.id.eq(1)).returning).toBe('function');
+  });
+
+  it('returning sets sqb.selects', () => {
+    const b = builder();
+    const f = b.delete();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    f.returning((u: any) => [u.id]);
+    expect(b.sqb.selects).not.toBeNull();
+    expect(b.sqb.selects!.length).toBe(1);
+  });
+
+  it('returning go maps rows and drops unselected', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ id: 7, name: 'Ghost' }]);
+    const b = builder(adapter);
+    const f = b.delete();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await f.returning((u: any) => [u.id]).go();
+    expect(result).toEqual([{ id: 7 }]);
+  });
+});
+
 describe('SingleQueryBuilder — count', () => {
   it('returns number via go()', async () => {
     const adapter = makeMockAdapter();

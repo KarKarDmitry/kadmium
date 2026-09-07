@@ -13,6 +13,7 @@ import type {
 import type {
   AllFields,
   AnySelectable,
+  FlatFinalResult,
   IncludeConfig,
   QueryResult,
 } from '../types/includes';
@@ -293,12 +294,32 @@ export class SingleQueryBuilder<
     };
     const sql = () => this.toSql();
 
+    const returning = <S extends readonly AnySelectable[]>(
+      fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+    ) => {
+      this.sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      return {
+        go: async () => {
+          if (!this.adapter)
+            throw new Error(
+              'No adapter configured; call .go() only with an adapter.',
+            );
+          const rows = await this.adapter.execute(this.sqb);
+          return rows.map((r) =>
+            this._mapReturningRow(r),
+          ) as FlatFinalResult<S>[];
+        },
+        sql,
+      };
+    };
+
     return {
       where: (clause) => {
         const proxy = this._createFilterProxy();
         this.sqb.wheres.conditions.push(clause(proxy));
-        return { go, sql };
+        return { returning, go, sql };
       },
+      returning,
       go,
       sql,
     };
@@ -317,12 +338,32 @@ export class SingleQueryBuilder<
     };
     const sql = () => this.toSql();
 
+    const returning = <S extends readonly AnySelectable[]>(
+      fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+    ) => {
+      this.sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      return {
+        go: async () => {
+          if (!this.adapter)
+            throw new Error(
+              'No adapter configured; call .go() only with an adapter.',
+            );
+          const rows = await this.adapter.execute(this.sqb);
+          return rows.map((r) =>
+            this._mapReturningRow(r),
+          ) as FlatFinalResult<S>[];
+        },
+        sql,
+      };
+    };
+
     return {
       where: (clause) => {
         const proxy = this._createFilterProxy();
         this.sqb.wheres.conditions.push(clause(proxy));
-        return { go, sql };
+        return { returning, go, sql };
       },
+      returning,
       go,
       sql,
     };
@@ -404,6 +445,16 @@ export class SingleQueryBuilder<
     for (const [prop, f] of Object.entries(this.ir.fields)) {
       const col = f.alias ?? prop;
       if (row[col] !== undefined) out[prop] = row[col];
+    }
+    return out;
+  }
+
+  private _mapReturningRow(row: Record<string, unknown>): Record<string, unknown> {
+    if (!this.sqb.selects) return this._mapRow(row);
+    const out: Record<string, unknown> = {};
+    for (const sel of this.sqb.selects) {
+      const key = sel.alias ?? sel.fieldName;
+      if (row[key] !== undefined) out[key] = row[key];
     }
     return out;
   }

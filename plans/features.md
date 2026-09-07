@@ -2,6 +2,53 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — F1 resolved, F6 updated.
+> Updated 2026-09-07 — verified F1, F6 still resolved. F7 updated. F8 added.
+
+---
+
+## F8: Нет оконных функций (window functions)
+
+**Важность:** 🟢 Medium
+
+**Краткое описание:** Нет поддержки `OVER ()` — партиционирование, порядок, нумерация строк (`ROW_NUMBER`, `RANK`, `LAG`, `NTILE`...) и агрегатов по окну (`SUM(col) OVER (...)`).
+
+**Статус:** ⬜ Открыто. Агрегаты реализованы, но без `over()`. API выбрано (вариант A), реализация отложена.
+
+**Выбранный API (вариант A — третий параметр `wf`):**
+```typescript
+select((u, aggs, wf) => [
+  u.id,
+  aggs.count().as('total'),                                    // COUNT(*)
+  aggs.sum(u.amount).over(w => w.orderBy(u.createdAt)).as('runningTotal'), // SUM(amount) OVER (ORDER BY ...)
+  wf.rowNumber().as('rn'),                                     // ROW_NUMBER() OVER ()
+  wf.rowNumber().over(w => w.partitionBy(u.deptId).orderBy(u.createdAt, 'desc')).as('rn'),
+  wf.rank().as('rank'),
+  wf.lag(u.price, 1).as('prevPrice'),
+  wf.ntile(4).as('quartile'),
+])
+```
+
+**Обоснование варианта A:** не ломает существующий код `(t, aggs)` — новый параметр добавляется третьим. Вариант B (`{ aggs, wf }`) отклонён: breaking change. Вариант C (всё в `aggs`) отклонён: смешивает агрегаты и оконные функции.
+
+**Диапазон функций:**
+- Нумерация/ранг: `row_number()`, `rank()`, `dense_rank()`, `ntile(n)`
+- Смещение: `lag(col, n)`, `lead(col, n)`
+- Значение: `first_value(col)`, `last_value(col)`
+- Агрегат с окном: `aggs.sum(col).over(w => ...)`, `aggs.count().over(w => ...)`
+
+**Изменения:**
+- AST: новый класс `WindowField` с `toSql()` → рендер `FUNC(...) OVER (PARTITION BY ... ORDER BY ...)`
+- `WindowSpec` builder: `.partitionBy(...)`, `.orderBy(...)`, `.rowsBetween(...)`
+- Типы: `WindowFunctions` в сигнатуре `select()`/`first()`/`.returning()` как третий параметр
+- **Рендер через `sel.toSql()`** — чтобы новый AST-узел рендерился без правок SqlGenerator (линкается с решением для `.returning()`)
+
+**Связанные файлы:**
+- `packages/core/src/orm/field-builders/aggregates.ts`
+- `packages/core/src/orm/ast/aggregate.ts` (переиспользование паттерна)
+- `packages/core/src/orm/types/proxy.d.ts` (сигнатура select/first)
+- `packages/sql-pg/src/sql-generator.ts` (рендер, вероятно не потребуется если `toSql()`)
+
+**Коммит:**
 
 ---
 
@@ -38,10 +85,7 @@ orm.single(User).createMany([...]).onConflict(t => [t.email]).go()
 
 **Краткое описание:** `raw()` доступен только через адаптер (`appCore.sqlAdapter.raw()`). В ORM-слое нет доступа к сырым запросам.
 
-**Риски изменений:**
-- Добавить `raw()` в OrmManager — безопасно
-- Прокинуть adapter в standalone orm — безопасно
-- Риск: минимальный
+**Статус:** ⬜ Открыто. `raw()` доступен через `appCore.sqlAdapter.raw()`, но не через `orm.single()`. Добавление в OrmManager — минимальный риск.
 
 **Связанные файлы:**
 - `packages/core/src/orm/orm.ts`
@@ -67,10 +111,7 @@ orm.single(Order)
   .go();
 ```
 
-**Риски изменений:**
-- Добавить `having()` в QueryBuilder + SqlGenerator — потребует изменений в AST
-- Использовать子запрос — workaround, но неудобно
-- Риск: средний, потребует изменений в AST и SqlGenerator
+**Статус:** ⬜ Открыто. Потребует изменений в AST (`sqb.ts`), `SqlGenerator`, и query builders.
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts`
@@ -149,9 +190,7 @@ orm.single(User).where(t => t.active.eq(true)).count().go();
 orm.single(User).where(t => t.active.eq(true)).count().go(); // работает, но count() перезаписывает select
 ```
 
-**Риски изменений:**
-- Минимальные — count() уже работает через select + aggregate
-- Улучшить API — безопасно
+**Статус:** ⬜ Открыто. `count()` работает через `select(aggregates.count('*'))`, но API неудобен — count() перезаписывает select и не даёт комбинировать с where без промежуточного select().
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts` (count)

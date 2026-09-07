@@ -4,6 +4,7 @@ import type {
   ReadonlySqb,
   WhereCondition,
   WhereGroup,
+  SelectItem,
 } from '@karkardmitry/kadmium-sql-types';
 
 class TestGenerator extends SqlGenerator {}
@@ -43,6 +44,39 @@ function group(
   conditions: Array<WhereCondition | WhereGroup>,
 ): WhereGroup {
   return { op, conditions };
+}
+
+/** Поле, повторяющее реальный SelectableField.toSql() из core. */
+function selectable(
+  tableAlias: string,
+  fieldName: string,
+  alias?: string,
+  column?: string,
+): SelectItem {
+  return {
+    kind: 'selectable',
+    tableAlias,
+    fieldName,
+    alias,
+    column,
+    toSql: () => {
+      const col = column ?? fieldName;
+      return alias
+        ? `"${tableAlias}"."${col}" AS "${alias}"`
+        : `"${tableAlias}"."${col}"`;
+    },
+  };
+}
+
+/** Агрегат, повторяющий реальный AggregateField.toSql() из core. */
+function aggregate(sql: string, alias: string): SelectItem {
+  return {
+    kind: 'aggregate',
+    tableAlias: 'u',
+    fieldName: '*',
+    alias,
+    toSql: () => `${sql} AS "${alias}"`,
+  };
 }
 
 describe('SqlGenerator — toSql: update', () => {
@@ -100,5 +134,45 @@ describe('SqlGenerator — toSql: update', () => {
       updateData: null,
     });
     expect(() => gen.toSql(q)).toThrow('No data provided for UPDATE');
+  });
+
+  it('RETURNING selected field with alias', () => {
+    const q = sqb({
+      operation: 'update',
+      updateData: { name: 'Bob' },
+      selects: [selectable('u', 'name', 'displayName')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('RETURNING "u"."name" AS "displayName"');
+  });
+
+  it('RETURNING field without alias', () => {
+    const q = sqb({
+      operation: 'update',
+      updateData: { name: 'Bob' },
+      selects: [selectable('u', 'name')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('RETURNING "u"."name"');
+  });
+
+  it('RETURNING aggregate', () => {
+    const q = sqb({
+      operation: 'update',
+      updateData: { name: 'Bob' },
+      selects: [aggregate('COUNT(*)', 'total')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('RETURNING COUNT(*) AS "total"');
+  });
+
+  it('RETURNING mixed field and aggregate', () => {
+    const q = sqb({
+      operation: 'update',
+      updateData: { name: 'Bob' },
+      selects: [selectable('u', 'id'), aggregate('COUNT(*)', 'total')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('RETURNING "u"."id", COUNT(*) AS "total"');
   });
 });

@@ -494,8 +494,13 @@ export abstract class SqlGenerator {
       [],
     );
 
+    const returningClause =
+      sqb.selects && sqb.selects.length > 0
+        ? sqb.selects.map((sel) => sel.toSql()).join(', ')
+        : '*';
+
     return {
-      text: `UPDATE "${collectionName}" AS "${tableAlias}" SET ${setClause} ${whereClause} RETURNING *`
+      text: `UPDATE "${collectionName}" AS "${tableAlias}" SET ${setClause} ${whereClause} RETURNING ${returningClause}`
         .trim()
         .replace(/\s+/g, ' '),
       values,
@@ -570,8 +575,13 @@ export abstract class SqlGenerator {
       [],
     );
 
+    const returningClause =
+      sqb.selects && sqb.selects.length > 0
+        ? sqb.selects.map((sel) => sel.toSql()).join(', ')
+        : '*';
+
     return {
-      text: `DELETE FROM "${collectionName}" AS "${tableAlias}" ${whereClause} RETURNING *`
+      text: `DELETE FROM "${collectionName}" AS "${tableAlias}" ${whereClause} RETURNING ${returningClause}`
         .trim()
         .replace(/\s+/g, ' '),
       values,
