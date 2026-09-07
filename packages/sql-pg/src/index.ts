@@ -8,6 +8,7 @@
  */
 
 import { Pool, PoolClient, types as pgTypes } from 'pg';
+import type { TypeId, TypeFormat } from 'pg-types';
 import type {
   SqlAdapter,
   TransactionalAdapter,
@@ -97,12 +98,21 @@ async function rawQuery<T = unknown>(
   return result.rows as T[];
 }
 
-// int8 (bigint) → number, чтобы runtime совпадал с типом `number`.
-// ⚠️ Ограничение: значения > 2^53 теряют точность. Для больших внешних id
-// используйте PK типа uuid/string (f.pk.string / f.pk.uuid).
-pgTypes.setTypeParser(20, (val: string | null) =>
-  val === null ? null : Number(val),
-);
+// Per-pool int8 (bigint) → number parser.
+// Avoids global pgTypes.setTypeParser which conflicts with other pg users.
+// ⚠️ Limitation: values > 2^53 lose precision. Use uuid/string PK for large ids.
+function createKadmiumTypes() {
+  const int8Parser = (val: string | null) =>
+    val === null ? null : Number(val);
+
+  return {
+    getTypeParser(oid: TypeId, format?: TypeFormat) {
+      if (oid === 20) return int8Parser;
+      return pgTypes.getTypeParser(oid, format);
+    },
+    setTypeParser: pgTypes.setTypeParser,
+  };
+}
 
 /**
  * Срезает префикс `prop.` с ключей JSON-объектов include-подзапросов,
@@ -259,6 +269,7 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       password: config.password,
       database: config.database,
       max: config.poolSize ?? 10,
+      types: createKadmiumTypes(),
     });
     this.ddl = new PgDdlAdapter(this.pool);
     this.logger = config.logger;
