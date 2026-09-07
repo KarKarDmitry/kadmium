@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Model, MODEL_MARKER } from '../../src/model';
+import { ReferenceField } from '../../src/model/types/ref';
 import f from '../../src/model/fields';
 
 class User extends Model {
@@ -41,7 +42,9 @@ describe('Model', () => {
     it('ref field foreignKey defaults to alias', () => {
       Model.register(User, Post);
       const schema = new Post().$build();
-      expect(schema.fields.author.foreignKey).toBe('authorId');
+      expect((schema.fields.author as ReferenceField).foreignKey).toBe(
+        'authorId',
+      );
     });
 
     it('non-field properties are ignored', () => {
