@@ -1,37 +1,21 @@
 /**
  * Shared proxy factories for SingleQueryBuilder and Relation.
  *
- * Both classes create identical Proxy objects for filter/select/order/relation
- * access — the only difference is the source of `alias`, `ir`, `sqb`, and
- * `irLookup`. These helpers eliminate the duplication.
+ * Both classes create identical Proxy objects for filter/select/order
+ * access — the only difference is the source of `alias`, `ir`, and `sqb`.
+ * These helpers eliminate the duplication.
  */
 
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
-import type { IRelationBuilder } from '../field-builders/relation';
 import type { ModelIR } from '../../ir/index';
-import { toSnakeCase } from '../../ir/index';
 import type { KadmiumSqb } from '../sqb';
-import type {
-  FilterProxy,
-  SelectProxy,
-  OrderProxy,
-  RelationProxy,
-} from '../types/proxy';
-
-/** Factory that creates a Relation-like include builder. */
-export type RelationFactory = new (
-  sqb: KadmiumSqb,
-  name: string,
-  targetIr: ModelIR,
-  fieldIr: ModelIR['fields'][string] | undefined,
-  irLookup?: (name: string) => ModelIR | undefined,
-  parentAlias?: string,
-) => IRelationBuilder<any, any, any, any, any>;
+import type { FilterProxy, SelectProxy, OrderProxy } from '../types/proxy';
 
 type Model = {
   ['~shape']: Record<string, unknown>;
   ['~rel']: Record<string, unknown>;
+  ['~relInfo']: Record<string, unknown>;
 };
 
 export function createFilterProxy<TModel extends Model>(
@@ -74,28 +58,5 @@ export function createOrderProxy<TModel extends Model>(
       fieldName: field as string,
       column: ir.fields[field]?.alias,
     }),
-  });
-}
-
-export function createRelationProxy<TModel extends Model>(
-  alias: string,
-  ir: ModelIR,
-  sqb: KadmiumSqb,
-  relationFactory: RelationFactory,
-  irLookup?: (name: string) => ModelIR | undefined,
-): RelationProxy<TModel> {
-  return new Proxy({} as RelationProxy<TModel>, {
-    get: (_, name: string) => {
-      const fieldIr = ir.fields[name];
-      if (!fieldIr || fieldIr.type !== 'ref')
-        throw new Error(`Relation "${name}" not found in ${ir.name}`);
-      const targetName = fieldIr.sourceModel ?? fieldIr.ref ?? name;
-      const targetIr: ModelIR = irLookup?.(targetName) ?? {
-        name: targetName,
-        collection: toSnakeCase(targetName),
-        fields: {},
-      };
-      return new relationFactory(sqb, name, targetIr, fieldIr, irLookup, alias);
-    },
   });
 }

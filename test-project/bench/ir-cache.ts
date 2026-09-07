@@ -31,7 +31,7 @@ const compileTime = bench('compileModel (old: per query)', () =>
 const lookupTime = bench('app.ir lookup (new: registry)', () => app.ir('User'));
 
 const parse = (s: string): number =>
-  Number(s.split('total')[0].trim().split(' ').at(-1)?.replace('ms', ''));
+  Number(s.split('total')[0].trim().split(' ').slice(-1)[0]?.replace('ms', ''));
 
 console.log(`\nIR cache micro-benchmark (N=${N}):`);
 console.log(`  ${compileTime}`);

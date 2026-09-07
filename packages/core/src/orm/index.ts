@@ -11,7 +11,7 @@ export {
   DateFilter,
   addNullable,
 } from './field-builders/filters';
-export { Relation, type IRelationBuilder } from './field-builders/relation';
+export { Relation } from './field-builders/relation';
 export type {
   FilterProxy,
   SelectProxy,
@@ -25,16 +25,19 @@ export type {
   FinalResult,
   OrderProxy,
   OrderField,
-  ToOneRelation,
-  ToManyRelation,
+} from './types/public-types';
+export type {
+  Evaluate,
+  AnySelectable,
+  AllFields,
+  FlatFinalResult,
+  GetFieldName,
+  GetFieldType,
+} from './types/public-types';
+export type {
+  IncludeConfig,
+  IncludeResult,
+  QueryResult,
   RelationsOf,
   ShapeOf,
-  Evaluate,
-  FlatFinalResult,
-  IncludeResult,
-  BuildIncludedResult,
-  ISingleTableQuery,
-  IFirstQuery,
-  AnySelectable,
-  UnionToIntersection,
-} from './types/public-types';
+} from './types/includes';

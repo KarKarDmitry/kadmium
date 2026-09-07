@@ -3,10 +3,8 @@ import {
   createFilterProxy,
   createSelectProxy,
   createOrderProxy,
-  createRelationProxy,
 } from '../../src/orm/builders/query-proxies';
 import { makeSqb, makeUserIR } from './helpers';
-import { Relation } from '../../src/orm/field-builders/relation';
 
 const ir = makeUserIR();
 
@@ -64,46 +62,5 @@ describe('createOrderProxy', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const order = (proxy as any).id;
     expect(order.column).toBe('id');
-  });
-});
-
-describe('createRelationProxy', () => {
-  it('ref field creates Relation via factory', () => {
-    const sqb = makeSqb();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const proxy = createRelationProxy<any>('u', ir, sqb, Relation as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rel = (proxy as any).posts;
-    expect(rel).toBeInstanceOf(Relation);
-  });
-
-  it('non-ref field throws', () => {
-    const sqb = makeSqb();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const proxy = createRelationProxy<any>('u', ir, sqb, Relation as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(() => (proxy as any).name).toThrow('Relation "name" not found in User');
-  });
-
-  it('irLookup resolves target IR', () => {
-    const sqb = makeSqb();
-    const postIr = makeUserIR();
-    postIr.name = 'Post';
-    const lookup = () => postIr;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const proxy = createRelationProxy<any>('u', ir, sqb, Relation as any, lookup);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rel = (proxy as any).posts;
-    expect(rel.targetIr.name).toBe('Post');
-  });
-
-  it('irLookup undefined uses stub IR', () => {
-    const sqb = makeSqb();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const proxy = createRelationProxy<any>('u', ir, sqb, Relation as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rel = (proxy as any).posts;
-    expect(rel.targetIr.name).toBe('Post');
-    expect(rel.targetIr.collection).toBe('post');
   });
 });

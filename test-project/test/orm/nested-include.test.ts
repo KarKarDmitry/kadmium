@@ -19,10 +19,10 @@ describe('nested includes (depth > 1)', () => {
     const post = await h.orm
       .single(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
-      .include((p) => [p.author.include((a) => [a.posts])])
+      .include({ author: { include: { posts: true } } })
       .first()
       .go();
-    const author = (post as any).author;
+    const author = post!.author!;
     expect(author).toBeTruthy();
     expect(author.name).toBe('Alice');
     expect(Array.isArray(author.posts)).toBe(true);
@@ -34,15 +34,15 @@ describe('nested includes (depth > 1)', () => {
     const alice = await h.orm
       .single(UserModel)
       .where((u) => u.name.eq('Alice'))
-      .include((u) => [u.posts.include((p) => [p.author])])
+      .include({ posts: { include: { author: true } } })
       .first()
       .go();
-    const posts = (alice as any).posts;
+    const posts = alice!.posts!;
     expect(Array.isArray(posts)).toBe(true);
     expect(posts.length).toBe(2);
     for (const inner of posts) {
       expect(inner.author).toBeTruthy();
-      expect(inner.author.name).toBe('Alice');
+      expect(inner.author!.name).toBe('Alice');
     }
   });
 
@@ -50,53 +50,52 @@ describe('nested includes (depth > 1)', () => {
     const post = await h.orm
       .single(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
-      .include((p) => [
-        p.author.include((a) => [a.posts.include((pp) => [pp.comments])]),
-      ])
+      .include({
+        author: { include: { posts: { include: { comments: true } } } },
+      })
       .first()
       .go();
-    const author = (post as any).author;
-    // Alice's own posts: "Hello Postgres" has 2 comments, "Draft Post" has 0
-    const hello = author.posts.find((p: any) => p.title === 'Hello Postgres');
-    const draft = author.posts.find((p: any) => p.title === 'Draft Post');
-    expect(hello.comments.length).toBe(2);
-    expect(draft.comments.length).toBe(0);
+    const author = post!.author!;
+    const hello = author.posts.find((p) => p.title === 'Hello Postgres');
+    const draft = author.posts.find((p) => p.title === 'Draft Post');
+    expect(hello!.comments.length).toBe(2);
+    expect(draft!.comments.length).toBe(0);
   });
 
   it('empty at depth: a post with no comments returns []', async () => {
     const post = await h.orm
       .single(PostModel)
       .where((p) => p.title.eq('Draft Post'))
-      .include((p) => [
-        p.author.include((a) => [a.posts.include((pp) => [pp.comments])]),
-      ])
+      .include({
+        author: { include: { posts: { include: { comments: true } } } },
+      })
       .first()
       .go();
-    const author = (post as any).author;
-    const draft = author.posts.find((p: any) => p.title === 'Draft Post');
-    expect(draft.comments).toEqual([]);
+    const author = post!.author!;
+    const draft = author.posts.find((p) => p.title === 'Draft Post');
+    expect(draft!.comments).toEqual([]);
   });
 
   it('empty relation: Carol (no posts) returns []', async () => {
     const carol = await h.orm
       .single(UserModel)
       .where((u) => u.name.eq('Carol'))
-      .include((u) => [u.posts])
+      .include({ posts: true })
       .first()
       .go();
-    expect((carol as any).posts).toEqual([]);
+    expect(carol!.posts).toEqual([]);
   });
 
   it('nested with inner .select() limits fields', async () => {
     const post = await h.orm
       .single(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
-      .include((p) => [
-        p.author.include((a) => [a.posts.select((pp) => [pp.id])]),
-      ])
+      .include({
+        author: { include: { posts: { select: (pp) => [pp.id] } } },
+      })
       .first()
       .go();
-    const author = (post as any).author;
+    const author = post!.author!;
     for (const inner of author.posts) {
       expect(Object.keys(inner).sort()).toEqual(['id']);
     }
@@ -107,12 +106,12 @@ describe('nested includes (depth > 1)', () => {
       .query({ p: PostModel, a: UserModel })
       .join({ left: 'p', right: 'a', on: (t) => t.p.author.eq(t.a.id) })
       .where((t) => t.p.title.eq('Hello Postgres'))
-      .include((t) => [t.p.author.include((auth) => [auth.posts])])
+      .include({ p: { author: { include: { posts: true } } } })
       .select((t) => [t.p.title])
       .go();
     expect(rows.length).toBe(1);
-    const p = rows[0].p as any;
-    const author = p.author;
+    const p = rows[0].p;
+    const author = p.author!;
     expect(author).toBeTruthy();
     expect(Array.isArray(author.posts)).toBe(true);
   });

@@ -86,6 +86,7 @@ export class OrmManager {
     TModel extends {
       ['~shape']: Record<string, unknown>;
       ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
     },
   >(modelClass: { new (): TModel }, ir?: ModelIR): SingleQueryBuilder<TModel> {
     const compiled = ir ?? this._irFor(modelClass);
@@ -129,6 +130,7 @@ export class OrmManager {
         new (): {
           ['~shape']: Record<string, unknown>;
           ['~rel']: Record<string, unknown>;
+          ['~relInfo']: Record<string, unknown>;
         };
       };
     },
@@ -152,6 +154,7 @@ export const orm = {
     TModel extends {
       ['~shape']: Record<string, unknown>;
       ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
     },
   >(modelClass: { new (): TModel }, ir?: ModelIR): SingleQueryBuilder<TModel> {
     const name = modelClass.name;

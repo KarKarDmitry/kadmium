@@ -166,7 +166,7 @@ async function main() {
     async () => {
       await h.orm
         .single(UserModel)
-        .include((u) => [u.posts])
+        .include({ posts: true })
         .go();
     },
   );
@@ -175,7 +175,7 @@ async function main() {
   await bench('4. include() nested — user → posts → author', async () => {
     await h.orm
       .single(UserModel)
-      .include((u) => [u.posts.include((p) => [p.author])])
+      .include({ posts: { include: { author: true } } })
       .go();
   });
 
@@ -185,7 +185,7 @@ async function main() {
     async () => {
       h.orm
         .single(UserModel)
-        .include((u) => [u.posts])
+        .include({ posts: true })
         .where((u) => u.active.eq(true))
         .toSql();
     },
@@ -263,7 +263,7 @@ async function main() {
     // Warmup
     await h.orm
       .single(UserModel)
-      .include((u) => [u.posts])
+      .include({ posts: true })
       .go();
 
     // Benchmark with timing
@@ -275,7 +275,7 @@ async function main() {
       reshapeMs = 0;
       await h.orm
         .single(UserModel)
-        .include((u) => [u.posts])
+        .include({ posts: true })
         .go();
       totals.push({ sql: sqlGenMs, db: dbExecMs, reshape: reshapeMs });
     }
@@ -309,7 +309,7 @@ async function main() {
   console.log('═'.repeat(60));
   const includeQuery = h.orm
     .single(UserModel)
-    .include((u) => [u.posts])
+    .include({ posts: true })
     .limit(3);
   const sql = h.adapter.toSql(includeQuery.sqb);
   console.log(sql.text);

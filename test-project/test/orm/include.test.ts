@@ -19,11 +19,10 @@ describe('include: to-one / to-many / nested', () => {
     const post = await h.orm
       .single(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
-      .include((p) => [p.author])
+      .include({ author: true })
       .first()
       .go();
     console.log('[include to-one] row =', JSON.stringify(post, null, 2));
-    // Контракт: author — вложенный объект User, а не JSON-строка
     expect(post).toBeTruthy();
     expect(typeof post!.author).toBe('object');
     expect(post!.author).not.toBeNull();
@@ -34,7 +33,7 @@ describe('include: to-one / to-many / nested', () => {
     const alice = await h.orm
       .single(UserModel)
       .where((u) => u.name.eq('Alice'))
-      .include((u) => [u.posts])
+      .include({ posts: true })
       .first()
       .go();
     console.log('[include to-many] row =', JSON.stringify(alice, null, 2));
@@ -52,12 +51,11 @@ describe('include: to-one / to-many / nested', () => {
         on: (t) => t.p.author.eq(t.a.id),
       })
       .where((t) => t.p.title.eq('Hello Postgres'))
-      .include((t) => [t.a.posts])
+      .include({ a: { posts: true } })
       .select((t) => [t.p.title])
       .go();
     console.log('[include multi] rows =', JSON.stringify(rows, null, 2));
     expect(rows.length).toBe(1);
-    // Контракт: включает вложены под alias родителя
     expect(rows[0].p.title).toBe('Hello Postgres');
   });
 });

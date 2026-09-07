@@ -300,9 +300,9 @@ describe('SingleQueryBuilder — toSql', () => {
 });
 
 describe('SingleQueryBuilder — go', () => {
-  it('throws without adapter', () => {
+  it('throws without adapter', async () => {
     const b = builder();
-    expect(() => b.go()).toThrow('No adapter configured');
+    await expect(b.go()).rejects.toThrow('No adapter configured');
   });
 
   it('auto-selects fields when select() not called', async () => {

@@ -27,7 +27,7 @@ describe('multi: joins, groupBy, aggregates', () => {
       .go();
     // Alice (2 поста) + Bob (1 пост) = 3
     expect(rows.length).toBe(3);
-    const names = rows.map((r) => (r.u as any).name).sort();
+    const names = rows.map((r) => r.u.name).sort();
     expect(names).toEqual(['Alice', 'Alice', 'Bob']);
   });
 

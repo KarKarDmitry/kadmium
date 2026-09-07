@@ -1,25 +1,22 @@
 import { KadmiumSqb } from '../sqb';
 import type { WhereCondition, WhereGroup } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
-import { Relation, type IRelationBuilder } from '../field-builders/relation';
+import { Relation } from '../field-builders/relation';
 import type { ModelIR } from '../../ir/index';
 import type {
   FilterProxy,
   SelectProxy,
-  RelationProxy,
   OrderProxy,
   OrderField,
   UpdateFinalizer,
 } from '../types/proxy';
 import type {
-  ISingleTableQuery,
-  IFirstQuery,
-  IncludeResult,
-  BuildIncludedResult,
-  FlatFinalResult,
+  AllFields,
   AnySelectable,
-  Evaluate,
-} from '../types/relations';
+  IncludeConfig,
+  QueryResult,
+} from '../types/includes';
+import type { Evaluate } from '../types/relations';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
@@ -28,24 +25,29 @@ import {
   createFilterProxy,
   createSelectProxy,
   createOrderProxy,
-  createRelationProxy,
 } from './query-proxies';
 import {
   buildCreateFinalizer,
   buildCreateManyFinalizer,
 } from './upsert-helpers';
+import { toSnakeCase } from '../../ir/index';
 
 export class SingleQueryBuilder<
   TModel extends {
     ['~shape']: Record<string, unknown>;
     ['~rel']: Record<string, unknown>;
+    ['~relInfo']: Record<string, unknown>;
   },
-  R extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
+  TSelect extends readonly AnySelectable[] | AllFields = AllFields,
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  TInclude = {},
+  TMode extends 'many' | 'first' = 'many',
 > {
   public sqb: KadmiumSqb;
   private ir: ModelIR;
   private irLookup: (name: string) => ModelIR | undefined;
   private adapter: SqlAdapter | null = null;
+  private _isFirst = false;
 
   constructor(
     ir: ModelIR,
@@ -58,6 +60,8 @@ export class SingleQueryBuilder<
     this.sqb = new KadmiumSqb();
     this.sqb.tableContext.set(ir.name, ir.collection);
   }
+
+  // ── where / and / or / group — return this (no type change) ──
 
   where(fn: (t: FilterProxy<TModel>) => WhereCondition): this {
     const proxy = this._createFilterProxy();
@@ -75,7 +79,6 @@ export class SingleQueryBuilder<
     return this;
   }
 
-  /** Создать вложенную группу условий (скобки) */
   group(callback: (q: this) => void): this {
     const newGroup: WhereGroup = { op: 'AND', conditions: [] };
     const saved = {
@@ -95,28 +98,23 @@ export class SingleQueryBuilder<
     return this;
   }
 
-  // ── select overloads ──
+  // ── select — returns this with updated TSelect ──
 
-  /** Без селектора: выбираются все поля модели + включённые связи. */
-  select(): ISingleTableQuery<TModel, R, Evaluate<IncludeResult<TModel, R>>>;
+  /** Без селектора: все поля модели. */
+  select(): SingleQueryBuilder<TModel, AllFields, TInclude, TMode>;
   /** С селектором (поля + агрегаты). */
   select<S extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
-  ): ISingleTableQuery<
-    TModel,
-    R,
-    Evaluate<FlatFinalResult<S> & BuildIncludedResult<TModel, R>>
-  >;
+  ): SingleQueryBuilder<TModel, S, TInclude, TMode>;
   select(
     fn?:
       | ((t: SelectProxy<TModel>) => SelectableField[])
       | ((t: SelectProxy<TModel>, a: AggregateFunctions) => AnySelectable[]),
   ): any {
     if (!fn) {
-      // Явно перечисляем все поля модели вместо SELECT *
       const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
       this.sqb.selects = Object.entries(this.ir.fields)
-        .filter(([, f]) => !f.sourceModel) // пропускаем виртуальные (inverse)
+        .filter(([, f]) => !f.sourceModel)
         .map(
           ([name, f]) =>
             new SelectableField(
@@ -130,39 +128,26 @@ export class SingleQueryBuilder<
     } else {
       this.sqb.selects = fn(this._createSelectProxy(), aggregates);
     }
-    return this._buildSelectFinalizer();
+    return this;
   }
 
-  // ── include ──
+  // ── include — returns this with updated TInclude ──
 
-  include<
-    const R2 extends readonly IRelationBuilder<any, any, any, any, any>[],
-  >(
-    selector: (relations: RelationProxy<TModel>) => R2,
-  ): SingleQueryBuilder<TModel, [...R, ...R2]> {
-    const builders = selector(this._createRelationProxy());
-    for (const builder of builders) {
-      this.sqb.includes.push(builder as any);
-    }
-    return this as unknown as SingleQueryBuilder<TModel, [...R, ...R2]>;
+  include<C extends IncludeConfig<TModel>>(
+    config: C,
+  ): SingleQueryBuilder<TModel, TSelect, C, TMode> {
+    this._resolveIncludes(config);
+    return this as any;
   }
 
-  // ── first ──
+  // ── first — returns this with TMode='first' ──
 
   /** first() — без селектора. */
-  first(): IFirstQuery<
-    TModel,
-    R,
-    Evaluate<IncludeResult<TModel, R>> | undefined
-  >;
+  first(): SingleQueryBuilder<TModel, TSelect, TInclude, 'first'>;
   /** first() — с селектором (поля + агрегаты). */
   first<S extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
-  ): IFirstQuery<
-    TModel,
-    R,
-    Evaluate<FlatFinalResult<S> & BuildIncludedResult<TModel, R>>
-  >;
+  ): SingleQueryBuilder<TModel, S, TInclude, 'first'>;
   first(
     fn?:
       | ((t: SelectProxy<TModel>) => SelectableField[])
@@ -186,10 +171,11 @@ export class SingleQueryBuilder<
         );
     }
     this.sqb.limit = 1;
-    return this._buildFirstFinalizer();
+    this._isFirst = true;
+    return this;
   }
 
-  // ── modifiers ──
+  // ── modifiers — return this (no type change) ──
 
   groupBy(fn: (t: SelectProxy<TModel>) => SelectableField[]): this {
     const fields = fn(this._createSelectProxy());
@@ -229,7 +215,7 @@ export class SingleQueryBuilder<
   /** Найти запись по первичному ключу */
   findById(
     id: TModel['~shape']['id'],
-  ): IFirstQuery<TModel, R, Evaluate<IncludeResult<TModel, R>> | undefined> {
+  ): SingleQueryBuilder<TModel, TSelect, TInclude, 'first'> {
     const pkEntry = Object.entries(this.ir.fields).find(
       ([, f]) => f.type === 'primary' || f.isPrimary === true,
     );
@@ -239,7 +225,8 @@ export class SingleQueryBuilder<
     return this.where((t: any) => t[pkName].eq(id)).first();
   }
 
-  /** Создать запись. Цепочка: .onConflict().doNothing().go() */
+  // ── CREATE ──
+
   create(
     data: Record<string, unknown>,
   ): import('./upsert-helpers').CreateFinalizer<TModel> {
@@ -256,7 +243,6 @@ export class SingleQueryBuilder<
     );
   }
 
-  /** Создать несколько записей. Цепочка: .onConflict().doNothing().go() */
   createMany(
     data: Record<string, unknown>[],
     options?: import('./upsert-helpers').CreateManyOptions,
@@ -291,7 +277,6 @@ export class SingleQueryBuilder<
 
   update(data: Record<string, unknown>): UpdateFinalizer<TModel> {
     this.sqb.operation = 'update';
-    // Ключи — имена свойств; в SET подставляем имена колонок (alias)
     const mapped: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = v;
@@ -343,21 +328,15 @@ export class SingleQueryBuilder<
     };
   }
 
-  // ── terminal ──
+  // ── terminal — go() is the only terminal ──
 
-  toSql(): string {
-    if (!this.adapter)
-      throw new Error(
-        'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
-      );
-    const { text, values } = this.adapter.toSql(this.sqb);
-    return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
-  }
-
-  /** Выполнить запрос и вернуть все поля модели + включённые связи */
-  go(): Promise<Evaluate<IncludeResult<TModel, R>>[]> {
+  /** Выполнить запрос и вернуть результат. */
+  async go(): Promise<
+    TMode extends 'first'
+      ? (Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined)
+      : Evaluate<QueryResult<TModel, TSelect, TInclude>>[]
+  > {
     if (!this.sqb.selects) {
-      // Авто-выбор всех полей если select() не вызывался
       const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
       this.sqb.selects = Object.entries(this.ir.fields)
         .filter(([, f]) => !f.sourceModel)
@@ -373,16 +352,23 @@ export class SingleQueryBuilder<
         );
     }
     if (this.adapter) {
-      return this.adapter.execute(this.sqb) as Promise<
-        IncludeResult<TModel, R>[]
-      >;
+      const results = await this.adapter.execute(this.sqb);
+      return this._isFirst ? (results[0] as any) : (results as any);
     }
     throw new Error('No adapter configured; cannot execute query.');
   }
 
+  toSql(): string {
+    if (!this.adapter)
+      throw new Error(
+        'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
+      );
+    const { text, values } = this.adapter.toSql(this.sqb);
+    return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
+  }
+
   // ── count / exists ──
 
-  /** COUNT(*) — количество записей */
   count(): {
     go: () => Promise<number>;
     sql: () => string;
@@ -397,7 +383,6 @@ export class SingleQueryBuilder<
     };
   }
 
-  /** EXISTS — есть ли хотя бы одна запись */
   exists(): {
     go: () => Promise<boolean>;
     sql: () => string;
@@ -407,14 +392,13 @@ export class SingleQueryBuilder<
       sql: () => this.toSql(),
       go: async (): Promise<boolean> => {
         const results = await this.go();
-        return results.length > 0;
+        return (results as any[]).length > 0;
       },
     };
   }
 
   // ── private ──
 
-  /** Перевести строку с ключами-колонками в ключи-свойства (alias → property). */
   private _mapRow(row: Record<string, unknown>): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const [prop, f] of Object.entries(this.ir.fields)) {
@@ -424,60 +408,45 @@ export class SingleQueryBuilder<
     return out;
   }
 
-  private _buildSelectFinalizer(): ISingleTableQuery<TModel, R, any> {
-    const finalizer: ISingleTableQuery<TModel, R, any> = {
-      where: (clause) => {
-        this.where(clause as any);
-        return finalizer;
-      },
-      and: (clause) => {
-        this.and(clause as any);
-        return finalizer;
-      },
-      or: (clause) => {
-        this.or(clause as any);
-        return finalizer;
-      },
+  private _resolveIncludes(config: Record<string, any>): void {
+    for (const [relationName, relationConfig] of Object.entries(config)) {
+      const builder = this._createRelationByName(relationName);
 
-      group: (callback) => {
-        this.group(callback as any);
-        return finalizer;
-      },
-      order: (fn, dir) => {
-        this.order(fn as any, dir);
-        return finalizer;
-      },
-      limit: (n) => {
-        this.limit(n);
-        return finalizer;
-      },
-      offset: (n) => {
-        this.offset(n);
-        return finalizer;
-      },
-      page: (p, size) => {
-        this.page(p, size);
-        return finalizer;
-      },
-      groupBy: (fn) => {
-        this.groupBy(fn);
-        return finalizer;
-      },
-      toSql: () => this.toSql(),
-      go: () => this.go(),
-    };
-    return finalizer;
+      if (relationConfig === true) {
+        this.sqb.includes.push(builder);
+      } else if (
+        typeof relationConfig === 'object' &&
+        relationConfig !== null
+      ) {
+        if (relationConfig.alias) builder.as(relationConfig.alias);
+        if (relationConfig.where) builder.where(relationConfig.where);
+        if (relationConfig.order) builder.order(relationConfig.order);
+        if (relationConfig.limit) builder.limit(relationConfig.limit);
+        if (relationConfig.select) builder.select(relationConfig.select);
+        this.sqb.includes.push(builder);
+        if (relationConfig.include) {
+          builder.include(relationConfig.include);
+        }
+      }
+    }
   }
 
-  private _buildFirstFinalizer(): IFirstQuery<TModel, R, any> {
-    const finalizer: IFirstQuery<TModel, R, any> = {
-      toSql: () => this.toSql(),
-      go: async () => {
-        const results = await this.go();
-        return results[0];
-      },
+  private _createRelationByName(name: string): Relation {
+    const fieldIr = this.ir.fields[name];
+    const targetName = fieldIr?.sourceModel ?? fieldIr?.ref ?? name;
+    const targetIr = this.irLookup(targetName) ?? {
+      name: targetName,
+      collection: toSnakeCase(targetName),
+      fields: {},
     };
-    return finalizer;
+    return new Relation(
+      this.sqb,
+      name,
+      targetIr,
+      fieldIr,
+      this.irLookup,
+      this._alias(),
+    );
   }
 
   private _createFilterProxy(): FilterProxy<TModel> {
@@ -490,16 +459,6 @@ export class SingleQueryBuilder<
 
   private _createOrderProxy(): OrderProxy<TModel> {
     return createOrderProxy(this._alias(), this.ir);
-  }
-
-  private _createRelationProxy(): RelationProxy<TModel> {
-    return createRelationProxy(
-      this._alias(),
-      this.ir,
-      this.sqb,
-      Relation as unknown as import('./query-proxies').RelationFactory,
-      this.irLookup,
-    );
   }
 
   private _alias(): string {

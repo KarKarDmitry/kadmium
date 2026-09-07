@@ -16,7 +16,6 @@ afterAll(async () => {
 
 describe('IR cache: hot path reuses the registry, no recompilation', () => {
   it('compiling is done once at registration, not per query', async () => {
-    // Модели уже скомпилированы в реестре при register(); горячий путь не компилирует
     expect(h.orm.compileCount).toBe(0);
 
     await h.orm.single(UserModel).where((u) => u.name.eq('Alice')).go();
@@ -24,7 +23,7 @@ describe('IR cache: hot path reuses the registry, no recompilation', () => {
     await h.orm
       .single(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
-      .include((p) => [p.author])
+      .include({ author: true })
       .go();
     await h.orm
       .query({ u: UserModel, p: PostModel })

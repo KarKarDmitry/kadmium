@@ -77,8 +77,7 @@ describe('MultiQueryBuilder — select', () => {
 describe('MultiQueryBuilder — include', () => {
   it('pushes builder into sqb.includes', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    b.include((t: any) => [t.u.posts]);
+    b.include({ u: { posts: true } });
     expect(b.sqb.includes.length).toBe(1);
   });
 });

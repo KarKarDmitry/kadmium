@@ -8,35 +8,41 @@ import type {
   FilterProxy,
   MultiFilterProxy,
   MultiSelectProxy,
-  MultiRelationProxy,
   AliasesMap,
   FinalResult,
 } from '../types/proxy';
+import type { IncludeConfig } from '../types/includes';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
-import type { AnySelectable } from '../types/relations';
-import { Relation, type IRelationBuilder } from '../field-builders/relation';
+import type { AnySelectable } from '../types/includes';
+import { Relation } from '../field-builders/relation';
 import { addOrCondition } from './where-helpers';
+
+type MultiIncludeConfig<T extends AliasesMap> = {
+  [A in keyof T & string]?: IncludeConfig<
+    InstanceType<T[A]> extends {
+      ['~shape']: Record<string, unknown>;
+      ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
+    }
+      ? InstanceType<T[A]>
+      : { ['~shape']: Record<string, never>; ['~rel']: Record<string, never>; ['~relInfo']: Record<string, never> }
+  >;
+};
 
 /**
  * MultiQueryBuilder — построитель многотабличных запросов.
- *
- * Использование:
- *   app.orm.query({ u: User, p: Post })
- *     .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author_id) })
- *     .where((t) => t.u.name.eq('Alice'))
- *     .select((t) => [t.u.name, t.p.title])
- *     .go()
  */
 export class MultiQueryBuilder<
   T extends AliasesMap,
-  R extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
+  TInclude extends MultiIncludeConfig<T> = Record<never, never>,
 > {
   public sqb: KadmiumSqb;
   private irs: Map<string, ModelIR>;
   private irLookup: (name: string) => ModelIR | undefined;
   private adapter: SqlAdapter | null = null;
+  private _includeConfigs: Record<string, Record<string, any>> = {};
 
   constructor(
     irs: Map<string, ModelIR>,
@@ -48,7 +54,6 @@ export class MultiQueryBuilder<
     this.adapter = adapter ?? null;
     this.sqb = new KadmiumSqb();
 
-    // Регистрируем все таблицы в контексте
     for (const [alias, ir] of irs) {
       this.sqb.tableContext.set(alias, ir.collection);
     }
@@ -95,7 +100,7 @@ export class MultiQueryBuilder<
     fn: (t: MultiSelectProxy<T>, aggregates: AggregateFunctions) => S,
   ): {
     toSql(): string;
-    go(): Promise<FinalResult<S, T, R>[]>;
+    go(): Promise<FinalResult<S, T, TInclude>[]>;
   } {
     this.sqb.selects = [...fn(this._createSelectProxy(), aggregates)];
     return {
@@ -111,16 +116,12 @@ export class MultiQueryBuilder<
 
   // ── include ──
 
-  include<
-    const R2 extends readonly IRelationBuilder<any, any, any, any, any>[],
-  >(
-    selector: (relations: MultiRelationProxy<T>) => R2,
-  ): MultiQueryBuilder<T, [...R, ...R2]> {
-    const builders = selector(this._createRelationProxy());
-    for (const builder of builders) {
-      this.sqb.includes.push(builder as any);
-    }
-    return this as unknown as MultiQueryBuilder<T, [...R, ...R2]>;
+  include<C extends MultiIncludeConfig<T>>(
+    config: C,
+  ): MultiQueryBuilder<T, C> {
+    this._includeConfigs = config as Record<string, Record<string, any>>;
+    this._resolveIncludes(config);
+    return this as any;
   }
 
   // ── groupBy ──
@@ -169,6 +170,50 @@ export class MultiQueryBuilder<
 
   // ── private ──
 
+  private _resolveIncludes(config: Record<string, any>): void {
+    for (const [alias, aliasConfig] of Object.entries(config)) {
+      if (!aliasConfig || typeof aliasConfig !== 'object') continue;
+      const ir = this.irs.get(alias);
+      if (!ir) continue;
+
+      for (const [relationName, rawConfig] of Object.entries(aliasConfig)) {
+        const relationConfig = rawConfig as any;
+        const fieldIr = ir.fields[relationName];
+        const targetName = fieldIr?.sourceModel ?? fieldIr?.ref ?? relationName;
+        const targetIr: ModelIR = this.irLookup(targetName) ?? {
+          name: targetName,
+          collection: toSnakeCase(targetName),
+          fields: {},
+        };
+        const builder = new Relation(
+          this.sqb,
+          relationName,
+          targetIr,
+          fieldIr,
+          this.irLookup,
+          alias,
+        );
+
+        if (relationConfig === true) {
+          this.sqb.includes.push(builder);
+        } else if (
+          typeof relationConfig === 'object' &&
+          relationConfig !== null
+        ) {
+          if (relationConfig.alias) builder.as(relationConfig.alias);
+          if (relationConfig.where) builder.where(relationConfig.where);
+          if (relationConfig.order) builder.order(relationConfig.order);
+          if (relationConfig.limit) builder.limit(relationConfig.limit);
+          if (relationConfig.select) builder.select(relationConfig.select);
+          this.sqb.includes.push(builder);
+          if (relationConfig.include) {
+            builder.include(relationConfig.include);
+          }
+        }
+      }
+    }
+  }
+
   private _createFilterProxy(): MultiFilterProxy<T> {
     const sqb = this.sqb;
     const irs = this.irs;
@@ -186,39 +231,6 @@ export class MultiQueryBuilder<
         });
       },
     });
-  }
-
-  private _createRelationProxy(): MultiRelationProxy<T> {
-    const sqb = this.sqb;
-    const irs = this.irs;
-    const lookup = this.irLookup;
-    return new Proxy({} as MultiRelationProxy<T>, {
-      get: (_, alias: string) => {
-        const ir = irs.get(alias);
-        if (!ir) throw new Error(`Alias "${alias}" not found`);
-        return new Proxy({} as Record<string, Relation>, {
-          get: (__, name: string) => {
-            const fieldIr = ir.fields[name];
-            if (!fieldIr || fieldIr.type !== 'ref')
-              throw new Error(`Relation "${name}" not found in ${ir.name}`);
-            const targetName = fieldIr.sourceModel ?? fieldIr.ref ?? name;
-            const targetIr: ModelIR = lookup?.(targetName) ?? {
-              name: targetName,
-              collection: toSnakeCase(targetName),
-              fields: {},
-            };
-            return new Relation(
-              sqb,
-              name,
-              targetIr,
-              fieldIr,
-              lookup,
-              alias as any,
-            );
-          },
-        });
-      },
-    }) as MultiRelationProxy<T>;
   }
 
   private _createSelectProxy(): MultiSelectProxy<T> {

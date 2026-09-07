@@ -1,0 +1,158 @@
+import type { WhereCondition } from '../ast/where';
+import type { SelectableField } from '../ast/selectable';
+import type { AggregateField } from '../ast/aggregate';
+import type { OrderField } from './proxy';
+import type { Evaluate } from './relations';
+
+// ── Helper types ──
+
+/** Извлечь target model из ~relInfo */
+type RelTarget<M, K extends string> = M extends {
+  ['~relInfo']: Record<K, { target: infer T }>;
+}
+  ? T
+  : never;
+
+/** Извлечь kind из ~relInfo */
+type RelKind<M, K extends string> = M extends {
+  ['~relInfo']: Record<K, { kind: infer K2 }>;
+}
+  ? K2
+  : never;
+
+/** RelationsOf — имена relations из ~rel */
+export type RelationsOf<T> = T extends { ['~rel']: infer R } ? R : never;
+
+/** ShapeOf — shape из ~shape */
+export type ShapeOf<T> = T extends { ['~shape']: infer S } ? S : never;
+
+/** Shape of the target model for a relation */
+type TargetShape<M, K extends string> = ShapeOf<RelTarget<M, K>>;
+
+/** Определить result type relation: array или single */
+type RelationResult<M, K extends string> =
+  RelKind<M, K> extends 'one-to-many'
+    ? TargetShape<M, K>[]
+    : RelKind<M, K> extends 'one-to-one'
+      ? TargetShape<M, K> | undefined
+      : RelKind<M, K> extends 'many-to-one'
+        ? TargetShape<M, K>
+        : TargetShape<M, K>;
+
+// ── Selectable type helpers ──
+
+/** Извлекает имя поля: alias если есть, иначе fieldName */
+export type GetFieldName<S> =
+  S extends AggregateField<any>
+    ? S['alias'] extends string
+      ? S['alias']
+      : never
+    : S extends SelectableField<any, any, infer A>
+      ? A extends string
+        ? A
+        : S['fieldName'] & string
+      : never;
+
+/** Извлекает TS-тип поля из phantom-параметра */
+export type GetFieldType<S> =
+  S extends AggregateField<infer T>
+    ? T
+    : S extends SelectableField<infer T, any, any>
+      ? T
+      : unknown;
+
+export type AnySelectable =
+  SelectableField<any, any, any> | AggregateField<any>;
+
+/** AllFields — маркер: select не вызван, берём все поля модели */
+export type AllFields = { readonly '~allFields': true };
+
+/**
+ * FlatFinalResult — строит плоский объект из кортежа SelectableField.
+ * Пример: [SelectableField<number, 'id'>, SelectableField<string, 'title'>]
+ *   → { id: number; title: string }
+ */
+export type FlatFinalResult<S extends readonly any[]> = {
+  [E in S[number] as GetFieldName<E>]: GetFieldType<E>;
+};
+
+// ── Include Config ──
+
+/** Proxy для select callback внутри include */
+type IncludeSelectProxy<T> = {
+  [K in (T extends { ['~shape']: infer S } ? keyof S & string : never)]: SelectableField<
+    T extends { ['~shape']: infer S } ? S[K & keyof S] : never,
+    K
+  >;
+};
+
+/** Proxy для where/order callback внутри include */
+type IncludeFilterProxy<T> = {
+  [K in (T extends { ['~shape']: infer S } ? keyof S & string : never)]: any;
+};
+
+/** Конфиг одного relation */
+type IncludeRelationConfig<M, K extends string> =
+  | true
+  | (RelKind<M, K> extends 'one-to-many'
+      ? {
+          alias?: string;
+          select?: (
+            t: IncludeSelectProxy<RelTarget<M, K>>,
+          ) => readonly SelectableField[];
+          where?: (t: IncludeFilterProxy<RelTarget<M, K>>) => WhereCondition;
+          order?: (t: IncludeFilterProxy<RelTarget<M, K>>) => OrderField;
+          limit?: number;
+          include?: IncludeConfig<RelTarget<M, K>>;
+        }
+      : {
+          alias?: string;
+          include?: IncludeConfig<RelTarget<M, K>>;
+        });
+
+/** Полный include config */
+export type IncludeConfig<M> = {
+  [
+    K in M extends { ['~relInfo']: infer R } ? keyof R & string : never
+  ]?: IncludeRelationConfig<M, K & string>;
+};
+
+// ── Result Computation ──
+
+/** Вычислить тип одного relation по config */
+type ResolveRelation<M, K extends string, C> = C extends true
+  ? RelationResult<M, K>
+  : C extends { include: infer Nested }
+    ? RelKind<M, K> extends 'one-to-many'
+      ? (TargetShape<M, K> & ResolveIncludes<RelTarget<M, K>, Nested>)[]
+      : TargetShape<M, K> & ResolveIncludes<RelTarget<M, K>, Nested>
+    : RelationResult<M, K>;
+
+/** Вычислить вложенные include */
+type ResolveIncludes<M, C> =
+  C extends Record<string, any>
+    ? {
+        [
+          K in keyof C &
+            keyof (M extends { ['~relInfo']: infer R }
+              ? R
+              : Record<never, never>) as K & string
+        ]: ResolveRelation<M, K & string, C[K]>;
+      }
+    : Record<never, never>;
+
+/** Финальный result type из include config (без select) */
+export type IncludeResult<M, C> = Evaluate<
+  ShapeOf<M> & ResolveIncludes<M, C>
+>;
+
+/**
+ * QueryResult — вычисляемый result type для go().
+ * S = AllFields → все поля модели + includes.
+ * S = tuple → только выбранные поля + includes.
+ */
+export type QueryResult<M, S, C> = S extends AllFields
+  ? IncludeResult<M, C>
+  : S extends readonly AnySelectable[]
+    ? Evaluate<FlatFinalResult<S> & ResolveIncludes<M, C>>
+    : IncludeResult<M, C>;

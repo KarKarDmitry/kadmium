@@ -112,8 +112,7 @@ describe('Relation — include', () => {
     const sqb = makeSqb();
     const userIr = makeUserIR();
     const rel = new Relation(sqb, 'author', userIr, makeFieldIr({ ref: 'User', foreignKey: 'id' }));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rel.include((t: any) => [t.posts]);
+    rel.include({ posts: true });
     expect(rel.internalSqb.includes.length).toBe(1);
   });
 });

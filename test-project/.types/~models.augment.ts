@@ -17,6 +17,11 @@ declare module '../src/models/comment' {
     post?: Post;
     user?: User;
   };
+
+  ['~relInfo']: {
+    post: { target: Post; kind: 'many-to-one' };
+    user: { target: User; kind: 'many-to-one' };
+  };
   }
 }
 
@@ -35,6 +40,11 @@ declare module '../src/models/user' {
     comments: Comment[];
     posts: Post[];
   };
+
+  ['~relInfo']: {
+    comments: { target: Comment; kind: 'one-to-many' };
+    posts: { target: Post; kind: 'one-to-many' };
+  };
   }
 }
 
@@ -52,6 +62,11 @@ declare module '../src/models/post' {
   ['~rel']: {
     author?: User;
     comments: Comment[];
+  };
+
+  ['~relInfo']: {
+    author: { target: User; kind: 'many-to-one' };
+    comments: { target: Comment; kind: 'one-to-many' };
   };
   }
 }

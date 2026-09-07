@@ -8,8 +8,7 @@ import type {
 import type { WhereCondition } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
-import type { IRelationBuilder, Relation } from '../field-builders/relation';
-import type { BuildIncludedResult } from './relations';
+import type { IncludeConfig, IncludeResult } from './includes';
 
 export type NullableMethods = {
   readonly null: WhereCondition;
@@ -88,6 +87,7 @@ export type AliasesMap = Record<
     new (): {
       ['~shape']: Record<string, unknown>;
       ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
     };
   }
 >;
@@ -105,12 +105,12 @@ export type MultiSelectProxy<T extends AliasesMap> = {
     [
       TField in keyof (InstanceType<T[TAlias]> extends { ['~shape']: infer S }
         ? S
-        : {}) &
+        : Record<never, never>) &
         string
     ]: SelectableField<
       (InstanceType<T[TAlias]> extends { ['~shape']: infer S }
         ? S
-        : {})[TField],
+        : Record<never, never>)[TField],
       TField,
       undefined,
       TAlias
@@ -119,24 +119,22 @@ export type MultiSelectProxy<T extends AliasesMap> = {
 };
 
 export type MultiRelationProxy<T extends AliasesMap> = {
-  [K in keyof T & string]: RelationProxy<
+  [K in keyof T & string]: IncludeConfig<
     InstanceType<T[K]> extends {
       ['~shape']: Record<string, unknown>;
       ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
     }
       ? InstanceType<T[K]>
-      : { ['~shape']: Record<string, never>; ['~rel']: Record<string, never> }
+      : {
+          ['~shape']: Record<string, never>;
+          ['~rel']: Record<string, never>;
+          ['~relInfo']: Record<string, never>;
+        }
   >;
 };
 
 // ── Multi-query select result type ──
-
-/** Union → Intersection */
-type UnionToIntersection<U> = (U extends any ? (x: U) => any : never) extends (
-  x: infer I,
-) => any
-  ? I
-  : never;
 
 // ── Multi-query aggregate types ──
 
@@ -155,8 +153,6 @@ type FieldsForAlias<S extends readonly any[], A extends string> = Extract<
 
 /**
  * ObjectForAlias — строит объект для одного table alias.
- * Пример: FieldsForAlias<[SelectableField<string, 'name', undef, 'u'>], 'u'>
- *   → { name: string }
  */
 type ObjectForAlias<S extends readonly any[], A extends string> = {
   [
@@ -195,27 +191,19 @@ type GetFieldType<S> =
       ? T
       : never;
 
-/**
- * FinalResult — для multi-запросов.
- * Каждый table alias → свой объект, агрегаты → на верхнем уровне.
- *
- * Пример:
- *   select((t, { count }) => [t.u.name, count('*').as('total')])
- *   → { u: { name: string }; total: number }
- */
 /** Helper: получить тип модели по алиасу из T */
 type ModelForAlias<T extends AliasesMap, A extends keyof T & string> =
   InstanceType<T[A]> extends {
     ['~shape']: Record<string, unknown>;
     ['~rel']: Record<string, unknown>;
+    ['~relInfo']: Record<string, unknown>;
   }
     ? InstanceType<T[A]>
-    : { ['~shape']: Record<string, never>; ['~rel']: Record<string, never> };
-
-/** Helper: включить BuildIncludedResult если R не пустой */
-type MaybeInclude<R, M> = R extends readonly [any, ...any[]]
-  ? BuildIncludedResult<M, R>
-  : {};
+    : {
+        ['~shape']: Record<string, never>;
+        ['~rel']: Record<string, never>;
+        ['~relInfo']: Record<string, never>;
+      };
 
 /**
  * FinalResult — для multi-запросов.
@@ -225,10 +213,18 @@ type MaybeInclude<R, M> = R extends readonly [any, ...any[]]
 export type FinalResult<
   S extends readonly any[],
   T extends AliasesMap,
-  R extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
+  C extends { [A in keyof T & string]?: IncludeConfig<ModelForAlias<T, A>> } =
+    Record<never, never>,
 > = {
   [A in keyof T & string]: ObjectForAlias<S, A> &
-    MaybeInclude<R, ModelForAlias<T, A>>;
+    IncludeResult<
+      ModelForAlias<T, A>,
+      C extends { [K in A]: infer CC }
+        ? CC extends IncludeConfig<ModelForAlias<T, A>>
+          ? CC
+          : Record<never, never>
+        : Record<never, never>
+    >;
 } & {
   [
     Sel in Extract<S[number], AggregateField<any>> as GetFieldName<Sel>
@@ -237,35 +233,12 @@ export type FinalResult<
   ? { [K in keyof R2]: R2[K] }
   : never;
 
-// ── Relation type helpers ──
-
-export type ToOneRelation<T> = T;
-export type ToManyRelation<T> = T[];
-
-export type RelationsOf<T> = T extends { ['~rel']: infer R } ? R : never;
-export type ShapeOf<T> = T extends { ['~shape']: infer S } ? S : never;
+// ── RelationProxy — для include callback helper ──
 
 export type RelationProxy<
   TModel extends {
     ['~shape']: Record<string, unknown>;
     ['~rel']: Record<string, unknown>;
+    ['~relInfo']: Record<string, unknown>;
   },
-> = {
-  [
-    K in keyof RelationsOf<TModel> & string
-  ]: RelationsOf<TModel>[K] extends readonly any[]
-    ? Relation<RelationsOf<TModel>[K][number], K, K>
-    : Relation<
-        NonNullable<RelationsOf<TModel>[K]> extends {
-          ['~shape']: Record<string, unknown>;
-          ['~rel']: Record<string, unknown>;
-        }
-          ? NonNullable<RelationsOf<TModel>[K]>
-          : {
-              ['~shape']: Record<string, never>;
-              ['~rel']: Record<string, never>;
-            },
-        K,
-        K
-      >;
-};
+> = IncludeConfig<TModel>;

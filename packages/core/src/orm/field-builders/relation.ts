@@ -1,92 +1,39 @@
 import { KadmiumSqb, type IncludedRelation } from '../sqb';
 import type { WhereCondition } from '../ast/where';
-import { SelectableField } from '../ast/selectable';
 import type { FieldIR, ModelIR } from '../../ir/index';
-import { type NullableFilter } from './factory';
-import { BaseFilter } from './base-filter';
-import type {
-  OrderField,
-  OrderProxy,
-  FilterProxy as RealFilterProxy,
-  RelationProxy,
-  SelectProxy,
-} from '../types/proxy';
+import type { OrderField } from '../types/proxy';
 import {
   createFilterProxy,
   createSelectProxy,
   createOrderProxy,
-  createRelationProxy,
-  type RelationFactory,
 } from '../builders/query-proxies';
-
-// ── IRelationBuilder interface ──
-
-/**
- * Phantom interface for compile-time type inference of include chains.
- * Carries the relation name, alias, nested includes, parent alias, and explicit selects.
- */
-export interface IRelationBuilder<
-  TName extends string = string,
-  TAlias extends string = TName,
-  TNested extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
-  TParentAlias extends string = string,
-  TSelects = never,
-> {
-  readonly originalName: TName;
-  readonly alias: TAlias;
-  readonly parentAlias: TParentAlias;
-  readonly internalSqb: KadmiumSqb;
-  readonly _selects: TSelects;
-  readonly __nested?: TNested;
-}
+import { SelectableField } from '../ast/selectable';
 
 /**
- * Единое представление include-связи: одновременно и билдер (DSL + фантомные
- * типы для вывода IncludeResult), и рантайм-структура, которую читает
- * SQL-генератор (implements IncludedRelation). Метаданные связи
- * (relationType/parentField/childField) вычисляются в конструкторе из fieldIr,
- * поэтому отдельного шага resolveInclude нет.
+ * Relation — runtime класс для include связей.
+ * Несёт metadata (relationType, parentField, childField) и internalSqb.
+ * Типы вычисляются на уровне IncludeConfig, не на уровне generic параметров класса.
  */
-export class Relation<
-  TModel extends {
-    ['~shape']: Record<string, unknown>;
-    ['~rel']: Record<string, unknown>;
-  } = { ['~shape']: Record<string, never>; ['~rel']: Record<string, never> },
-  TName extends string = string,
-  TAlias extends string = TName,
-  TNested extends readonly IRelationBuilder<any, any, any, any, any>[] = [],
-  TParentAlias extends string = string,
-  TSelects = never,
->
-  implements
-    IRelationBuilder<TName, TAlias, TNested, TParentAlias, TSelects>,
-    IncludedRelation
-{
+export class Relation implements IncludedRelation {
   public internalSqb: KadmiumSqb;
-  public readonly originalName: TName;
-  public alias: TAlias;
-  public readonly parentAlias: TParentAlias;
+  public readonly originalName: string;
+  public alias: string;
+  public readonly parentAlias: string;
   public readonly relationType: 'one-to-one' | 'one-to-many' | 'many-to-one';
   public readonly parentField: string;
   public readonly childField: string;
-  /** Phantom: выбранные поля (для type-level) */
-  declare readonly _selects: TSelects;
-  /** Phantom: список вложенных include для рекурсивного типа */
-  declare readonly __nested?: TNested;
 
   constructor(
     protected parentSqb: KadmiumSqb,
-    name: TName,
+    name: string,
     public readonly targetIr: ModelIR,
     fieldIr: FieldIR | undefined,
-    /** Опциональная функция для поиска IR связанной модели по имени */
     public readonly irLookup?: (name: string) => ModelIR | undefined,
-    /** Parent alias (для multi-запросов) */
-    parentAlias?: TParentAlias,
+    parentAlias?: string,
   ) {
     this.originalName = name;
-    this.alias = name as unknown as TAlias;
-    this.parentAlias = (parentAlias ?? name) as TParentAlias;
+    this.alias = name;
+    this.parentAlias = parentAlias ?? name;
 
     let parentField = fieldIr?.foreignKey ?? '';
     let childField = 'id';
@@ -96,7 +43,7 @@ export class Relation<
         : fieldIr?.relation === 'one-to-one'
           ? 'one-to-one'
           : 'many-to-one';
-    // Для обратных связей (one-to-many): parentField = PK, childField = FK
+
     if (relationType === 'one-to-many') {
       parentField = 'id';
       childField = fieldIr?.foreignKey ?? '';
@@ -109,33 +56,33 @@ export class Relation<
     this.internalSqb.tableContext.set(this.alias, targetIr.name);
   }
 
-  /** Ключ в результате — совпадает с alias (для IncludedRelation). */
   get propertyName(): string {
-    return this.alias as string;
+    return this.alias;
   }
 
-  as<A extends string>(
-    alias: A,
-  ): Relation<TModel, TName, A, TNested, TParentAlias, TSelects> {
+  as(alias: string): this {
     const clone = this.internalSqb.clone();
     clone.tableContext.delete(this.alias);
     clone.tableContext.set(alias, this.targetIr.name);
     this.internalSqb = clone;
-    this.alias = alias as unknown as TAlias;
-    return this as any;
+    this.alias = alias;
+    return this;
   }
 
-  where(fn: (t: RealFilterProxy<TModel>) => WhereCondition): this {
-    const condition = fn(this._createFilterProxy() as RealFilterProxy<TModel>);
+  where(fn: (t: any) => WhereCondition): this {
+    const proxy = createFilterProxy(
+      this.alias,
+      this.targetIr,
+      this.internalSqb,
+    );
+    const condition = fn(proxy);
     this.internalSqb.wheres.conditions.push(condition);
     return this;
   }
 
-  order(
-    fn: (t: OrderProxy<TModel>) => OrderField,
-    dir: 'asc' | 'desc' = 'asc',
-  ): this {
-    const field = fn(this._createOrderProxy());
+  order(fn: (t: any) => OrderField, dir: 'asc' | 'desc' = 'asc'): this {
+    const proxy = createOrderProxy(this.alias, this.targetIr);
+    const field = fn(proxy);
     this.internalSqb.orders.push({
       field: field.fieldName,
       column: field.column,
@@ -149,55 +96,51 @@ export class Relation<
     return this;
   }
 
-  /** Явно выбрать поля связи. */
-  select(fn: (t: SelectProxy<TModel>) => readonly SelectableField[]): this {
-    this.internalSqb.selects = [...fn(this._createFieldProxy())];
+  select(fn: (t: any) => readonly SelectableField[]): this {
+    const proxy = createSelectProxy(this.alias, this.targetIr);
+    this.internalSqb.selects = [...fn(proxy)];
     return this;
   }
 
-  /** Вложенный include: дочерний Relation пушится прямо в internalSqb.includes. */
-  include<const R extends readonly IRelationBuilder<any, any, any, any, any>[]>(
-    fn: (t: RelationProxy<TModel>) => R,
-  ): Relation<
-    TModel,
-    TName,
-    TAlias,
-    [...TNested, ...R],
-    TParentAlias,
-    TSelects
-  > {
-    const proxy = this._createRelationProxy();
-    const builders = fn(proxy);
-    for (const builder of builders) {
-      this.internalSqb.includes.push(builder as any);
+  /** Вложенный include через Record config */
+  include(config: Record<string, any>): this {
+    for (const [relationName, relationConfig] of Object.entries(config)) {
+      const fieldIr = this.targetIr.fields[relationName];
+      const targetName = fieldIr?.sourceModel ?? fieldIr?.ref ?? relationName;
+      const targetIr = this.irLookup?.(targetName) ?? {
+        name: targetName,
+        collection: targetName
+          .replace(/([A-Z])/g, '_$1')
+          .toLowerCase()
+          .replace(/^_/, ''),
+        fields: {},
+      };
+      const builder = new Relation(
+        this.internalSqb,
+        relationName,
+        targetIr,
+        fieldIr,
+        this.irLookup,
+        this.alias,
+      );
+
+      if (relationConfig === true) {
+        this.internalSqb.includes.push(builder);
+      } else if (
+        typeof relationConfig === 'object' &&
+        relationConfig !== null
+      ) {
+        if (relationConfig.alias) builder.as(relationConfig.alias);
+        if (relationConfig.where) builder.where(relationConfig.where);
+        if (relationConfig.order) builder.order(relationConfig.order);
+        if (relationConfig.limit) builder.limit(relationConfig.limit);
+        if (relationConfig.select) builder.select(relationConfig.select);
+        this.internalSqb.includes.push(builder);
+        if (relationConfig.include) {
+          builder.include(relationConfig.include);
+        }
+      }
     }
-    return this as any;
-  }
-
-  protected _createFilterProxy(): Record<string, BaseFilter | NullableFilter> {
-    return createFilterProxy(
-      this.alias,
-      this.targetIr,
-      this.internalSqb,
-    ) as unknown as Record<string, BaseFilter | NullableFilter>;
-  }
-
-  protected _createFieldProxy(): SelectProxy<TModel> {
-    return createSelectProxy(this.alias, this.targetIr);
-  }
-
-  private _createOrderProxy(): OrderProxy<TModel> {
-    return createOrderProxy(this.alias, this.targetIr);
-  }
-
-  /** Создаёт прокси для вложенных include */
-  protected _createRelationProxy(): RelationProxy<TModel> {
-    return createRelationProxy(
-      this.alias,
-      this.targetIr,
-      this.internalSqb,
-      Relation as unknown as RelationFactory,
-      this.irLookup,
-    );
+    return this;
   }
 }

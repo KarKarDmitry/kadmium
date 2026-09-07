@@ -19,17 +19,17 @@ export type {
   NullableMethods,
 } from './proxy';
 
+export type { Evaluate } from './relations';
+
 export type {
-  ToOneRelation,
-  ToManyRelation,
+  AnySelectable,
+  AllFields,
+  FlatFinalResult,
+  GetFieldName,
+  GetFieldType,
+  IncludeConfig,
+  IncludeResult,
+  QueryResult,
   RelationsOf,
   ShapeOf,
-  Evaluate,
-  FlatFinalResult,
-  IncludeResult,
-  BuildIncludedResult,
-  ISingleTableQuery,
-  IFirstQuery,
-  AnySelectable,
-  UnionToIntersection,
-} from './relations';
+} from './includes';

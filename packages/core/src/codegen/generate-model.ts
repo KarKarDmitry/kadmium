@@ -74,6 +74,21 @@ export function generateModel(
       );
     }
     lines.push(`  };`);
+
+    lines.push(``);
+    lines.push(`  ['~relInfo']: {`);
+    for (const [name, field] of refs) {
+      const target = field.sourceModel ?? field.ref ?? 'unknown';
+      const kind = field.sourceModel
+        ? 'one-to-many'
+        : field.relation === 'one-to-one'
+          ? 'one-to-one'
+          : 'many-to-one';
+      lines.push(
+        `    ${name}: { target: ${target}; kind: '${kind}' };`,
+      );
+    }
+    lines.push(`  };`);
   }
 
   const body = lines.join('\n');
