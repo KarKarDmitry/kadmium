@@ -204,7 +204,7 @@ export function renderDefault(f: IrField): string | null {
     case 'string':
     case 'uuid':
     default:
-      return `'${String(value).replace(/'/g, "''")}'`;
+      return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
   }
 }
 

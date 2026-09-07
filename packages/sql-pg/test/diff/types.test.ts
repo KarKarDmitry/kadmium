@@ -185,6 +185,14 @@ describe('renderDefault', () => {
     expect(renderDefault({ type: 'string', nullable: false, unique: false, spec: { default: "O'Brien" } })).toBe("'O''Brien'");
   });
 
+  it('string default with backslash escape', () => {
+    expect(renderDefault({ type: 'string', nullable: false, unique: false, spec: { default: 'path\\to\\file' } })).toBe("'path\\\\to\\\\file'");
+  });
+
+  it('string default with backslash and single quote', () => {
+    expect(renderDefault({ type: 'string', nullable: false, unique: false, spec: { default: "it's a \\path" } })).toBe("'it''s a \\\\path'");
+  });
+
   it('uuid default', () => {
     expect(renderDefault({ type: 'uuid', nullable: false, unique: false, spec: { default: 'abc-123' } })).toBe("'abc-123'");
   });
