@@ -1,5 +1,7 @@
 # ORM Includes Refactor — Record-based includes
 
+> ✅ РЕШЕНО в `1cacf6a` (2026-09-07).
+
 ## Goal
 
 Replace tuple-based `.include()` with Record-based `.include()` to eliminate recursive conditional types and reduce type complexity by ~70%.
@@ -80,3 +82,19 @@ From `proxy.d.ts`: `NullableMethods`, `FieldTypeToFilter`, `AddNullable`, `Filte
 | `.include(t => [t.author])` | `.include({ author: true })` |
 | `.include(t => [t.posts.select(p => [p.id])])` | `.include({ posts: { select: p => [p.id] } })` |
 | `.include(t => [t.posts.include(c => [c.author])])` | `.include({ posts: { include: { author: true } } })` |
+
+## Статус
+
+✅ **Реализовано** в `1cacf6a`.
+
+**Что сделано:**
+- Record-based `.include()` API
+- `~relInfo` phantom добавлен в codegen (`generate-model.ts`)
+- `includes.d.ts` создан с `IncludeConfig`, `IncludeResult`, `ResolveRelation`, `ResolveIncludes`
+- `Relation` упрощён (197 → 133 строки), `IRelationBuilder` удалён
+- `single.ts` и `multi.ts` обновлены для нового API
+- `relations.d.ts` удалён (7 типов: `ToOneRelation`, `ToManyRelation`, `ProcessRelation`, `BuildIncludedResultRecur`, `BuildIncludedResult`, `GetIncludedType`, `UnionToIntersection`)
+- `proxy.d.ts` обновлён (удалены `UnionToIntersection`, `ToOneRelation`, `ToManyRelation`, `RelationsOf`, `ShapeOf`, `RelationProxy`)
+- `~models.augment.ts` регенерирован с `~relInfo`
+- Все интеграционные тесты обновлены
+- **Сэкономлено:** −117 строк净 (606 добавлено, 723 удалено)

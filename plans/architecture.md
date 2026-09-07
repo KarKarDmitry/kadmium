@@ -4,6 +4,7 @@
 > Verified 2026-09-04 against actual code.
 > Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 resolved (`53a69b2`).
 > Updated 2026-09-05 — BREAKING: create()/createMany() return builders, not Promises. All callers must add `.go()`.
+> Updated 2026-09-07 — includes refactor resolved (`1cacf6a`): record-based API, ~relInfo phantom, relations.d.ts deleted. single.ts 419 lines, ~12 any casts (down from 537/18).
 
 ---
 
@@ -53,46 +54,38 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 **Важность:** 🟢 Medium
 
-**Краткое описание:** `Relation` (240 строк) одновременно:
+**Краткое описание:** `Relation` (133 строки, было 240) одновременно:
 1. DSL-билдер для include (`.where()`, `.order()`, `.select()`, `.include()`)
 2. Рантайм-структура `IncludedRelation` для SQL-генератора
 3. Phantom-типы для type-level инференса
 
-**Риски изменений:**
-- Разделить на `RelationBuilder` (DSL) + `IncludedRelation` (runtime) — потребует синхронизацию между ними
-- Оставить как есть — приемлемо для текущего масштаба
-- Риск: разделение усложнит include-цепочку
+**Статус:** ⬜ Открыто, но значительно упрощено в `1cacf6a` (246 → 133 строки). Record-based include API убрал нужду в `IRelationBuilder`. Разделение на `RelationBuilder` + `IncludedRelation` всё ещё может улучшить читаемость, но уже не критично.
 
 **Связанные файлы:**
 - `packages/core/src/orm/field-builders/relation.ts`
 - `packages/core/src/orm/sqb.ts` (IncludedRelation)
 - `packages/core/src/orm/types/proxy.d.ts` (RelationProxy)
 
-**Коммит:**
+**Коммит:** `1cacf6a`
 
 ---
 
-## A3: single.ts — 537 строк, 18 any-кастов
+## A3: single.ts — 419 строк, ~12 any-кастов
 
 **Важность:** 🔴 Critical
 
-**Краткое описание:** `SingleQueryBuilder` — самый большой файл в core (537 строк). Содержит 18 `as any` кастов, включая критичные пути:
-- `findById()` — double `as any` cast (line 257)
-- `include()` — relation builder cast (line 163)
-- `select()` / `first()` — return type `any` в implementation signature (lines 132, 188)
-- `_buildSelectFinalizer()` — 10 методов с `as any` (lines 413-456)
+**Краткое описание:** `SingleQueryBuilder` — самый большой файл в core (419 строк, было 537). Содержит ~12 `as any` кастов (было 18), включая критичные пути:
+- `return this as any` (line 140) — хак для возврат `this`
+- `select() / first()` — return type `any` (lines 155, 356)
+- `_buildSelectFinalizer()` — остатки `any` кастов
 
-**Статус:** ✅ Частично решено в `53a69b2`:
-- Proxy-фабрики (4 шт.) извлечены в `query-proxies.ts`
-- single.ts: 512 → 469 строк, relation.ts: 246 → 197 строк
-- Дублирование между single.ts и relation.ts устранено (~135 строк)
-- Осталось: finalizer-билдеры и замена `any` в критичных путях
+**Статус:** ⬜ Частично решено. single.ts: 537 → 419 строк (−22%), `any` касты: 18 → ~12 (−33%). Proxy-фабрики извлечены в `query-proxies.ts` (`53a69b2`). includes refactor убрал Relation-related касты (`1cacf6a`). Осталось: finalizer-билдеры и замена оставшихся `any`.
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts`
 - `packages/core/src/orm/builders/query-proxies.ts` (создан)
 
-**Коммит:** `53a69b2`
+**Коммиты:** `53a69b2`, `1cacf6a`
 
 ---
 

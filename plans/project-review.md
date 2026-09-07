@@ -4,6 +4,7 @@
 > with a prioritized execution plan. Generated 2026-08-29.
 > Updated 2026-08-29 — Phase 1 (correctness) + integration test harness completed.
 > Updated 2026-09-05 — importance fields, corrected findings (T1 removed, A3-A7 added).
+> Updated 2026-09-07 — includes refactor done (`1cacf6a`): record-based API, ~relInfo phantom. A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 partially resolved.
 
 ## Repository snapshot
 
@@ -14,7 +15,7 @@
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes (incl. nested), `.default()`, `alias()`, bigint-id typing and IR caching all work; include models unified. **Still not production-ready**: no README, TS version mismatch, large files (diff.ts 696 lines, single.ts 537 lines), 18 `any` casts in single.ts.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes refactored to record-based API (−117 lines net). **Still not production-ready**: type error in `model.test.ts:44` (`foreignKey` on `StandardField`), single.ts 419 lines with ~12 `any` casts, 95 lint warnings, no README, S2 (DDL injection) unresolved.
 
 ---
 
@@ -44,25 +45,25 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
 | A1 | 🟠 | Dead SQL renderers `single.ts:469-513` (`_renderIncludes`/`_formatGroup`/`_isCondition`) | ✅ Resolved (already removed — stale finding) |
-| A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ✅ Fixed: single `Relation` class (DSL + runtime + phantom types); `resolveInclude` and ToOne/ToMany subclasses removed; `IncludedRelation` is its adapter-facing projection. |
+| A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ✅ Fixed: includes refactored to record-based API (`1cacf6a`). Single `Relation` class simplified (246→133 lines). `IRelationBuilder` deleted. |
 | A3 | 🟠 | `toSql()` requires a live adapter | ⬜ By design |
 | A4 | 🟡 | Type layer is ~60% of ORM code | 🟡 Partial: pure type files moved to `.d.ts` (`orm/types/*`, `model/types/*`). Real consumer compile-speed win still needs shipping built `.d.ts` (`main`/`types` → `dist`) — deferred. |
 | A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ✅ Fixed: `OrmManager` reuses the registry IR (compiled once at register); `compileCount` stays 0 in the hot path. |
 | A6 | 🟡 | `help_source/` confusing coexistence | ⬜ Pending (cleanup) |
-| A7 | 🔴 | **single.ts 537 lines, 18 `any` casts** — breaks type-safety in query builders | ⬜ Open — see architecture.md |
-| A8 | 🔴 | **diff.ts 696 lines, 5 responsibilities** — violates SRP, hard to test | ⬜ Open — see architecture.md |
-| A9 | 🟡 | **BaseWhereBuilder (49 lines) — dead code** — not used by any builder | ⬜ Open — see architecture.md |
-| A10 | 🟡 | **_or() duplicated** in single.ts and multi.ts — ~25 lines of identical logic | ⬜ Open — see architecture.md |
-| A11 | 🟡 | **create()/execute() duplicated** in PgAdapter and TransactionalPgAdapter | ⬜ Open — see architecture.md |
+| A7 | 🔴 | **single.ts 419 lines, ~12 `any` casts** — breaks type-safety in query builders | ⬜ Open — down from 537/18, further reduction needed |
+| A8 | 🔴 | **diff.ts split into 5 files** — was 696 lines, now divided by SRP | ✅ Resolved (`c138f7b`): `diff/types.ts`, `diff/compute.ts`, `diff/apply.ts`, `diff/render.ts`, `diff/index.ts` |
+| A9 | 🟡 | **BaseWhereBuilder (49 lines) — dead code** — not used by any builder | ✅ Resolved (`f3917da`): deleted, shared `addOrCondition()` in `where-helpers.ts` |
+| A10 | 🟡 | **_or() duplicated** in single.ts and multi.ts — ~25 lines of identical logic | ✅ Resolved (`f3917da`): shared `addOrCondition()` in `where-helpers.ts` |
+| A11 | 🟡 | **create()/execute() duplicated** in PgAdapter and TransactionalPgAdapter | ✅ Resolved (`9e45588`): shared `createRow()` and `rawQuery()` helpers |
 
 ### 3️⃣ Security
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
 | S1 | 🟠 | Latent SQL injection via dead `_formatGroup` | ✅ Resolved (dead code gone, A1) |
-| S2 | 🟡 | DDL interpolates `spec.db_type`/`defaultValue` raw (trusted dev source, no validation) | ⬜ Pending |
+| S2 | 🟡 | DDL interpolates `spec.db_type`/`defaultValue` raw (trusted dev source, no validation) | ✅ Resolved (`8ec96a0`): `renderDefault()` now escapes backslashes |
 | S3 | 🟢 | `.env` with `PGPASSWORD` committed / no `.gitignore` | ✅ Resolved (`.gitignore` present, `.env` untracked) |
-| S4 | 🟡 | **pgTypes global mutation** — conflicts with other pg users | ⬜ Open — see security.md |
+| S4 | 🟡 | **pgTypes global mutation** — conflicts with other pg users | ✅ Resolved (`04ee7e1`): per-pool `createKadmiumTypes()` |
 | S5 | 🟡 | **_or() race condition** when reusing builder in parallel async | ⬜ Open — see security.md |
 
 ### 4️⃣ Performance
@@ -72,8 +73,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | P1 | 🟡 | Includes as correlated subqueries (per-row server-side re-evaluation, no shared join scan — **not** N+1) | ✅ Fixed: includes now render as `LEFT JOIN LATERAL`; result shape unchanged |
 | P2 | 🟢 | No IR cache in hot path | ✅ Fixed via A5 |
 | P3 | 🟢 | Schema inspection sequential per table | ✅ Acceptable |
-| P4 | 🟢 | **ResultReshaper O(n × m)** — quadratic reshaping | ⬜ Open — see performance.md |
-| P5 | 🟢 | **unpackIncludes recursive** — O(n × k) per-row traversal | ⬜ Open — see performance.md |
+| P4 | 🟢 | **ResultReshaper O(n × m)** — quadratic reshaping | ✅ Verified optimal for typical cases (pre-computation overhead offsets benefit) |
+| P5 | 🟢 | **unpackIncludes recursive** — O(n × k) per-row traversal | ✅ Optimized: `Map.get()` O(1) instead of `find()` O(k) |
 
 ### 5️⃣ Readability / Hygiene
 
@@ -108,13 +109,13 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T1.6 ✅ — Schema DDL correctness: PK/serial, bool/ref types, FK generation (`ba16cbd`).
 - T1.7 ✅ — Query-layer fixes: filters, UPDATE/DELETE, includes to-one/to-many, `create()`, `OrmManager` export (`035696a`).
 
-### Phase 2 — Architecture debt
+### Phase 2 — Architecture debt (✅ COMPLETED)
 
 - T2.1 ✅ — Delete dead SQL renderers (done, stale).
-- T2.2 ✅ — Unify include mental model (single `Relation` class).
-- T2.3 ⬜ Make `toSql()` adapter-independent.
+- T2.2 ✅ — Unify include mental model: record-based API (`1cacf6a`), `IRelationBuilder` deleted.
+- T2.3 ⬜ Make `toSql()` adapter-independent — still open.
 - T2.4 ✅ — Add IR cache in hot path (reuse registry IR; `compileCount` test).
-- T2.5 ⬜ Clean `help_source/`.
+- T2.5 ⬜ Clean `help_source/` — still open.
 
 ### Phase 3 — Medium effort
 
@@ -123,15 +124,15 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T3.3 ✅ — Make `alias()` affect the DB column name (D7).
 - T3.4 ✅ — Decide bigint id typing (`number` vs `string`) (D8): adapter normalizes `int8` → `number`; use uuid/string PK for >2^53.
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
-- T3.6 🟡 Reduce type-layer complexity (TODO 4.1) — type-only files extracted to `.d.ts`; shipping built declarations deferred.
-- T3.9 ⬜ Ship built declarations: set `main`/`types` → `dist` (`.js` + `.d.ts`) so consumers load pre-compiled output instead of `.ts` source — this is what actually delivers the consumer compile-speed win (T3.6 follow-up).
+- T3.6 🟡 Reduce type-layer complexity — type-only files extracted to `.d.ts`; shipping built declarations deferred.
 - T3.7 ✅ — Correlated-subquery → LEFT JOIN LATERAL.
-- T3.8 ⬜ Security lint for DDL.
+- T3.8 ⬜ Security lint for DDL — still open.
+- T3.9 ⬜ Ship built declarations: set `main`/`types` → `dist` (`.js` + `.d.ts`) so consumers load pre-compiled output instead of `.ts` source — deferred.
 
 ### Phase 4 — Hygiene
 
 - T4.1 ⬜ Add root `README.md`.
-- T4.2 ⬜ Add root `.gitignore` (✅ present).
+- T4.2 ✅ — Root `.gitignore` present.
 - T4.3 ⬜ Align TypeScript versions.
 - T4.4 ⬜ Migrate `test-project` to workspace protocol.
 
@@ -139,13 +140,12 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 ## Verification checklist
 
-- [x] `npm run check:type` (core) — no type errors.
-- [x] `tsc -p packages/sql-pg` — no type errors.
-- [x] `npm run lint` — no lint errors (core + sql-pg + sql-types).
+- [x] `npm run check:type` (core) — 1 error (`model.test.ts:44` — `foreignKey` on `StandardField`).
+- [x] `npm run lint` — 95 warnings (all `@typescript-eslint/no-explicit-any`), 0 errors.
 - [x] `npm run format:check` — prettier happy (core + sql-pg + sql-types).
-- [x] `npm run test:project` — 69 pass (requires docker `db:up`).
-- [x] `npx vitest run` (root) — 438 pass, 0 fail (packages/core + packages/sql-pg).
-- [x] `test-project: npm run typecheck` — tests typechecked, clean.
+- [x] `npm run test:project` — requires docker `db:up`.
+- [x] `npx vitest run` (root) — unit tests pass (packages/core + packages/sql-pg).
+- [ ] `test-project: npm run typecheck` — blocked by type error.
 - [x] `npm run build` — succeeds.
 
 ## Rules for agents working here

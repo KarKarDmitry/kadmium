@@ -2,6 +2,7 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — added importance fields.
+> Updated 2026-09-07 — D1, D3 resolved.
 
 ---
 
@@ -9,7 +10,7 @@
 
 **Важность:** 🟡 High
 
-**Статус:** ✅ Добавлен `createDebugAdapter()` в `sql-pg` — SqlAdapter без подключения к БД. Ошибка при отсутствии адаптера теперь подсказывает импорт.
+**Статус:** ✅ Реализовано. `createDebugAdapter()` в `sql-pg` — SqlAdapter без подключения к БД. Ошибка при отсутствии адаптера теперь подсказывает импорт.
 
 **Пример:**
 ```typescript
@@ -25,8 +26,6 @@ orm.single(User, adapter).where(u => u.name.eq('Alice')).toSql();
 - `packages/sql-pg/src/index.ts` (createDebugAdapter)
 - `packages/core/src/orm/builders/single.ts` (улучшенное сообщение ошибки)
 - `packages/core/src/orm/builders/multi.ts` (улучшенное сообщение ошибки)
-
-**Коммит:** (pending)
 
 ---
 
@@ -61,7 +60,7 @@ orm.single(User).include(t => [t.postt]).go();
 
 **Важность:** 🟡 High
 
-**Статус:** ✅ Добавлена опция `logger` в `PgAdapterConfig`. Вызывается перед каждым запросом в `PgAdapter.execute()` и `TransactionalPgAdapter.execute()`.
+**Статус:** ✅ Реализовано. Опция `logger` в `PgAdapterConfig`. Вызывается перед каждым запросом в `PgAdapter.execute()` и `TransactionalPgAdapter.execute()`.
 
 **Пример:**
 ```typescript
@@ -74,8 +73,6 @@ const adapter = new PgAdapter({
 
 **Связанные файлы:**
 - `packages/sql-pg/src/index.ts` (PgAdapterConfig, PgAdapter, TransactionalPgAdapter)
-
-**Коммит:** (pending)
 
 ---
 

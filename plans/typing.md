@@ -2,6 +2,7 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — corrected T1 (proxy type-safety works correctly).
+> Updated 2026-09-07 — T2 resolved (`ff30dc1`), T4 resolved (`657db49`).
 
 ---
 
@@ -24,6 +25,8 @@
 **Важность:** 🟡 High
 
 **Краткое описание:** `UpdateFinalizer<TModel>` возвращает `Promise<TModel['~shape'][]>` — всегда все поля. Нет механизма для `RETURNING` конкретных полей.
+
+**Статус:** ✅ Решено в `ff30dc1`. Добавлен `.returning((t, aggs) => [...])` в `update()`/`delete()` (на финализаторе и после `.where()`). Проекция рендерится через `sel.toSql()`. Агрегаты генерируют RETURNING, но Postgres запрещает их исполнение (42803) — окно для будущих оконных функций (F8).
 
 **Пример:**
 ```typescript
@@ -60,3 +63,18 @@ await orm.single(User).update({ name: 'Bob' }).where(t => t.id.eq(1)).go();
 - `packages/core/src/orm/builders/single.ts`
 
 **Коммит:**
+
+---
+
+## T4: typecheck падает — `foreignKey` не существует на `StandardField`
+
+**Важность:** 🔴 Critical
+
+**Краткое описание:** `packages/core/test/model/model.test.ts:44` — ошибка компиляции: `Property 'foreignKey' does not exist on type 'StandardField'`. Блокирует `npm run check:type`.
+
+**Статус:** ✅ Решено в `657db49` — тип поля приведён к `ReferenceField`.
+
+**Связанные файлы:**
+- `packages/core/test/model/model.test.ts:44`
+
+**Коммит:** `657db49`

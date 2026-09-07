@@ -2,6 +2,7 @@
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — added importance fields.
+> Updated 2026-09-07 — verified P1 optimal, P2 optimized.
 
 ---
 
