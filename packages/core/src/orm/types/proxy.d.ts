@@ -8,7 +8,12 @@ import type {
 import type { WhereCondition } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
-import type { IncludeConfig, IncludeResult, FlatFinalResult, AnySelectable } from './includes';
+import type {
+  IncludeConfig,
+  IncludeResult,
+  FlatFinalResult,
+  AnySelectable,
+} from './includes';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 
 export type NullableMethods = {

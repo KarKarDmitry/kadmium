@@ -115,4 +115,55 @@ describe('nested includes (depth > 1)', () => {
     expect(author).toBeTruthy();
     expect(Array.isArray(author.posts)).toBe(true);
   });
+
+  it('deep nesting: alias + as() in selectors at every level', async () => {
+    const aliceQ = h.orm
+      .single(UserModel)
+      .where((u) => u.name.eq('Alice'))
+      .include({
+        posts: {
+          select: (p) => [p.id.as('identify')],
+          alias: 'posted',
+          include: {
+            author: {
+              select: (a) => [a.id.as('authorID')],
+              include: {
+                comments: {
+                  select: (c) => [c.id.as('commentID')],
+                  include: { post: { select: (p) => [p.id.as('postID')] } },
+                },
+              },
+            },
+          },
+        },
+      })
+      .first();
+
+    const alice = await aliceQ.go();
+
+    const posted = alice!.posted!;
+    expect(Array.isArray(posted)).toBe(true);
+    expect(posted.length).toBe(2);
+
+    for (const inner of posted) {
+      expect(Object.keys(inner).sort()).toEqual(['author', 'identify']);
+      expect(typeof inner.identify).toBe('number');
+      expect(inner.author.authorID).toBe(alice!.id);
+      expect(Object.keys(inner.author).sort()).toEqual([
+        'authorID',
+        'comments',
+      ]);
+    }
+
+    const postIds = posted.map((p) => p.identify);
+    const allComments = posted.flatMap((p) => p.author.comments);
+    expect(allComments.length).toBe(2);
+    expect(new Set(allComments.map((c) => c.commentID)).size).toBe(1);
+    for (const comment of allComments) {
+      expect(Object.keys(comment).sort()).toEqual(['commentID', 'post']);
+      expect(typeof comment.commentID).toBe('number');
+      expect(Object.keys(comment.post).sort()).toEqual(['postID']);
+      expect(postIds).toContain(comment.post.postID);
+    }
+  });
 });

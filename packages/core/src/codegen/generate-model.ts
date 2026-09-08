@@ -84,9 +84,7 @@ export function generateModel(
         : field.relation === 'one-to-one'
           ? 'one-to-one'
           : 'many-to-one';
-      lines.push(
-        `    ${name}: { target: ${target}; kind: '${kind}' };`,
-      );
+      lines.push(`    ${name}: { target: ${target}; kind: '${kind}' };`);
     }
     lines.push(`  };`);
   }

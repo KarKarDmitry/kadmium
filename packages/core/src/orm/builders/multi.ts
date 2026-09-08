@@ -27,7 +27,11 @@ type MultiIncludeConfig<T extends AliasesMap> = {
       ['~relInfo']: Record<string, unknown>;
     }
       ? InstanceType<T[A]>
-      : { ['~shape']: Record<string, never>; ['~rel']: Record<string, never>; ['~relInfo']: Record<string, never> }
+      : {
+          ['~shape']: Record<string, never>;
+          ['~rel']: Record<string, never>;
+          ['~relInfo']: Record<string, never>;
+        }
   >;
 };
 

@@ -374,7 +374,7 @@ export class SingleQueryBuilder<
   /** Выполнить запрос и вернуть результат. */
   async go(): Promise<
     TMode extends 'first'
-      ? (Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined)
+      ? Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined
       : Evaluate<QueryResult<TModel, TSelect, TInclude>>[]
   > {
     if (!this.sqb.selects) {
@@ -449,7 +449,9 @@ export class SingleQueryBuilder<
     return out;
   }
 
-  private _mapReturningRow(row: Record<string, unknown>): Record<string, unknown> {
+  private _mapReturningRow(
+    row: Record<string, unknown>,
+  ): Record<string, unknown> {
     if (!this.sqb.selects) return this._mapRow(row);
     const out: Record<string, unknown> = {};
     for (const sel of this.sqb.selects) {
