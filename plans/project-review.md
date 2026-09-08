@@ -7,6 +7,7 @@
 > Updated 2026-09-07 — includes refactor done (`1cacf6a`): record-based API, ~relInfo phantom. A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 partially resolved.
 > Updated 2026-09-08 — A1 resolved (`b709ad1` + `f5023c9`): snapshot terminals + public `.clone()`. F7 resolved (`2f251dc`). A3 fully resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts → 4 inherent, write-finalizer.ts + include-utils.ts extraction.
 > Updated 2026-09-08 — plan sync: A6/help_source gone, S5 resolved via A1, T2.3 resolved by design via `createDebugAdapter()`, T3.8 covered by S2 (`ddl-validate`), verification checklist refreshed (typecheck pass, 284/194/98, lint 89w+2e).
+> Updated 2026-09-08 — project re-review: P6 (batch upsert N+1) added, D5 (standalone orm unusable) added, T5 (duplicated type helpers) added, A12 (global state/singleton) added, H5 (dead example scripts) added.
 
 ## Repository snapshot
 
@@ -86,6 +87,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | H2 | 🟢 | TypeScript version mismatch: core 6.0.3, test-project 5.4.0 | ⬜ Pending |
 | H3 | 🟢 | Comments in Russian | ✅ Acceptable |
 | H4 | 🟢 | Monorepo vs `file:` dependency inconsistency | ⬜ Pending |
+| H5 | 🟢 | **Dead example scripts reference a non-existent API** — `codegen/_example.ts` + `codegen/check.ts:31` call `checkSync('types/models.d.ts')` / `generateToFile('types/models.d.ts')` with a single string; real API (`runner.ts:62,81`) requires `(irs, modelPaths, filePath)`. `_example.ts` ends with `export {}` — documentation-as-source that doesn't compile against the implementation. Fix signatures or remove from `src/`. | ⬜ Open |
 
 ### 6️⃣ Testing
 

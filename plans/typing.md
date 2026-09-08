@@ -3,6 +3,7 @@
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — corrected T1 (proxy type-safety works correctly).
 > Updated 2026-09-07 — T2 resolved (`ff30dc1`), T4 resolved (`657db49`).
+> Updated 2026-09-08 — added T5 (duplicated type helpers), from project review.
 
 ---
 
@@ -61,6 +62,36 @@ await orm.single(User).update({ name: 'Bob' }).where(t => t.id.eq(1)).go();
 **Связанные файлы:**
 - `packages/core/src/orm/types/proxy.d.ts`
 - `packages/core/src/orm/builders/single.ts`
+
+**Коммит:**
+
+---
+
+## T5: GetFieldName / GetFieldType определены дважды — divergent trap
+
+**Важность:** 🟡 High
+
+**Краткое описание:** Два публичных типа `GetFieldName` / `GetFieldType` определены в двух местах с **разными реализациями** разрешения алиаса:
+
+- `packages/core/src/orm/types/proxy.d.ts:208-225` — использует `SelectableField<any, any, infer AL, any>` (**4 type params**, alias-aware)
+- `packages/core/src/orm/types/includes.d.ts:45-62` — использует `SelectableField<any, any, infer A>` (**3 type params**)
+
+**Пример divergence (GetFieldType):**
+```typescript
+// proxy.d.ts
+S extends SelectableField<infer T, any, any, any> ? T : never;
+// includes.d.ts
+S extends SelectableField<infer T, any, any> ? T : unknown;  // fallback = unknown, а не never
+```
+
+Публичные версии (через `public-types.d.ts` ← `orm/index.ts:34-35`) берутся из **proxy**, а внутренние `FlatFinalResult` / `QueryResult` — из **includes**. Два определения одного публичного имени, которые могут разрешать алиасы по-разному, — молчаливый риск drift типов: сгенерированные row-типы могут разойтись по разным путям импорта.
+
+**Решение:** Свести к одному каноническому определению и re-export из него. Проверить, что `SelectableField` consistently принимает 4 type params (иначе уточнить в обоих местах скопом).
+
+**Связанные файлы:**
+- `packages/core/src/orm/types/proxy.d.ts` (GetFieldName/GetFieldType:208-225)
+- `packages/core/src/orm/types/includes.d.ts` (GetFieldName/GetFieldType:45-62)
+- `packages/core/src/orm/types/public-types.d.ts` (re-export)
 
 **Коммит:**
 

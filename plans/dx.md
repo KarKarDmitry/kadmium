@@ -3,6 +3,7 @@
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — D1, D3 resolved.
+> Updated 2026-09-08 — added D5 (standalone orm unusable), from project review.
 
 ---
 
@@ -73,6 +74,46 @@ const adapter = new PgAdapter({
 
 **Связанные файлы:**
 - `packages/sql-pg/src/index.ts` (PgAdapterConfig, PgAdapter, TransactionalPgAdapter)
+
+---
+
+## D5: Standalone orm — нерабочий (adapter никогда не получает)
+
+**Важность:** 🟡 High
+
+**Краткое описание:** Экспортируемый standalone `orm` из `packages/core/src/orm/orm.ts:152-169` строит `SingleQueryBuilder`, **не передавая adapter**:
+
+```typescript
+export const orm = {
+  single<TModel>(modelClass, ir?): SingleQueryBuilder<TModel> {
+    // ...
+    return new SingleQueryBuilder<TModel>(compiled, buildIrLookup()); // ← 2 арг., adapter не передан
+  },
+};
+```
+
+`SingleQueryBuilder` по умолчанию ставит `adapter = null` (`single.ts:52,62`). Из-за этого **ни один терминальный метод не работает** — все бросают `"No adapter configured"`:
+- `go()` (`single.ts:339`)
+- `toSql()` (`single.ts:415-418`) — даже SQL preview требует реальный adapter
+- `create()`, `createMany()`, `count().go()`, `exists().go()`
+
+**Важное уточнение:** тесты проект **не** ломаются — они используют `OrmManager` через `makeHarness()` (`test-project/test/helpers.ts:35-45`), а не standalone `orm`. Также standalone `orm` не экспортируется из главной точки входа (`packages/core/src/index.ts` экспортирует только `OrmManager`) и не покрыт тестами. Т.е. это **неактивный мёртвый/недоделанный API**, а не активная поломка.
+
+**JSDoc-путаница:** `createDebugAdapter()` JSDoc (`sql-pg/src/index.ts`) показывает `orm.single(User, adapter)` — но второй параметр standalone `orm` это `ModelIR`, не adapter. Пример некорректен.
+
+**Решение (выбрать одно):**
+1. **Удалить** standalone `orm` — поскольку не экспортируется и не используется; направить пользователей на `new OrmManager(...)` / `KadmiumApp`.
+2. **Допилить** — дать ему принимать adapter (`orm.single(User, adapter)`), прокидывать в `SingleQueryBuilder`, и экспортировать публично.
+3. **Починить примеры/JSDoc** — даже если оставить, `toSql()` без adapter не работает, так что пример в `createDebugAdapter` JSDoc вводит в заблуждение.
+
+**Связанные файлы:**
+- `packages/core/src/orm/orm.ts` (standalone orm:152-169, standaloneCache:150)
+- `packages/core/src/orm/builders/single.ts` (adapter null default, throw)
+- `packages/core/src/orm/index.ts` (export `orm`)
+- `packages/sql-pg/src/index.ts` (createDebugAdapter JSDoc)
+- `packages/core/src/index.ts` (НЕ экспортирует `orm`)
+
+**Коммит:**
 
 ---
 

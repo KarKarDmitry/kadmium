@@ -3,6 +3,7 @@
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — verified P1 optimal, P2 optimized.
+> Updated 2026-09-08 — added P6 (batch upsert N+1), from project review.
 
 ---
 
@@ -55,6 +56,36 @@ await orm.single(BigTable).select(t => [t.f1, t.f2, ..., t.f50]).go();
 
 **Связанные файлы:**
 - `packages/sql-pg/src/sql-generator.ts` (_buildJoinGraph, _findJoinIslands)
+
+**Коммит:**
+
+---
+
+## P6: Batch upsert (createMany().onConflict()) — N+1 запись
+
+**Важность:** 🟡 High
+
+**Краткое описание:** При указанном conflict target `createMany(...).onConflict(...).go()` терминал в цикле выполняет отдельный `adapter.execute(sqb)` для **каждого** ряда.
+
+**Место:** `packages/core/src/orm/builders/upsert-helpers.ts:120-138`
+
+```typescript
+for (const row of mappedRows) {
+  const sqb = new (baseSqb.constructor as any)();
+  // ... конфигурация одного ряда ...
+  const result = await adapter.execute(sqb);  // 1 round-trip на ряд
+}
+```
+
+Для 1000 строк — 1000 последовательных round-trips (без батчинга и без параллелизма). Противоположно plain `createMany` (без ON CONFLICT), который собирает один multi-VALUES INSERT как единый запрос. ALSO дополняется N+1 в самом `go()`.
+
+**Суть:** Противоречит собственной дисциплине проекта (AGENTS.md / TODO `N+1` elimination — include перестроен на `LEFT JOIN LATERAL`, чтобы убрать N+1). Здесь в write-пути N+1 остаётся.
+
+**Решение:** PostgreSQL поддерживает multi-row `INSERT ... VALUES (...), (...) ... ON CONFLICT (target) DO UPDATE SET ... RETURNING`. Текущий `_buildUpsertQuery` (`sql-generator.ts`) синтезирует только однорядковый upsert — нужен многострочный путь через adapter, генерирующий один батч-запрос. Минимум — задокументировать O(n) round-trip поведение, если батчинг отложен.
+
+**Связанные файлы:**
+- `packages/core/src/orm/builders/upsert-helpers.ts` (go())
+- `packages/sql-pg/src/sql-generator.ts` (_buildUpsertQuery)
 
 **Коммит:**
 

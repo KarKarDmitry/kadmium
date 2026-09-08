@@ -7,6 +7,7 @@
 > Updated 2026-09-07 — includes refactor resolved (`1cacf6a`): record-based API, ~relInfo phantom, relations.d.ts deleted. single.ts 419 lines, ~12 any casts (down from 537/18).
 > Updated 2026-09-08 — A1 resolved via B+C (`b709ad1` + this PR): snapshot terminals + public `.clone()`.
 > Updated 2026-09-08 — A3 resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts 12→4 inherent, update/delete → write-finalizer.ts, includes dedup → include-utils.ts.
+> Updated 2026-09-08 — added A12 (global state/singleton), from project review.
 
 ---
 
@@ -172,6 +173,40 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `packages/core/src/orm/builders/multi.ts` (_or удалён)
 
 **Коммит:** `f3917da`
+
+---
+
+## A12: Процесс-глобальный стейт (registry, singleton) — latent hazard
+
+**Важность:** 🟢 Medium (design debt — нет активных сбоев, но риск для reload/multi-app)
+
+**Краткое описание:** Несколько модульно-глобальных состояний копятся на весь процесс и не имеют публичного сброса:
+
+1. **`Model.registry`** — `private static Map` (`packages/core/src/model/index.ts:15`). Пишется в `register()` (`:23-27`), ключ — только имя класса, без дедупликации (тихо перезаписывает). Читается в `resolve()`/`models`/`$refs()`. **Никогда не очищается.** Каждый `new KadmiumApp()`/`new AppCore()` дописывает в него свои классы; `ModelRegistry.register()` (`model-registry.ts:19-28`) тоже зовёт `Model.register`. Классы живут весь процесс даже после GC своего AppCore.
+2. **`Kadmium` singleton** — `export const Kadmium = new KadmiumApp()` (`kadmium-app.ts:54`). Экспортируется публично (`core/index.ts`, `src/index.ts:15`), но **нигде в кодовой базе не используется** (только в doc-комментариях). Возможно, стоит удалить или честно оформить как единственный синглтон.
+3. **`ModelImporter.sourceFiles`** — аккумулирует без сброса (`model-importer.ts:20,38-42`), хранится в `ModelRegistry` (`model-registry.ts:14`). Per-instance, но out-param + повторное использование реестра копит entry.
+4. **`standaloneCache`** — модульный `Map<string, ModelIR>` (`orm.ts:150`), растёт без границ (то же, что D5).
+
+**Ключевое уточнение (перепроверено):** сегодня это **не** активный баг:
+- Тесты используют `fileParallelism: false` и один фиксированный набор моделей (`User`/`Post`/`Comment` из `helpers.ts:9`), ре-регистрация тех же классов перезаписывает детерминированно.
+- CLI создаёт свежие инстансы на каждый вызов.
+- Singleton `Kadmium` никто не потребляет.
+
+Риск материализуется в: **двух model-графах в одном процессе** (bundled microservices, HMR, serverless reload), **тестах с разными наборами моделей** (приходится `(Model as any).registry.clear()` — смотри `model.test.ts:15-18`, `compile.test.ts:21-24` — хак через приватное поле), **задержке классов** потом процесса.
+
+**Решение (два маленьких фикса):**
+1. Публичный `Model.clear()`/`reset()` (или instance-injectable registry) — убирает `(Model as any)` хак из тестов.
+2. Удалить мёртвый singleton `Kadmium` (или оформить как документированный единственный синглтон).
+
+**Связанные файлы:**
+- `packages/core/src/model/index.ts` (registry:15, register:23-27)
+- `packages/core/src/core/kadmium-app.ts` (Kadmium:54)
+- `packages/core/src/core/model-registry.ts` (register:19-28)
+- `packages/core/src/core/model-importer.ts` (sourceFiles:20,38-42)
+- `packages/core/src/orm/orm.ts` (standaloneCache:150)
+- `packages/core/test/model/model.test.ts:15-18`, `packages/core/test/ir/compile.test.ts:21-24` (тестовые хаки)
+
+**Коммит:**
 
 ---
 
