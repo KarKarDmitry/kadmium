@@ -14,6 +14,7 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
     operation: 'select',
     tableContext: new Map([['u', 'users']]),
     wheres: { op: 'AND', conditions: [] },
+    havings: { op: 'AND', conditions: [] },
     selects: null,
     joins: [],
     includes: [],

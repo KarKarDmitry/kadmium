@@ -8,6 +8,8 @@ import type {
   OrderProxy,
   OrderField,
   UpdateFinalizer,
+  HavingProxy,
+  HavingSource,
 } from '../types/proxy';
 import type {
   AllFields,
@@ -24,6 +26,7 @@ import {
   createFilterProxy,
   createSelectProxy,
   createOrderProxy,
+  createHavingProxy,
 } from './query-proxies';
 import {
   buildCreateFinalizer,
@@ -198,6 +201,14 @@ export class SingleQueryBuilder<
   groupBy(fn: (t: SelectProxy<TModel>) => SelectableField[]): this {
     const fields = fn(this._createSelectProxy());
     this.sqb.groupBy.push(...fields.map((f) => f.column ?? f.fieldName));
+    return this;
+  }
+
+  /** Фильтр по агрегатным алиасам (HAVING). Алиасы — из select()/.as(). */
+  having(fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereCondition): this {
+    this.sqb.havings.conditions.push(
+      fn(createHavingProxy(this.sqb, this._aggregateAliases())),
+    );
     return this;
   }
 
@@ -434,6 +445,17 @@ export class SingleQueryBuilder<
 
   private _createOrderProxy(): OrderProxy<TModel> {
     return createOrderProxy(this._alias(), this.ir);
+  }
+
+  /** Алиасы агрегатов из текущего select — допустимые ключи для having(). */
+  private _aggregateAliases(): Set<string> {
+    const aliases = new Set<string>();
+    if (this.sqb.selects) {
+      for (const sel of this.sqb.selects) {
+        if (sel.kind === 'aggregate' && sel.alias) aliases.add(sel.alias);
+      }
+    }
+    return aliases;
   }
 
   private _alias(): string {

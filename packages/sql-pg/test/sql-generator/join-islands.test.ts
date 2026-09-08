@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { SqlGenerator } from '../../src/sql-generator';
-import type { ReadonlySqb, WhereCondition } from '@karkardmitry/kadmium-sql-types';
+import type {
+  ReadonlySqb,
+  WhereCondition,
+} from '@karkardmitry/kadmium-sql-types';
 
 class TestGenerator extends SqlGenerator {}
 
@@ -9,6 +12,7 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
     operation: 'select',
     tableContext: new Map([['u', 'users']]),
     wheres: { op: 'AND', conditions: [] },
+    havings: { op: 'AND', conditions: [] },
     selects: null,
     joins: [],
     includes: [],

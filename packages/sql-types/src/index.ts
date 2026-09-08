@@ -70,6 +70,7 @@ export interface ReadonlySqb {
   readonly operation: 'select' | 'update' | 'delete' | 'upsert';
   readonly tableContext: ReadonlyMap<string, string>;
   readonly wheres: WhereGroup;
+  readonly havings: WhereGroup;
   readonly selects: readonly SelectItem[] | null;
   readonly joins: readonly JoinOptions[];
   readonly includes: readonly IncludedRelation[];

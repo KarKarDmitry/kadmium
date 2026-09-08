@@ -151,6 +151,40 @@ describe('SingleQueryBuilder — modifiers', () => {
   });
 });
 
+describe('SingleQueryBuilder — having', () => {
+  it('pushes aggregate-alias condition to sqb.havings', () => {
+    const b = builder();
+    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.having((t: any) => t.total.gt(5));
+    expect(b.sqb.havings.conditions.length).toBe(1);
+    const c = b.sqb.havings.conditions[0] as {
+      field: string;
+      op: string;
+      alias?: string;
+    };
+    expect(c.field).toBe('total');
+    expect(c.op).toBe('>');
+    expect(c.alias).toBe('');
+  });
+
+  it('throws on unknown aggregate alias with .as() hint', () => {
+    const b = builder();
+    b.select((t: any) => [t.id]);
+    expect(() => b.having((t: any) => t.total.gt(1))).toThrow(
+      'Unknown aggregate alias',
+    );
+    expect(() => b.having((t: any) => t.total.gt(1))).toThrow(/\.as\("/);
+  });
+
+  it('clone() copies havings', () => {
+    const b = builder();
+    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.having((t: any) => t.total.gt(5));
+    const c = b.clone();
+    expect(c.sqb.havings.conditions.length).toBe(1);
+  });
+});
+
 describe('SingleQueryBuilder — findById', () => {
   it('throws when no PK', () => {
     const ir = {
@@ -193,7 +227,12 @@ describe('SingleQueryBuilder — create', () => {
     const adapter = makeMockAdapter();
     const b = builder(adapter);
     await b.create({ name: 'Alice' }).go();
-    expect(adapter.execute).toHaveBeenCalledWith(expect.objectContaining({ operation: 'upsert', upsertData: { name: 'Alice' } }));
+    expect(adapter.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'upsert',
+        upsertData: { name: 'Alice' },
+      }),
+    );
   });
 });
 
@@ -276,7 +315,9 @@ describe('SingleQueryBuilder — update returning', () => {
     adapter.execute.mockResolvedValue([{ id: 1, total: 2 }]);
     const b = builder(adapter);
     const f = b.update({ name: 'Alice' });
-    await f.returning((u: any, a: any) => [u.id, a.count('*').as('total')]).go();
+    await f
+      .returning((u: any, a: any) => [u.id, a.count('*').as('total')])
+      .go();
     expect(adapter.execute).toHaveBeenCalledWith(
       expect.objectContaining({
         selects: expect.arrayContaining([

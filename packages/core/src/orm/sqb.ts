@@ -36,6 +36,8 @@ export class KadmiumSqb {
   public operation: 'select' | 'update' | 'delete' | 'upsert' = 'select';
   public tableContext: Map<string, string> = new Map(); // alias → table name
   public wheres: WhereGroup = createWhereGroup();
+  /** HAVING условия (агрегатные алиасы без префикса таблицы) */
+  public havings: WhereGroup = createWhereGroup();
   public selects: AnySelectableField[] | null = null;
   public joins: JoinOptions[] = [];
   public includes: IncludedRelation[] = [];
@@ -64,6 +66,7 @@ export class KadmiumSqb {
     c.operation = this.operation;
     c.tableContext = new Map(this.tableContext);
     c.wheres = this._cloneWhereGroup(this.wheres);
+    c.havings = this._cloneWhereGroup(this.havings);
     c.selects = this.selects ? this._cloneSelects(this.selects) : null;
     c.joins = [...this.joins];
     c.includes = [...this.includes];

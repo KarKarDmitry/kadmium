@@ -21,7 +21,7 @@ export type NullableMethods = {
   readonly notNull: WhereCondition;
 };
 
-type FieldTypeToFilter<TField> =
+export type FieldTypeToFilter<TField> =
   NonNullable<TField> extends string
     ? StringFilter
     : NonNullable<TField> extends number
@@ -70,6 +70,21 @@ export type OrderProxy<TModel extends { ['~shape']: Record<string, unknown> }> =
   {
     [K in keyof TModel['~shape'] & string]: OrderField;
   };
+
+// ── Having (HAVING) proxy ──
+
+/**
+ * HavingProxy — типизированный доступ к агрегатным алиасам из SELECT
+ * для фильтрации групп (HAVING). Ключи — алиасы агрегатов (.as('cnt')).
+ */
+export type HavingProxy<S extends readonly any[]> = {
+  [
+    Sel in Extract<S[number], AggregateField<any>> as GetFieldName<Sel>
+  ]: FieldTypeToFilter<GetFieldType<Sel>>;
+};
+
+/** SELECT-источник для HavingProxy: сам select либо пустой (`never`). */
+export type HavingSource<T> = T extends readonly any[] ? T : never;
 
 // ── Update/Delete finalizer ──
 
@@ -190,7 +205,7 @@ type ObjectForAlias<S extends readonly any[], A extends string> = {
   : never;
 
 /** Get the alias/field name from any selectable */
-type GetFieldName<S> =
+export type GetFieldName<S> =
   S extends AggregateField<any>
     ? S['alias'] extends string
       ? S['alias']
@@ -202,7 +217,7 @@ type GetFieldName<S> =
       : never;
 
 /** Get the result type from any selectable */
-type GetFieldType<S> =
+export type GetFieldType<S> =
   S extends AggregateField<infer T>
     ? T
     : S extends SelectableField<infer T, any, any, any>

@@ -434,6 +434,12 @@ export abstract class SqlGenerator {
       groupByClause = `GROUP BY ${sqb.groupBy.map((f) => `"${mainTableAlias}"."${f}"`).join(', ')}`;
     }
 
+    // HAVING (после GROUP BY). Условия ссылаются на выходные алиасы
+    // агрегатов — они рендерятся без префикса таблицы (alias пустой).
+    let havingClause = '';
+    const havingSql = this._buildWhereGroupSql(sqb.havings, values, paramIndex);
+    if (havingSql) havingClause = `HAVING ${havingSql}`;
+
     // ORDER BY
     let orderByClause = '';
     if (sqb.orders.length > 0) {
@@ -458,7 +464,7 @@ export abstract class SqlGenerator {
       values.push(sqb.offset);
     }
 
-    return `SELECT ${selectClause} FROM ${fromClause} ${whereClause} ${groupByClause} ${orderByClause} ${limitClause} ${offsetClause}`
+    return `SELECT\n\t${selectClause}\nFROM ${fromClause}\n\t${whereClause}\n${groupByClause}\n${havingClause}\n${orderByClause}\n${limitClause}\n${offsetClause}`
       .trim()
       .replace(/\s+/g, ' ');
   }

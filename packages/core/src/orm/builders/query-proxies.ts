@@ -8,9 +8,15 @@
 
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
+import { NumberFilter } from '../field-builders/filters';
 import type { ModelIR } from '../../ir/index';
 import type { KadmiumSqb } from '../sqb';
-import type { FilterProxy, SelectProxy, OrderProxy } from '../types/proxy';
+import type {
+  FilterProxy,
+  SelectProxy,
+  OrderProxy,
+  HavingProxy,
+} from '../types/proxy';
 
 type Model = {
   ['~shape']: Record<string, unknown>;
@@ -58,5 +64,27 @@ export function createOrderProxy<TModel extends Model>(
       fieldName: field as string,
       column: ir.fields[field]?.alias,
     }),
+  });
+}
+
+/**
+ * createHavingProxy — proxy для HAVING. Ключи — агрегатные алиасы из SELECT;
+ * условия рендерятся как `"<alias>" op $n` (без префикса таблицы, т.к. alias='').
+ * Несуществующий алиас — ошибка с подсказкой про .as().
+ */
+export function createHavingProxy<S extends readonly any[]>(
+  sqb: KadmiumSqb,
+  aliases: Set<string>,
+): HavingProxy<S> {
+  return new Proxy({} as HavingProxy<S>, {
+    get: (_, field: string) => {
+      if (!aliases.has(field)) {
+        throw new Error(
+          `Unknown aggregate alias "${field}" in having(). ` +
+            'Aliases come from select()/first() aggregates using .as("<name>").',
+        );
+      }
+      return new NumberFilter(sqb, field, '', field);
+    },
   });
 }

@@ -15,6 +15,7 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
     operation: 'select',
     tableContext: new Map([['u', 'users']]),
     wheres: { op: 'AND', conditions: [] },
+    havings: { op: 'AND', conditions: [] },
     selects: null,
     joins: [],
     includes: [],
@@ -293,6 +294,37 @@ describe('SqlGenerator — toSql: select', () => {
     });
     const { text } = gen.toSql(q);
     expect(text).toContain('GROUP BY "u"."id"');
+  });
+
+  it('HAVING after GROUP BY (bare output alias, aligned with WHERE)', () => {
+    const q = sqb({
+      selects: [selectable('u', 'id'), aggregate('u', 'count', 'total')],
+      groupBy: ['id'],
+      havings: {
+        op: 'AND',
+        conditions: [
+          where('total', '>', 5, ''),
+          // where with no alias renders bare too — same condition shape
+        ],
+      },
+    });
+    const { text, values } = gen.toSql(q);
+    expect(text).toContain('GROUP BY "u"."id"');
+    expect(text.trim()).toMatch(/HAVING "total" > \$1$/);
+    expect(values).toEqual([5]);
+  });
+
+  it('HAVING without GROUP BY renders bare output aliases', () => {
+    const q = sqb({
+      selects: [aggregate('u', 'count', 'total')],
+      havings: {
+        op: 'AND',
+        conditions: [where('total', '>', 3, '')],
+      },
+    });
+    const { text, values } = gen.toSql(q);
+    expect(text.trim()).toMatch(/HAVING "total" > \$1$/);
+    expect(values).toEqual([3]);
   });
 
   it('OFFSET', () => {
