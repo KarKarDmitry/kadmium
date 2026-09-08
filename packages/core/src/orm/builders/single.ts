@@ -1,4 +1,4 @@
-import { KadmiumSqb } from '../sqb';
+import { KadmiumSqb, type AnySelectableField } from '../sqb';
 import type { WhereCondition, WhereGroup } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { Relation } from '../field-builders/relation';
@@ -154,7 +154,7 @@ export class SingleQueryBuilder<
     config: C,
   ): SingleQueryBuilder<TModel, TSelect, C, TMode> {
     this._resolveIncludes(config);
-    return this as any;
+    return this as unknown as SingleQueryBuilder<TModel, TSelect, C, TMode>;
   }
 
   // ── first — returns this with TMode='first' ──
@@ -171,7 +171,8 @@ export class SingleQueryBuilder<
       | ((t: SelectProxy<TModel>, a: AggregateFunctions) => AnySelectable[]),
   ): any {
     if (fn) {
-      this.sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      this.sqb.selects = [...fn(this._createSelectProxy(), aggregates)] as
+        AnySelectableField[];
     } else {
       const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
       this.sqb.selects = Object.entries(this.ir.fields)
@@ -299,7 +300,7 @@ export class SingleQueryBuilder<
     for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = v;
     }
-    sqb.updateData = mapped as any;
+    sqb.updateData = mapped;
 
     const go = async () => {
       if (!this.adapter)
@@ -314,7 +315,8 @@ export class SingleQueryBuilder<
     const returning = <S extends readonly AnySelectable[]>(
       fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
     ) => {
-      sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      sqb.selects = [...fn(this._createSelectProxy(), aggregates)] as
+      AnySelectableField[];
       return {
         go: async () => {
           if (!this.adapter)
@@ -359,7 +361,8 @@ export class SingleQueryBuilder<
     const returning = <S extends readonly AnySelectable[]>(
       fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
     ) => {
-      sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      sqb.selects = [...fn(this._createSelectProxy(), aggregates)] as
+      AnySelectableField[];
       return {
         go: async () => {
           if (!this.adapter)
@@ -415,13 +418,13 @@ export class SingleQueryBuilder<
     sql: () => string;
   } {
     const sqb = this.sqb.clone();
-    sqb.selects = [aggregates.count('*').as('count')] as any;
+    sqb.selects = [aggregates.count('*').as('count')];
     return {
       sql: () => this._toSqlFrom(sqb),
       go: async (): Promise<number> => {
         if (!this.adapter)
           throw new Error('No adapter configured; cannot execute query.');
-        const results = (await this.adapter.execute(sqb)) as any;
+        const results = await this.adapter.execute(sqb);
         return Number(results[0]?.count ?? 0);
       },
     };
