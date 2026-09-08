@@ -198,16 +198,11 @@ describe('SingleQueryBuilder — create', () => {
 });
 
 describe('SingleQueryBuilder — update', () => {
-  it('sets operation to update', () => {
+  it('does not mutate the builder (works on a snapshot)', () => {
     const b = builder();
     b.update({ name: 'Alice' });
-    expect(b.sqb.operation).toBe('update');
-  });
-
-  it('maps aliases to updateData', () => {
-    const b = builder();
-    b.update({ name: 'Alice' });
-    expect(b.sqb.updateData).toEqual({ name: 'Alice' });
+    expect(b.sqb.operation).toBe('select');
+    expect(b.sqb.updateData).toBeNull();
   });
 
   it('finalizer has where/go/sql', () => {
@@ -224,20 +219,31 @@ describe('SingleQueryBuilder — update', () => {
     await expect(f.go()).rejects.toThrow('No adapter configured');
   });
 
-  it('finalizer where pushes condition', () => {
-    const b = builder();
+  it('finalizer where applies to snapshot, not builder', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([]);
+    const b = builder(adapter);
     const f = b.update({ name: 'Alice' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.where((u: any) => u.id.eq(1));
-    expect(b.sqb.wheres.conditions.length).toBe(1);
+    expect(b.sqb.wheres.conditions.length).toBe(0);
+    await f.go();
+    expect(adapter.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'update',
+        wheres: expect.objectContaining({
+          conditions: expect.arrayContaining([expect.anything()]),
+        }),
+      }),
+    );
   });
 });
 
 describe('SingleQueryBuilder — delete', () => {
-  it('sets operation to delete', () => {
+  it('does not mutate the builder (works on a snapshot)', () => {
     const b = builder();
     b.delete();
-    expect(b.sqb.operation).toBe('delete');
+    expect(b.sqb.operation).toBe('select');
   });
 
   it('finalizer has where/go/sql', () => {
@@ -257,23 +263,27 @@ describe('SingleQueryBuilder — update returning', () => {
     expect(typeof f.where((u: any) => u.id.eq(1)).returning).toBe('function');
   });
 
-  it('returning sets sqb.selects', () => {
+  it('returning applies to snapshot, not builder', () => {
     const b = builder();
     const f = b.update({ name: 'Alice' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.returning((u: any) => [u.id]);
-    expect(b.sqb.selects).not.toBeNull();
-    expect(b.sqb.selects!.length).toBe(1);
+    expect(b.sqb.selects).toBeNull();
   });
 
-  it('returning with aggregate sets select list', () => {
-    const b = builder();
+  it('returning with aggregate is executed with aggregate select', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ id: 1, total: 2 }]);
+    const b = builder(adapter);
     const f = b.update({ name: 'Alice' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    f.returning((u: any, a: any) => [u.id, a.count('*').as('total')]);
-    expect(b.sqb.selects!.length).toBe(2);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((b.sqb.selects![1] as any).kind).toBe('aggregate');
+    await f.returning((u: any, a: any) => [u.id, a.count('*').as('total')]).go();
+    expect(adapter.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selects: expect.arrayContaining([
+          expect.objectContaining({ kind: 'aggregate' }),
+        ]),
+      }),
+    );
   });
 
   it('returning go throws without adapter', async () => {
@@ -318,7 +328,7 @@ describe('SingleQueryBuilder — update returning', () => {
       .where((u: any) => u.id.eq(1))
       .returning((u: any) => [u.id])
       .go();
-    expect(b.sqb.wheres.conditions.length).toBe(1);
+    expect(b.sqb.wheres.conditions.length).toBe(0);
     expect(result).toEqual([{ id: 42 }]);
   });
 });
@@ -331,13 +341,12 @@ describe('SingleQueryBuilder — delete returning', () => {
     expect(typeof f.where((u: any) => u.id.eq(1)).returning).toBe('function');
   });
 
-  it('returning sets sqb.selects', () => {
+  it('returning applies to snapshot, not builder', () => {
     const b = builder();
     const f = b.delete();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.returning((u: any) => [u.id]);
-    expect(b.sqb.selects).not.toBeNull();
-    expect(b.sqb.selects!.length).toBe(1);
+    expect(b.sqb.selects).toBeNull();
   });
 
   it('returning go maps rows and drops unselected', async () => {
@@ -407,11 +416,59 @@ describe('SingleQueryBuilder — go', () => {
     await expect(b.go()).rejects.toThrow('No adapter configured');
   });
 
-  it('auto-selects fields when select() not called', async () => {
+  it('auto-selects fields into a snapshot, not the builder', async () => {
     const adapter = makeMockAdapter();
     adapter.execute.mockResolvedValue([]);
     const b = builder(adapter);
     await b.go();
-    expect(b.sqb.selects).not.toBeNull();
+    expect(b.sqb.selects).toBeNull();
+    expect(adapter.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ selects: expect.any(Array) }),
+    );
+  });
+});
+
+describe('SingleQueryBuilder — clone', () => {
+  it('returns an independent builder', () => {
+    const b = builder();
+    const c = b.clone();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    c.where((u: any) => u.name.eq('Alice'));
+    c.limit(10);
+    expect(b.sqb.wheres.conditions.length).toBe(0);
+    expect(b.sqb.limit).toBeNull();
+    expect(c.sqb.wheres.conditions.length).toBe(1);
+    expect(c.sqb.limit).toBe(10);
+  });
+
+  it('copies state from the source', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.where((u: any) => u.name.eq('Alice'));
+    b.first();
+    const c = b.clone();
+    expect(c.sqb.wheres.conditions.length).toBe(1);
+    expect(c.sqb.limit).toBe(1);
+  });
+
+  it('deep-copies aggregate selects', () => {
+    const b = builder();
+    b.select((t: any, a: any) => [a.count('*').as('total')]);
+    const c = b.clone();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (c.sqb.selects![0] as any).as('renamed');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((b.sqb.selects![0] as any).alias).toBe('total');
+  });
+
+  it('go() twice produces identical snapshots', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([]);
+    const b = builder(adapter);
+    await b.go();
+    await b.go();
+    const [first, second] = adapter.execute.mock.calls;
+    expect(first![0].selects).toEqual(second![0].selects);
+    expect(b.sqb.selects).toBeNull();
   });
 });

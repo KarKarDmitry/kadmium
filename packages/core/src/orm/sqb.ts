@@ -1,7 +1,7 @@
 import type { WhereCondition, WhereGroup } from './ast/where';
 import { createWhereGroup } from './ast/where';
 import type { SelectableField } from './ast/selectable';
-import type { AggregateField } from './ast/aggregate';
+import { AggregateField } from './ast/aggregate';
 
 /** Поле в SELECT: обычное или агрегатное */
 export type AnySelectableField = SelectableField | AggregateField;
@@ -64,9 +64,7 @@ export class KadmiumSqb {
     c.operation = this.operation;
     c.tableContext = new Map(this.tableContext);
     c.wheres = this._cloneWhereGroup(this.wheres);
-    c.selects = this.selects
-      ? ([...this.selects] as AnySelectableField[])
-      : null;
+    c.selects = this.selects ? this._cloneSelects(this.selects) : null;
     c.joins = [...this.joins];
     c.includes = [...this.includes];
     c.orders = [...this.orders];
@@ -88,5 +86,18 @@ export class KadmiumSqb {
         return { ...c };
       }),
     };
+  }
+
+  /**
+   * Deep-copy selects: SelectableField immutable — можно шарить,
+   * AggregateField.as() мутирует alias — копируем.
+   */
+  private _cloneSelects(selects: AnySelectableField[]): AnySelectableField[] {
+    return selects.map((s) => {
+      if (s.kind !== 'aggregate') return s;
+      const agg = new AggregateField(s.func, s.field);
+      agg.alias = s.alias;
+      return agg;
+    });
   }
 }

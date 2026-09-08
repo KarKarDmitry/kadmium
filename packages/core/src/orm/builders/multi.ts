@@ -63,6 +63,18 @@ export class MultiQueryBuilder<
     }
   }
 
+  /** Копия билдера: независимый sqb, общие irs/adapter. */
+  clone(): MultiQueryBuilder<T, TInclude> {
+    const b = new MultiQueryBuilder<T, TInclude>(
+      this.irs,
+      this.irLookup,
+      this.adapter ?? undefined,
+    );
+    b.sqb = this.sqb.clone();
+    b._includeConfigs = { ...this._includeConfigs };
+    return b;
+  }
+
   // ── where ──
 
   where(fn: (t: MultiFilterProxy<T>) => WhereCondition): this {
@@ -106,12 +118,13 @@ export class MultiQueryBuilder<
     toSql(): string;
     go(): Promise<FinalResult<S, T, TInclude>[]>;
   } {
-    this.sqb.selects = [...fn(this._createSelectProxy(), aggregates)];
+    const sqb = this.sqb.clone();
+    sqb.selects = [...fn(this._createSelectProxy(), aggregates)];
     return {
-      toSql: () => this.toSql(),
+      toSql: () => this._toSqlFrom(sqb),
       go: () => {
         if (this.adapter) {
-          return this.adapter.execute(this.sqb) as any;
+          return this.adapter.execute(sqb) as any;
         }
         throw new Error('No adapter configured; cannot execute query.');
       },
@@ -164,15 +177,19 @@ export class MultiQueryBuilder<
   // ── toSql ──
 
   toSql(): string {
+    return this._toSqlFrom(this.sqb.clone());
+  }
+
+  // ── private ──
+
+  private _toSqlFrom(sqb: KadmiumSqb): string {
     if (!this.adapter)
       throw new Error(
         'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
       );
-    const { text, values } = this.adapter.toSql(this.sqb);
+    const { text, values } = this.adapter.toSql(sqb);
     return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
   }
-
-  // ── private ──
 
   private _resolveIncludes(config: Record<string, any>): void {
     for (const [alias, aliasConfig] of Object.entries(config)) {

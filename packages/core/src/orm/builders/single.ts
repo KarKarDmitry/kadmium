@@ -62,6 +62,22 @@ export class SingleQueryBuilder<
     this.sqb.tableContext.set(ir.name, ir.collection);
   }
 
+  /**
+   * Копия билдера: независимый sqb, общие ir/adapter.
+   * go()/toSql() работают над снапшотом, поэтому базовый билдер
+   * можно безопасно переиспользовать через clone().
+   */
+  clone(): SingleQueryBuilder<TModel, TSelect, TInclude, TMode> {
+    const b = new SingleQueryBuilder<TModel, TSelect, TInclude, TMode>(
+      this.ir,
+      this.irLookup,
+      this.adapter ?? undefined,
+    );
+    b.sqb = this.sqb.clone();
+    b._isFirst = this._isFirst;
+    return b;
+  }
+
   // ── where / and / or / group — return this (no type change) ──
 
   where(fn: (t: FilterProxy<TModel>) => WhereCondition): this {
@@ -237,7 +253,7 @@ export class SingleQueryBuilder<
       mapped[this.ir.fields[k]?.alias ?? k] = v;
     }
     return buildCreateFinalizer<TModel>(
-      this.sqb,
+      this.sqb.clone(),
       this.adapter,
       this.ir,
       mapped,
@@ -266,7 +282,7 @@ export class SingleQueryBuilder<
       return m;
     });
     return buildCreateManyFinalizer<TModel>(
-      this.sqb,
+      this.sqb.clone(),
       this.adapter,
       this.ir,
       mapped,
@@ -277,36 +293,37 @@ export class SingleQueryBuilder<
   // ── UPDATE / DELETE ──
 
   update(data: Record<string, unknown>): UpdateFinalizer<TModel> {
-    this.sqb.operation = 'update';
+    const sqb = this.sqb.clone();
+    sqb.operation = 'update';
     const mapped: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = v;
     }
-    this.sqb.updateData = mapped as any;
+    sqb.updateData = mapped as any;
 
     const go = async () => {
       if (!this.adapter)
         throw new Error(
           'No adapter configured; call .go() only with an adapter.',
         );
-      const rows = await this.adapter.execute(this.sqb);
+      const rows = await this.adapter.execute(sqb);
       return rows.map((r) => this._mapRow(r));
     };
-    const sql = () => this.toSql();
+    const sql = () => this._toSqlFrom(sqb);
 
     const returning = <S extends readonly AnySelectable[]>(
       fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
     ) => {
-      this.sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
       return {
         go: async () => {
           if (!this.adapter)
             throw new Error(
               'No adapter configured; call .go() only with an adapter.',
             );
-          const rows = await this.adapter.execute(this.sqb);
+          const rows = await this.adapter.execute(sqb);
           return rows.map((r) =>
-            this._mapReturningRow(r),
+            this._mapReturningRow(r, sqb),
           ) as FlatFinalResult<S>[];
         },
         sql,
@@ -316,7 +333,7 @@ export class SingleQueryBuilder<
     return {
       where: (clause) => {
         const proxy = this._createFilterProxy();
-        this.sqb.wheres.conditions.push(clause(proxy));
+        sqb.wheres.conditions.push(clause(proxy));
         return { returning, go, sql };
       },
       returning,
@@ -326,31 +343,32 @@ export class SingleQueryBuilder<
   }
 
   delete(): UpdateFinalizer<TModel> {
-    this.sqb.operation = 'delete';
+    const sqb = this.sqb.clone();
+    sqb.operation = 'delete';
 
     const go = async () => {
       if (!this.adapter)
         throw new Error(
           'No adapter configured; call .go() only with an adapter.',
         );
-      const rows = await this.adapter.execute(this.sqb);
+      const rows = await this.adapter.execute(sqb);
       return rows.map((r) => this._mapRow(r));
     };
-    const sql = () => this.toSql();
+    const sql = () => this._toSqlFrom(sqb);
 
     const returning = <S extends readonly AnySelectable[]>(
       fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
     ) => {
-      this.sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
+      sqb.selects = fn(this._createSelectProxy(), aggregates) as any;
       return {
         go: async () => {
           if (!this.adapter)
             throw new Error(
               'No adapter configured; call .go() only with an adapter.',
             );
-          const rows = await this.adapter.execute(this.sqb);
+          const rows = await this.adapter.execute(sqb);
           return rows.map((r) =>
-            this._mapReturningRow(r),
+            this._mapReturningRow(r, sqb),
           ) as FlatFinalResult<S>[];
         },
         sql,
@@ -360,7 +378,7 @@ export class SingleQueryBuilder<
     return {
       where: (clause) => {
         const proxy = this._createFilterProxy();
-        this.sqb.wheres.conditions.push(clause(proxy));
+        sqb.wheres.conditions.push(clause(proxy));
         return { returning, go, sql };
       },
       returning,
@@ -377,35 +395,17 @@ export class SingleQueryBuilder<
       ? Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined
       : Evaluate<QueryResult<TModel, TSelect, TInclude>>[]
   > {
-    if (!this.sqb.selects) {
-      const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
-      this.sqb.selects = Object.entries(this.ir.fields)
-        .filter(([, f]) => !f.sourceModel)
-        .map(
-          ([name, f]) =>
-            new SelectableField(
-              tableAlias,
-              name,
-              undefined,
-              undefined,
-              f.alias,
-            ),
-        );
-    }
+    const sqb = this.sqb.clone();
+    this._materializeSelects(sqb);
     if (this.adapter) {
-      const results = await this.adapter.execute(this.sqb);
+      const results = await this.adapter.execute(sqb);
       return this._isFirst ? (results[0] as any) : (results as any);
     }
     throw new Error('No adapter configured; cannot execute query.');
   }
 
   toSql(): string {
-    if (!this.adapter)
-      throw new Error(
-        'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
-      );
-    const { text, values } = this.adapter.toSql(this.sqb);
-    return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
+    return this._toSqlFrom(this.sqb.clone());
   }
 
   // ── count / exists ──
@@ -414,11 +414,14 @@ export class SingleQueryBuilder<
     go: () => Promise<number>;
     sql: () => string;
   } {
-    this.select(() => [aggregates.count('*').as('count')] as any);
+    const sqb = this.sqb.clone();
+    sqb.selects = [aggregates.count('*').as('count')] as any;
     return {
-      sql: () => this.toSql(),
+      sql: () => this._toSqlFrom(sqb),
       go: async (): Promise<number> => {
-        const results = (await this.go()) as any;
+        if (!this.adapter)
+          throw new Error('No adapter configured; cannot execute query.');
+        const results = (await this.adapter.execute(sqb)) as any;
         return Number(results[0]?.count ?? 0);
       },
     };
@@ -428,12 +431,16 @@ export class SingleQueryBuilder<
     go: () => Promise<boolean>;
     sql: () => string;
   } {
-    this.limit(1);
+    const sqb = this.sqb.clone();
+    sqb.limit = 1;
+    this._materializeSelects(sqb);
     return {
-      sql: () => this.toSql(),
+      sql: () => this._toSqlFrom(sqb),
       go: async (): Promise<boolean> => {
-        const results = await this.go();
-        return (results as any[]).length > 0;
+        if (!this.adapter)
+          throw new Error('No adapter configured; cannot execute query.');
+        const results = await this.adapter.execute(sqb);
+        return results.length > 0;
       },
     };
   }
@@ -451,14 +458,35 @@ export class SingleQueryBuilder<
 
   private _mapReturningRow(
     row: Record<string, unknown>,
+    sqb: KadmiumSqb,
   ): Record<string, unknown> {
-    if (!this.sqb.selects) return this._mapRow(row);
+    if (!sqb.selects) return this._mapRow(row);
     const out: Record<string, unknown> = {};
-    for (const sel of this.sqb.selects) {
+    for (const sel of sqb.selects) {
       const key = sel.alias ?? sel.fieldName;
       if (row[key] !== undefined) out[key] = row[key];
     }
     return out;
+  }
+
+  private _materializeSelects(sqb: KadmiumSqb): void {
+    if (sqb.selects) return;
+    const tableAlias = [...sqb.tableContext.keys()][0] ?? '';
+    sqb.selects = Object.entries(this.ir.fields)
+      .filter(([, f]) => !f.sourceModel)
+      .map(
+        ([name, f]) =>
+          new SelectableField(tableAlias, name, undefined, undefined, f.alias),
+      );
+  }
+
+  private _toSqlFrom(sqb: KadmiumSqb): string {
+    if (!this.adapter)
+      throw new Error(
+        'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
+      );
+    const { text, values } = this.adapter.toSql(sqb);
+    return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
   }
 
   private _resolveIncludes(config: Record<string, any>): void {
