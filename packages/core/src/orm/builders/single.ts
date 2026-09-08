@@ -13,7 +13,6 @@ import type {
 import type {
   AllFields,
   AnySelectable,
-  FlatFinalResult,
   IncludeConfig,
   QueryResult,
 } from '../types/includes';
@@ -31,6 +30,7 @@ import {
   buildCreateFinalizer,
   buildCreateManyFinalizer,
 } from './upsert-helpers';
+import { buildWriteFinalizer } from './write-finalizer';
 import { toSnakeCase } from '../../ir/index';
 
 export class SingleQueryBuilder<
@@ -171,8 +171,9 @@ export class SingleQueryBuilder<
       | ((t: SelectProxy<TModel>, a: AggregateFunctions) => AnySelectable[]),
   ): any {
     if (fn) {
-      this.sqb.selects = [...fn(this._createSelectProxy(), aggregates)] as
-        AnySelectableField[];
+      this.sqb.selects = [
+        ...fn(this._createSelectProxy(), aggregates),
+      ] as AnySelectableField[];
     } else {
       const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
       this.sqb.selects = Object.entries(this.ir.fields)
@@ -249,15 +250,11 @@ export class SingleQueryBuilder<
     data: Record<string, unknown>,
   ): import('./upsert-helpers').CreateFinalizer<TModel> {
     if (!this.adapter) throw new Error('No adapter configured; cannot create.');
-    const mapped: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(data)) {
-      mapped[this.ir.fields[k]?.alias ?? k] = v;
-    }
     return buildCreateFinalizer<TModel>(
       this.sqb.clone(),
       this.adapter,
       this.ir,
-      mapped,
+      this._mapAliases(data),
     );
   }
 
@@ -275,13 +272,7 @@ export class SingleQueryBuilder<
         sql: () => '',
       };
     }
-    const mapped = data.map((row) => {
-      const m: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(row)) {
-        m[this.ir.fields[k]?.alias ?? k] = v;
-      }
-      return m;
-    });
+    const mapped = data.map((row) => this._mapAliases(row));
     return buildCreateManyFinalizer<TModel>(
       this.sqb.clone(),
       this.adapter,
@@ -296,98 +287,26 @@ export class SingleQueryBuilder<
   update(data: Record<string, unknown>): UpdateFinalizer<TModel> {
     const sqb = this.sqb.clone();
     sqb.operation = 'update';
-    const mapped: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(data)) {
-      mapped[this.ir.fields[k]?.alias ?? k] = v;
-    }
-    sqb.updateData = mapped;
-
-    const go = async () => {
-      if (!this.adapter)
-        throw new Error(
-          'No adapter configured; call .go() only with an adapter.',
-        );
-      const rows = await this.adapter.execute(sqb);
-      return rows.map((r) => this._mapRow(r));
-    };
-    const sql = () => this._toSqlFrom(sqb);
-
-    const returning = <S extends readonly AnySelectable[]>(
-      fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
-    ) => {
-      sqb.selects = [...fn(this._createSelectProxy(), aggregates)] as
-      AnySelectableField[];
-      return {
-        go: async () => {
-          if (!this.adapter)
-            throw new Error(
-              'No adapter configured; call .go() only with an adapter.',
-            );
-          const rows = await this.adapter.execute(sqb);
-          return rows.map((r) =>
-            this._mapReturningRow(r, sqb),
-          ) as FlatFinalResult<S>[];
-        },
-        sql,
-      };
-    };
-
-    return {
-      where: (clause) => {
-        const proxy = this._createFilterProxy();
-        sqb.wheres.conditions.push(clause(proxy));
-        return { returning, go, sql };
-      },
-      returning,
-      go,
-      sql,
-    };
+    sqb.updateData = this._mapAliases(data);
+    return buildWriteFinalizer<TModel>(
+      sqb,
+      this.adapter,
+      () => this._createFilterProxy(),
+      () => this._createSelectProxy(),
+      (row) => this._mapRow(row),
+    );
   }
 
   delete(): UpdateFinalizer<TModel> {
     const sqb = this.sqb.clone();
     sqb.operation = 'delete';
-
-    const go = async () => {
-      if (!this.adapter)
-        throw new Error(
-          'No adapter configured; call .go() only with an adapter.',
-        );
-      const rows = await this.adapter.execute(sqb);
-      return rows.map((r) => this._mapRow(r));
-    };
-    const sql = () => this._toSqlFrom(sqb);
-
-    const returning = <S extends readonly AnySelectable[]>(
-      fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
-    ) => {
-      sqb.selects = [...fn(this._createSelectProxy(), aggregates)] as
-      AnySelectableField[];
-      return {
-        go: async () => {
-          if (!this.adapter)
-            throw new Error(
-              'No adapter configured; call .go() only with an adapter.',
-            );
-          const rows = await this.adapter.execute(sqb);
-          return rows.map((r) =>
-            this._mapReturningRow(r, sqb),
-          ) as FlatFinalResult<S>[];
-        },
-        sql,
-      };
-    };
-
-    return {
-      where: (clause) => {
-        const proxy = this._createFilterProxy();
-        sqb.wheres.conditions.push(clause(proxy));
-        return { returning, go, sql };
-      },
-      returning,
-      go,
-      sql,
-    };
+    return buildWriteFinalizer<TModel>(
+      sqb,
+      this.adapter,
+      () => this._createFilterProxy(),
+      () => this._createSelectProxy(),
+      (row) => this._mapRow(row),
+    );
   }
 
   // ── terminal — go() is the only terminal ──
@@ -459,17 +378,13 @@ export class SingleQueryBuilder<
     return out;
   }
 
-  private _mapReturningRow(
-    row: Record<string, unknown>,
-    sqb: KadmiumSqb,
-  ): Record<string, unknown> {
-    if (!sqb.selects) return this._mapRow(row);
-    const out: Record<string, unknown> = {};
-    for (const sel of sqb.selects) {
-      const key = sel.alias ?? sel.fieldName;
-      if (row[key] !== undefined) out[key] = row[key];
+  /** Маппинг ключей данных на алиасы колонок */
+  private _mapAliases(data: Record<string, unknown>): Record<string, unknown> {
+    const mapped: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      mapped[this.ir.fields[k]?.alias ?? k] = v;
     }
-    return out;
+    return mapped;
   }
 
   private _materializeSelects(sqb: KadmiumSqb): void {
