@@ -88,12 +88,14 @@ S extends SelectableField<infer T, any, any> ? T : unknown;  // fallback = unkno
 
 **Решение:** Свести к одному каноническому определению и re-export из него. Проверить, что `SelectableField` consistently принимает 4 type params (иначе уточнить в обоих местах скопом).
 
+**Статус:** ✅ Решено в `c0a60e6` — каноническое определение GetFieldName/GetFieldType в `proxy.d.ts` (4 type-param, fallback `never`), `includes.d.ts` re-exports; удалён локальный дубликат из `aggregates.ts` и мёртвый `ExtractIncludeAlias`. Публичный путь (`public-types → includes`) сохранён.
+
 **Связанные файлы:**
 - `packages/core/src/orm/types/proxy.d.ts` (GetFieldName/GetFieldType:208-225)
-- `packages/core/src/orm/types/includes.d.ts` (GetFieldName/GetFieldType:45-62)
-- `packages/core/src/orm/types/public-types.d.ts` (re-export)
+- `packages/core/src/orm/types/includes.d.ts` (GetFieldName/GetFieldType)
+- `packages/core/src/orm/field-builders/aggregates.ts` (локальная копия)
 
-**Коммит:**
+**Коммит:** `c0a60e6`
 
 ---
 
