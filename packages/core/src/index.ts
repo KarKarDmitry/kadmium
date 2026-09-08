@@ -15,5 +15,8 @@ export {
   Kadmium,
   ModuleSlot,
   defineConfig,
+  loadCodegenProject,
 } from './core/index';
-export type { ErrorCode, KadmiumConfig } from './core/index';
+export type { ErrorCode, KadmiumConfig, CodegenProject } from './core/index';
+
+export { generateToFile, checkSync } from './codegen/index';

@@ -16,6 +16,12 @@
     process.exit(1);
   }
 
-  require('ts-node').register({ transpileOnly: true });
+  require('ts-node').register({
+    transpileOnly: true,
+    // TODO(cli.md): remove once PR-B lands — packages publish built dist
+    // (main/types/bin -> dist). Until then ts-node must transpile TS from
+    // both the package tree and the user project under one cwd tsconfig.
+    ignoreDiagnostics: [5011],
+  });
   require('../src/bin/kadmium');
 })();

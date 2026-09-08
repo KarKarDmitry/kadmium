@@ -1,5 +1,5 @@
 import { globSync } from 'fs';
-import { resolve } from 'path';
+import { relative, resolve } from 'path';
 import { ModelClass } from '../model/index';
 
 const MODEL_MARKER = Symbol.for('kadmium:model');
@@ -32,8 +32,8 @@ export class ModelImporter {
       for (const [exportedName, exported] of Object.entries(mod)) {
         if (typeof exported === 'function' && this._isModelClass(exported)) {
           models.push(exported as ModelClass);
-          // Приоритет: конкретный файл модели, не index.ts
-          const relPath = file.replace(projectDir + '/', '');
+          // Всегда относительный путь с прямыми слэшами (переносимо на Windows)
+          const relPath = relative(projectDir, file).replace(/\\/g, '/');
           if (
             !sourceFiles[exportedName] ||
             (sourceFiles[exportedName].endsWith('/index.ts') &&

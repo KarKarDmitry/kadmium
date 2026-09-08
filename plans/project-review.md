@@ -87,7 +87,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | H2 | 🟢 | TypeScript version mismatch: core 6.0.3, test-project 5.4.0 | ⬜ Pending |
 | H3 | 🟢 | Comments in Russian | ✅ Acceptable |
 | H4 | 🟢 | Monorepo vs `file:` dependency inconsistency | ⬜ Pending |
-| H5 | 🟢 | **Dead example scripts reference a non-existent API** — `codegen/_example.ts` + `codegen/check.ts:31` call `checkSync('types/models.d.ts')` / `generateToFile('types/models.d.ts')` with a single string; real API (`runner.ts:62,81`) requires `(irs, modelPaths, filePath)`. `_example.ts` ends with `export {}` — documentation-as-source that doesn't compile against the implementation. Fix signatures or remove from `src/`. | ⬜ Open |
+| H5 | 🟢 | Dead example scripts removed; CLI reworked (see `plans/cli.md`) — `loadCodegenProject` public API, `kadmium check` added, `init` scaffolds working config+scripts, Windows path fix in ModelImporter | ✅ Resolved |
 
 ### 6️⃣ Testing
 

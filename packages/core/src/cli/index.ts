@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 import { init } from './init';
 import { generateCommand } from './generate';
+import { checkCommand } from './check';
 import { KadmiumApp } from '../core/kadmium-app';
 import { dbCheck, dbPush, dbSql, dbClear } from './db';
 
@@ -40,6 +41,14 @@ export async function run(args: string[]): Promise<void> {
       break;
     }
 
+    case 'check': {
+      checkCommand(resolve(projectDir)).catch((err) => {
+        console.error('❌ Check failed:', err.message);
+        process.exit(1);
+      });
+      break;
+    }
+
     case 'db:check': {
       await withApp(projectDir, dbCheck);
       break;
@@ -71,6 +80,7 @@ Usage: npx kadmium <command> [options]
 Commands:
   init [dir]              Initialize kadmium project structure
   generate [dir]          Generate augment types from models
+  check [dir]             Verify generated augment types are up to date
   db:check [dir]          Check database schema vs models
   db:push [dir]           Push schema changes to database
   db:clear [dir]          Drop all tables (use --force to proceed)

@@ -3,6 +3,15 @@ import { resolve } from 'path';
 import { CHECK, BULLET, box } from './format';
 
 const TEMPLATES: Record<string, string> = {
+  'kadmium.config.ts': `import { defineConfig } from 'kadmium';
+
+export default defineConfig({
+  modelSources: ['src/models/**/*.ts'],
+  output: '.types/~models.augment.ts',
+  modelsPath: '../src/models',
+});
+`,
+
   'src/models/index.ts': `import { Model } from 'kadmium';
 import { User } from './user';
 
@@ -15,22 +24,35 @@ export { User };
   'src/models/user.ts': `import { Model, f } from 'kadmium';
 
 export class User extends Model {
-  email = f.string.unique();
   name = f.string;
+  email = f.string.unique();
 }
 `,
 
-  'scripts/generate-types.ts': `import { generateToFile } from 'kadmium/src/codegen';
-import './src/models';
+  'scripts/generate-types.ts': `import { loadCodegenProject, generateToFile } from 'kadmium';
 
-generateToFile('types/models.d.ts');
+async function main(): Promise<void> {
+  const { irs, modelPaths, output } = await loadCodegenProject(process.cwd());
+  generateToFile(irs, modelPaths, output);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 `,
 
-  'scripts/check-types.ts': `import { checkSync } from 'kadmium/src/codegen';
-import './src/models';
+  'scripts/check-types.ts': `import { loadCodegenProject, checkSync } from 'kadmium';
 
-const ok = checkSync('types/models.d.ts');
-if (!ok) process.exit(1);
+async function main(): Promise<void> {
+  const { irs, modelPaths, output } = await loadCodegenProject(process.cwd());
+  if (!checkSync(irs, modelPaths, output)) process.exit(1);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 `,
 };
 
@@ -64,13 +86,13 @@ export function init(projectDir: string): void {
     console.log(`  ${CHECK}  ${filePath}`);
   }
 
-  // Create types/ with .gitkeep
-  const typesDir = resolve(base, 'types');
+  // Create .types/ with .gitkeep
+  const typesDir = resolve(base, '.types');
   mkdirSync(typesDir, { recursive: true });
   const gitkeep = resolve(typesDir, '.gitkeep');
   if (!existsSync(gitkeep)) {
     writeFileSync(gitkeep, '', 'utf-8');
-    console.log(`  ${CHECK}  types/.gitkeep`);
+    console.log(`  ${CHECK}  .types/.gitkeep`);
   }
 
   // Add scripts to package.json
@@ -99,6 +121,7 @@ export function init(projectDir: string): void {
   }
   console.log('');
   console.log(`  ${base}/`);
+  console.log('  \u251c\u2500\u2500 kadmium.config.ts — model sources, output');
   console.log('  \u251c\u2500\u2500 src/models/');
   console.log(
     '  \u2502   \u251c\u2500\u2500 index.ts    — barrel + Model.register()',
@@ -111,12 +134,15 @@ export function init(projectDir: string): void {
   console.log(
     '  \u2502   \u2514\u2500\u2500 check-types.ts     — npm run check',
   );
-  console.log('  \u2514\u2500\u2500 types/');
-  console.log('      \u2514\u2500\u2500 models.d.ts        — generated .d.ts');
+  console.log('  \u2514\u2500\u2500 .types/');
+  console.log(
+    '      \u2514\u2500\u2500 ~models.augment.ts  — generated augment',
+  );
   console.log('');
   console.log('  Next steps:');
-  console.log('  1. npm run generate    — generate .d.ts');
-  console.log('  2. npm run check       — verify types');
-  console.log('  3. Define your models  — add files to src/models/');
+  console.log('  1. npm install kadmium ts-node');
+  console.log('  2. npm run generate    — generate augment types');
+  console.log('  3. npm run check       — verify types');
+  console.log('  4. Define your models  — add files to src/models/');
   console.log('');
 }
