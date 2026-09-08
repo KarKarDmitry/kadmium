@@ -6,6 +6,7 @@
 > Updated 2026-09-05 — importance fields, corrected findings (T1 removed, A3-A7 added).
 > Updated 2026-09-07 — includes refactor done (`1cacf6a`): record-based API, ~relInfo phantom. A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 partially resolved.
 > Updated 2026-09-08 — A1 resolved (`b709ad1` + `f5023c9`): snapshot terminals + public `.clone()`. F7 resolved (`2f251dc`). A3 fully resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts → 4 inherent, write-finalizer.ts + include-utils.ts extraction.
+> Updated 2026-09-08 — plan sync: A6/help_source gone, S5 resolved via A1, T2.3 resolved by design via `createDebugAdapter()`, T3.8 covered by S2 (`ddl-validate`), verification checklist refreshed (typecheck pass, 284/194/98, lint 89w+2e).
 
 ## Repository snapshot
 
@@ -47,10 +48,10 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 |---|----------|---------|--------|
 | A1 | 🟠 | Dead SQL renderers `single.ts:469-513` (`_renderIncludes`/`_formatGroup`/`_isCondition`) | ✅ Resolved (already removed — stale finding) |
 | A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ✅ Fixed: includes refactored to record-based API (`1cacf6a`). Single `Relation` class simplified (246→133 lines). `IRelationBuilder` deleted. |
-| A3 | 🟠 | `toSql()` requires a live adapter | ⬜ By design |
+| A3 | 🟠 | `toSql()` requires a live adapter | ✅ By design — preview via `createDebugAdapter()` (no DB; execute/create throw) |
 | A4 | 🟡 | Type layer is ~60% of ORM code | 🟡 Partial: pure type files moved to `.d.ts` (`orm/types/*`, `model/types/*`). Real consumer compile-speed win still needs shipping built `.d.ts` (`main`/`types` → `dist`) — deferred. |
 | A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ✅ Fixed: `OrmManager` reuses the registry IR (compiled once at register); `compileCount` stays 0 in the hot path. |
-| A6 | 🟡 | `help_source/` confusing coexistence | ⬜ Pending (cleanup) |
+| A6 | 🟡 | `help_source/` confusing coexistence | ✅ Resolved: directory removed from the repo. |
 | A7 | 🔴 | **single.ts 419 lines, ~12 `any` casts** — breaks type-safety in query builders | ✅ Resolved (`c78c0e7` + `2ec3067` + `72e66fc`): single.ts → ~405 lines, 4 inherent `any` only (overload impl signatures, findById phantom PK, go() result, include callback). Update/delete finalizer extracted to `write-finalizer.ts`; include resolution deduped via `include-utils.ts` (`buildRelation` + `configureRelation`). Lint warnings 97→89. |
 | A8 | 🔴 | **diff.ts split into 5 files** — was 696 lines, now divided by SRP | ✅ Resolved (`c138f7b`): `diff/types.ts`, `diff/compute.ts`, `diff/apply.ts`, `diff/render.ts`, `diff/index.ts` |
 | A9 | 🟡 | **BaseWhereBuilder (49 lines) — dead code** — not used by any builder | ✅ Resolved (`f3917da`): deleted, shared `addOrCondition()` in `where-helpers.ts` |
@@ -65,7 +66,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S2 | 🟡 | DDL interpolates `spec.db_type`/`defaultValue` raw (trusted dev source, no validation) | ✅ Resolved (`8ec96a0`): `renderDefault()` now escapes backslashes |
 | S3 | 🟢 | `.env` with `PGPASSWORD` committed / no `.gitignore` | ✅ Resolved (`.gitignore` present, `.env` untracked) |
 | S4 | 🟡 | **pgTypes global mutation** — conflicts with other pg users | ✅ Resolved (`04ee7e1`): per-pool `createKadmiumTypes()` |
-| S5 | 🟡 | **_or() race condition** when reusing builder in parallel async | ⬜ Open — see security.md |
+| S5 | 🟡 | **_or() race condition** when reusing builder in parallel async | ✅ Resolved via A1 (`b709ad1`): terminals work on `sqb.clone()` snapshots — see security.md |
 
 ### 4️⃣ Performance
 
@@ -114,7 +115,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 - T2.1 ✅ — Delete dead SQL renderers (done, stale).
 - T2.2 ✅ — Unify include mental model: record-based API (`1cacf6a`), `IRelationBuilder` deleted.
-- T2.3 ⬜ Make `toSql()` adapter-independent — still open.
+- T2.3 ✅ By design: `toSql()` requires an adapter — SQL generation lives in `SqlGenerator` (adapter layer) by contract. Adapter-free preview via `createDebugAdapter()` (`packages/sql-pg`): renders SQL without a DB, `execute()/create()/raw()` throw.
 - T2.4 ✅ — Add IR cache in hot path (reuse registry IR; `compileCount` test).
 - T2.5 ⬜ Clean `help_source/` — still open.
 
@@ -127,7 +128,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
 - T3.6 🟡 Reduce type-layer complexity — type-only files extracted to `.d.ts`; shipping built declarations deferred.
 - T3.7 ✅ — Correlated-subquery → LEFT JOIN LATERAL.
-- T3.8 ⬜ Security lint for DDL — still open.
+- T3.8 ✅ Security lint for DDL — resolved via S2: `ddl-validate.ts` (assertSqlIdentifier/assertSqlExpression/assertReferentialAction) in `8a93983`.
 - T3.9 ⬜ Ship built declarations: set `main`/`types` → `dist` (`.js` + `.d.ts`) so consumers load pre-compiled output instead of `.ts` source — deferred.
 
 ### Phase 4 — Hygiene
@@ -141,12 +142,13 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 ## Verification checklist
 
-- [x] `npm run check:type` (core) — 1 error (`model.test.ts:44` — `foreignKey` on `StandardField`).
-- [x] `npm run lint` — 95 warnings (all `@typescript-eslint/no-explicit-any`), 0 errors.
+- [x] `npm run check:type` (core) — pass.
+- [x] `test-project: npm run typecheck` — pass (`657db49` fixed the `foreignKey` cast in `model.test.ts`).
+- [x] `npm run lint` — 89 warnings (mostly `@typescript-eslint/no-explicit-any`), 2 pre-existing errors in `includes.d.ts` (`'S' unused`).
 - [x] `npm run format:check` — prettier happy (core + sql-pg + sql-types).
-- [x] `npm run test:project` — requires docker `db:up`.
-- [x] `npx vitest run` (root) — unit tests pass (packages/core + packages/sql-pg).
-- [ ] `test-project: npm run typecheck` — blocked by type error.
+- [x] `npm run test:core` — 284 (22 files).
+- [x] `npm run test:sql-pg` — 194.
+- [x] `npm run test:project` — requires docker `db:up`; 98 tests.
 - [x] `npm run build` — succeeds.
 
 ## Rules for agents working here
