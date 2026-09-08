@@ -112,13 +112,16 @@ orm.single(Order)
   .go();
 ```
 
-**Статус:** ⬜ Открыто. Потребует изменений в AST (`sqb.ts`), `SqlGenerator`, и query builders.
+**Статус:** ✅ Ready. Реализовано в `fc904cc` (core: `having()`) + сл. коммит (fix: HAVING рендерится полными агрегатными выражениями; + `havingOr()`/`havingGroup()` для OR/групп).
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts`
+- `packages/core/src/orm/builders/query-proxies.ts`
+- `packages/core/src/orm/builders/where-helpers.ts` (`withChildGroup`)
 - `packages/core/src/orm/sqb.ts`
 - `packages/sql-pg/src/sql-generator.ts`
-- `packages/sql-types/src/index.ts` (ReadonlySqb)
+- `packages/sql-types/src/index.ts` (ReadonlySqb, AggregateSelectable.func)
+- `test-project/test/orm/having.test.ts`
 
 **Коммит:**
 

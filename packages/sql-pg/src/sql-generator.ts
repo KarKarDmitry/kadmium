@@ -56,14 +56,17 @@ export abstract class SqlGenerator {
     group: WhereGroup,
     values: unknown[],
     paramIndex: { p: number },
+    resolveBare?: (col: string) => string,
   ): string {
     if (group.conditions.length === 0) return '';
     const parts = group.conditions.map((c) => {
       if ('conditions' in c) {
-        return `(${this._buildWhereGroupSql(c, values, paramIndex)})`;
+        return `(${this._buildWhereGroupSql(c, values, paramIndex, resolveBare)})`;
       }
       const col = c.column ?? c.field;
-      const left = c.alias ? `"${c.alias}"."${col}"` : `"${col}"`;
+      const left = c.alias
+        ? `"${c.alias}"."${col}"`
+        : (resolveBare?.(col) ?? `"${col}"`);
       const right = this._renderValue(c, values, paramIndex);
       return `${left} ${c.op} ${right}`;
     });
@@ -92,6 +95,32 @@ export abstract class SqlGenerator {
     const left = w.alias ? `"${w.alias}"."${col}"` : `"${col}"`;
     const right = this._renderValue(w, values, paramIndex);
     return `${left} ${w.op} ${right}`;
+  }
+
+  /**
+   * HAVING: агрегатные алиасы из SELECT резолвятся в полные выражения,
+   * т.к. Postgres не позволяет ссылаться на выходные алиасы в HAVING.
+   * Формат выражения совпадает с AggregateField.toSql() без AS-части.
+   */
+  protected _buildHavingClause(
+    sqb: ReadonlySqb,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): string {
+    if (sqb.havings.conditions.length === 0) return '';
+    const aggAliases = new Map<string, string>();
+    for (const sel of sqb.selects ?? []) {
+      if (sel.kind === 'aggregate' && sel.alias && sel.func) {
+        const inner =
+          sel.fieldName === '*'
+            ? '*'
+            : `"${sel.tableAlias}"."${sel.fieldName}"`;
+        aggAliases.set(sel.alias, `${sel.func.toUpperCase()}(${inner})`);
+      }
+    }
+    return this._buildWhereGroupSql(sqb.havings, values, paramIndex, (col) =>
+      aggAliases.get(col) === undefined ? `"${col}"` : aggAliases.get(col)!,
+    );
   }
 
   // ═══ INCLUDE как correlated subquery ═══
@@ -434,10 +463,9 @@ export abstract class SqlGenerator {
       groupByClause = `GROUP BY ${sqb.groupBy.map((f) => `"${mainTableAlias}"."${f}"`).join(', ')}`;
     }
 
-    // HAVING (после GROUP BY). Условия ссылаются на выходные алиасы
-    // агрегатов — они рендерятся без префикса таблицы (alias пустой).
+    // HAVING (после GROUP BY). Агрегатные алиасы резолвятся в полные выражения.
     let havingClause = '';
-    const havingSql = this._buildWhereGroupSql(sqb.havings, values, paramIndex);
+    const havingSql = this._buildHavingClause(sqb, values, paramIndex);
     if (havingSql) havingClause = `HAVING ${havingSql}`;
 
     // ORDER BY

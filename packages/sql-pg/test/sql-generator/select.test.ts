@@ -66,15 +66,16 @@ function selectable(
 
 function aggregate(
   tableAlias: string,
-  fieldName: string,
+  func: string,
   alias: string,
 ): AggregateSelectable {
   return {
     kind: 'aggregate',
     tableAlias,
-    fieldName,
+    fieldName: '*',
     alias,
-    toSql: () => `count(*) AS "${alias}"`,
+    func,
+    toSql: () => `${func.toUpperCase()}(*) AS "${alias}"`,
   };
 }
 
@@ -121,7 +122,7 @@ describe('SqlGenerator — toSql: select', () => {
       selects: [aggregate('u', 'count', 'total')],
     });
     const { text } = gen.toSql(q);
-    expect(text).toContain('count(*) AS "total"');
+    expect(text).toContain('COUNT(*) AS "total"');
   });
 
   it('mixed selectable and aggregate', () => {
@@ -133,7 +134,7 @@ describe('SqlGenerator — toSql: select', () => {
     });
     const { text } = gen.toSql(q);
     expect(text).toContain('"u"."id" AS "id"');
-    expect(text).toContain('count(*) AS "total"');
+    expect(text).toContain('COUNT(*) AS "total"');
   });
 
   it('single table FROM', () => {
@@ -296,25 +297,22 @@ describe('SqlGenerator — toSql: select', () => {
     expect(text).toContain('GROUP BY "u"."id"');
   });
 
-  it('HAVING after GROUP BY (bare output alias, aligned with WHERE)', () => {
+  it('HAVING after GROUP BY resolves aggregate alias to expression', () => {
     const q = sqb({
       selects: [selectable('u', 'id'), aggregate('u', 'count', 'total')],
       groupBy: ['id'],
       havings: {
         op: 'AND',
-        conditions: [
-          where('total', '>', 5, ''),
-          // where with no alias renders bare too — same condition shape
-        ],
+        conditions: [where('total', '>', 5, '')],
       },
     });
     const { text, values } = gen.toSql(q);
     expect(text).toContain('GROUP BY "u"."id"');
-    expect(text.trim()).toMatch(/HAVING "total" > \$1$/);
+    expect(text.trim()).toMatch(/HAVING COUNT\(\*\) > \$1$/);
     expect(values).toEqual([5]);
   });
 
-  it('HAVING without GROUP BY renders bare output aliases', () => {
+  it('HAVING without GROUP BY resolves aggregate alias to expression', () => {
     const q = sqb({
       selects: [aggregate('u', 'count', 'total')],
       havings: {
@@ -323,7 +321,7 @@ describe('SqlGenerator — toSql: select', () => {
       },
     });
     const { text, values } = gen.toSql(q);
-    expect(text.trim()).toMatch(/HAVING "total" > \$1$/);
+    expect(text.trim()).toMatch(/HAVING COUNT\(\*\) > \$1$/);
     expect(values).toEqual([3]);
   });
 

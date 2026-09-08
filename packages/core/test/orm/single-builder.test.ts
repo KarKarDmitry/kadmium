@@ -183,6 +183,38 @@ describe('SingleQueryBuilder — having', () => {
     const c = b.clone();
     expect(c.sqb.havings.conditions.length).toBe(1);
   });
+
+  it('havingOr flips the having group to OR', () => {
+    const b = builder();
+    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.having((t: any) => t.total.gt(5));
+    b.havingOr((t: any) => t.total.lt(1));
+    expect(b.sqb.havings.op).toBe('OR');
+    expect(b.sqb.havings.conditions.length).toBe(2);
+  });
+
+  it('havingGroup pushes a nested group (parentheses)', () => {
+    const b = builder();
+    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.havingGroup((q) => {
+      q.having((t: any) => t.total.gt(5));
+      q.havingOr((t: any) => t.total.lt(1));
+    });
+    expect(b.sqb.havings.conditions.length).toBe(1);
+    const child = b.sqb.havings.conditions[0] as {
+      op: string;
+      conditions: unknown[];
+    };
+    expect(child.op).toBe('OR');
+    expect(child.conditions.length).toBe(2);
+  });
+
+  it('havingGroup empty callback pushes nothing', () => {
+    const b = builder();
+    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.havingGroup(() => {});
+    expect(b.sqb.havings.conditions.length).toBe(0);
+  });
 });
 
 describe('SingleQueryBuilder — findById', () => {

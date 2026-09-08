@@ -36,6 +36,8 @@ export interface AggregateSelectable {
   readonly tableAlias: string;
   readonly fieldName: string;
   readonly alias?: string;
+  /** Агрегатная функция: count | sum | avg | min | max */
+  readonly func?: string;
   toSql(): string;
 }
 

@@ -1,5 +1,5 @@
 import { KadmiumSqb, type AnySelectableField } from '../sqb';
-import type { WhereCondition, WhereGroup } from '../ast/where';
+import type { WhereCondition } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import type { ModelIR } from '../../ir/index';
 import type {
@@ -21,7 +21,7 @@ import type { Evaluate } from '../types/relations';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import { addOrCondition } from './where-helpers';
+import { addOrCondition, withChildGroup } from './where-helpers';
 import {
   createFilterProxy,
   createSelectProxy,
@@ -99,21 +99,7 @@ export class SingleQueryBuilder<
   }
 
   group(callback: (q: this) => void): this {
-    const newGroup: WhereGroup = { op: 'AND', conditions: [] };
-    const saved = {
-      wheres: this.sqb.wheres,
-    };
-    this.sqb.wheres = newGroup;
-
-    try {
-      callback(this);
-    } finally {
-      if (newGroup.conditions.length > 0) {
-        saved.wheres.conditions.push(newGroup);
-      }
-      this.sqb.wheres = saved.wheres;
-    }
-
+    withChildGroup(this.sqb, 'wheres', () => callback(this));
     return this;
   }
 
@@ -209,6 +195,23 @@ export class SingleQueryBuilder<
     this.sqb.havings.conditions.push(
       fn(createHavingProxy(this.sqb, this._aggregateAliases())),
     );
+    return this;
+  }
+
+  /** OR-композиция для HAVING (оборачивает предыдущие AND-условия). */
+  havingOr(
+    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereCondition,
+  ): this {
+    addOrCondition(
+      this.sqb.havings,
+      fn(createHavingProxy(this.sqb, this._aggregateAliases())),
+    );
+    return this;
+  }
+
+  /** Вложенная HAVING-группа со скобками: q.having(...).havingOr(...). */
+  havingGroup(callback: (q: this) => void): this {
+    withChildGroup(this.sqb, 'havings', () => callback(this));
     return this;
   }
 
