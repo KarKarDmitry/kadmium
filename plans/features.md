@@ -3,6 +3,7 @@
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — F1 resolved, F6 updated.
 > Updated 2026-09-07 — verified F1, F6 still resolved. F7 updated. F8 added.
+> Updated 2026-09-08 — F7 resolved via A1 (`b709ad1`).
 
 ---
 
@@ -190,7 +191,7 @@ orm.single(User).where(t => t.active.eq(true)).count().go();
 orm.single(User).where(t => t.active.eq(true)).count().go(); // работает, но count() перезаписывает select
 ```
 
-**Статус:** ⬜ Открыто. `count()` работает через `select(aggregates.count('*'))`, но API неудобен — count() перезаписывает select и не даёт комбинировать с where без промежуточного select().
+**Статус:** ✅ Решено вместе с A1 (`b709ad1`). Апдейт `Updated 2026-09-08`: `count()` работает на снапшоте `sqb.clone()` — комбинация `where(...).count().go()` возвращает верное число, а select билдера больше не перезаписывается (последующий `go()` возвращает строки, а не колонку count). Интеграционный тест `where.test.ts` («count() combines with where...»).
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts` (count)

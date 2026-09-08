@@ -111,4 +111,13 @@ describe('where: filters, groups, ordering, pagination', () => {
       .go();
     expect(no).toBe(false);
   });
+
+  it('count() combines with where and keeps the builder select', async () => {
+    const q = h.orm.single(UserModel).where((u) => u.active.eq(true));
+    const n = await q.count().go();
+    expect(n).toBe(2); // Alice, Carol активны; Bob — нет
+    const rows = await q.go();
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.name).sort()).toEqual(['Alice', 'Carol']);
+  });
 });
