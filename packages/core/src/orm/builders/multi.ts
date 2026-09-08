@@ -3,7 +3,6 @@ import type { WhereCondition } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import type { ModelIR } from '../../ir/index';
-import { toSnakeCase } from '../../ir/index';
 import type {
   FilterProxy,
   MultiFilterProxy,
@@ -16,8 +15,12 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import type { AnySelectable } from '../types/includes';
-import { Relation } from '../field-builders/relation';
 import { addOrCondition } from './where-helpers';
+import {
+  buildRelation,
+  configureRelation,
+  type IncludeConfigValue,
+} from './include-utils';
 
 type MultiIncludeConfig<T extends AliasesMap> = {
   [A in keyof T & string]?: IncludeConfig<
@@ -46,7 +49,6 @@ export class MultiQueryBuilder<
   private irs: Map<string, ModelIR>;
   private irLookup: (name: string) => ModelIR | undefined;
   private adapter: SqlAdapter | null = null;
-  private _includeConfigs: Record<string, Record<string, any>> = {};
 
   constructor(
     irs: Map<string, ModelIR>,
@@ -71,7 +73,6 @@ export class MultiQueryBuilder<
       this.adapter ?? undefined,
     );
     b.sqb = this.sqb.clone();
-    b._includeConfigs = { ...this._includeConfigs };
     return b;
   }
 
@@ -136,9 +137,8 @@ export class MultiQueryBuilder<
   include<const C extends MultiIncludeConfig<T>>(
     config: C,
   ): MultiQueryBuilder<T, C> {
-    this._includeConfigs = config as Record<string, Record<string, any>>;
-    this._resolveIncludes(config);
-    return this as any;
+    this._resolveIncludes(config as Record<string, Record<string, any>>);
+    return this as unknown as MultiQueryBuilder<T, C>;
   }
 
   // ── groupBy ──
@@ -191,46 +191,24 @@ export class MultiQueryBuilder<
     return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
   }
 
-  private _resolveIncludes(config: Record<string, any>): void {
+  private _resolveIncludes(
+    config: Record<string, Record<string, IncludeConfigValue>>,
+  ): void {
     for (const [alias, aliasConfig] of Object.entries(config)) {
-      if (!aliasConfig || typeof aliasConfig !== 'object') continue;
-      const ir = this.irs.get(alias);
-      if (!ir) continue;
+      const modelIr = this.irs.get(alias);
+      if (!modelIr || !aliasConfig || typeof aliasConfig !== 'object') continue;
 
-      for (const [relationName, rawConfig] of Object.entries(aliasConfig)) {
-        const relationConfig = rawConfig as any;
-        const fieldIr = ir.fields[relationName];
-        const targetName = fieldIr?.sourceModel ?? fieldIr?.ref ?? relationName;
-        const targetIr: ModelIR = this.irLookup(targetName) ?? {
-          name: targetName,
-          collection: toSnakeCase(targetName),
-          fields: {},
-        };
-        const builder = new Relation(
+      for (const [relationName, relationConfig] of Object.entries(
+        aliasConfig,
+      )) {
+        const builder = buildRelation(
           this.sqb,
+          modelIr,
           relationName,
-          targetIr,
-          fieldIr,
           this.irLookup,
           alias,
         );
-
-        if (relationConfig === true) {
-          this.sqb.includes.push(builder);
-        } else if (
-          typeof relationConfig === 'object' &&
-          relationConfig !== null
-        ) {
-          if (relationConfig.alias) builder.as(relationConfig.alias);
-          if (relationConfig.where) builder.where(relationConfig.where);
-          if (relationConfig.order) builder.order(relationConfig.order);
-          if (relationConfig.limit) builder.limit(relationConfig.limit);
-          if (relationConfig.select) builder.select(relationConfig.select);
-          this.sqb.includes.push(builder);
-          if (relationConfig.include) {
-            builder.include(relationConfig.include);
-          }
-        }
+        configureRelation(this.sqb, builder, relationConfig);
       }
     }
   }

@@ -8,6 +8,7 @@ import {
   createOrderProxy,
 } from '../builders/query-proxies';
 import { SelectableField } from '../ast/selectable';
+import { buildRelation, configureRelation } from '../builders/include-utils';
 
 /**
  * Relation — runtime класс для include связей.
@@ -105,41 +106,14 @@ export class Relation implements IncludedRelation {
   /** Вложенный include через Record config */
   include(config: Record<string, any>): this {
     for (const [relationName, relationConfig] of Object.entries(config)) {
-      const fieldIr = this.targetIr.fields[relationName];
-      const targetName = fieldIr?.sourceModel ?? fieldIr?.ref ?? relationName;
-      const targetIr = this.irLookup?.(targetName) ?? {
-        name: targetName,
-        collection: targetName
-          .replace(/([A-Z])/g, '_$1')
-          .toLowerCase()
-          .replace(/^_/, ''),
-        fields: {},
-      };
-      const builder = new Relation(
+      const builder = buildRelation(
         this.internalSqb,
+        this.targetIr,
         relationName,
-        targetIr,
-        fieldIr,
         this.irLookup,
         this.alias,
       );
-
-      if (relationConfig === true) {
-        this.internalSqb.includes.push(builder);
-      } else if (
-        typeof relationConfig === 'object' &&
-        relationConfig !== null
-      ) {
-        if (relationConfig.alias) builder.as(relationConfig.alias);
-        if (relationConfig.where) builder.where(relationConfig.where);
-        if (relationConfig.order) builder.order(relationConfig.order);
-        if (relationConfig.limit) builder.limit(relationConfig.limit);
-        if (relationConfig.select) builder.select(relationConfig.select);
-        this.internalSqb.includes.push(builder);
-        if (relationConfig.include) {
-          builder.include(relationConfig.include);
-        }
-      }
+      configureRelation(this.internalSqb, builder, relationConfig);
     }
     return this;
   }

@@ -1,7 +1,6 @@
 import { KadmiumSqb, type AnySelectableField } from '../sqb';
 import type { WhereCondition, WhereGroup } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
-import { Relation } from '../field-builders/relation';
 import type { ModelIR } from '../../ir/index';
 import type {
   FilterProxy,
@@ -31,7 +30,7 @@ import {
   buildCreateManyFinalizer,
 } from './upsert-helpers';
 import { buildWriteFinalizer } from './write-finalizer';
-import { toSnakeCase } from '../../ir/index';
+import { buildRelation, configureRelation } from './include-utils';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -407,45 +406,22 @@ export class SingleQueryBuilder<
     return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
   }
 
-  private _resolveIncludes(config: Record<string, any>): void {
+  private _resolveIncludes(config: IncludeConfig<TModel>): void {
     for (const [relationName, relationConfig] of Object.entries(config)) {
-      const builder = this._createRelationByName(relationName);
-
-      if (relationConfig === true) {
-        this.sqb.includes.push(builder);
-      } else if (
-        typeof relationConfig === 'object' &&
-        relationConfig !== null
-      ) {
-        if (relationConfig.alias) builder.as(relationConfig.alias);
-        if (relationConfig.where) builder.where(relationConfig.where);
-        if (relationConfig.order) builder.order(relationConfig.order);
-        if (relationConfig.limit) builder.limit(relationConfig.limit);
-        if (relationConfig.select) builder.select(relationConfig.select);
-        this.sqb.includes.push(builder);
-        if (relationConfig.include) {
-          builder.include(relationConfig.include);
-        }
-      }
+      if (relationConfig === undefined) continue;
+      const builder = buildRelation(
+        this.sqb,
+        this.ir,
+        relationName,
+        this.irLookup,
+        this._alias(),
+      );
+      configureRelation(
+        this.sqb,
+        builder,
+        relationConfig as unknown as Parameters<typeof configureRelation>[2],
+      );
     }
-  }
-
-  private _createRelationByName(name: string): Relation {
-    const fieldIr = this.ir.fields[name];
-    const targetName = fieldIr?.sourceModel ?? fieldIr?.ref ?? name;
-    const targetIr = this.irLookup(targetName) ?? {
-      name: targetName,
-      collection: toSnakeCase(targetName),
-      fields: {},
-    };
-    return new Relation(
-      this.sqb,
-      name,
-      targetIr,
-      fieldIr,
-      this.irLookup,
-      this._alias(),
-    );
   }
 
   private _createFilterProxy(): FilterProxy<TModel> {
