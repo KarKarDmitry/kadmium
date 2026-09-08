@@ -98,19 +98,18 @@ Runtime `Proxy` objects provide type-safe field access:
 
 ### SQB (`sqb.ts`)
 
-**`KadmiumSqb`** — mutable AST accumulator. All builders mutate the same sqb instance.
+**`KadmiumSqb`** — mutable AST accumulator, snapshot/state source for builders.
 
-**Warning**: Reusing a builder across queries causes state leakage. Create fresh queries:
+### Builder Reuse (`clone()`)
+
+Terminals (`go`, `toSql`, `count`, `exists`, `update`, `delete`, `create`, `createMany`, multi `select`) operate on a **snapshot clone**, so calling them never mutates the builder. To branch a configured builder into multiple queries, use `.clone()`:
+
 ```typescript
-// ✗ BAD
-const q = orm.single(User).where(t => t.name.eq('Alice'));
-await q.go();
-await q.limit(10).go(); // Also affects previous query
-
-// ✓ GOOD
-await orm.single(User).where(t => t.name.eq('Alice')).go();
-await orm.single(User).where(t => t.name.eq('Alice')).limit(10).go();
+const base = app.orm.single(User).where(t => t.name.eq('Alice'));
+const page = await base.clone().page(2, 10).go(); // base untouched
 ```
+
+`clone()` copies the sqb and shares ir/adapter. Aggregate selects are deep-copied (AggregateField.as() mutates alias). Configuration calls (`.where`, `.limit`, `.order`) still mutate the builder in place by design — use `.clone()` when you want to keep the original untouched.
 
 ### Include System
 

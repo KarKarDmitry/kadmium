@@ -3,6 +3,7 @@
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — S1 resolved (`04ee7e1`), S2 resolved, S3 reframed as part of A1.
+> Updated 2026-09-08 — S3 resolved via A1 (B+C, `b709ad1`).
 
 ---
 
@@ -58,7 +59,7 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 
 **Краткое описание:** `_or()` мутировал `sqb.wheres.op` в `SingleQueryBuilder`. При параллельном использовании одного builder'а — race condition.
 
-**Статус:** ⬜ Открыто, переформулировано. Метод `_or()` удалён в `f3917da` (A6) — теперь общий `addOrCondition()` в `packages/core/src/orm/builders/where-helpers.ts:7-30`, который по-прежнему мутирует `WhereGroup` в `this.sqb.wheres` (`single.ts:79`, `multi.ts:79`). Это **подмножество A1** (мутабельный `KadmiumSqb`): риск возникает только при переиспользовании одного builder'а в параллельных запросах. Отдельного фикса не требуется — решать вместе с A1 (сейчас задокументировано в AGENTS.md как «не переиспользовать builder»).
+**Статус:** ✅ Решено вместе с A1 (`b709ad1` + PR2). Конфиг-вызовы (`where`/`or`/`limit`/`order`) по-прежнему мутируют `this.sqb` in-place — состояние строится в одном потоке до терминала. Терминалы работают на снапшоте (`sqb.clone()`), поэтому параллельный `go()`/`count()`/`exists()` на одном builder'е больше не гоняется за общий мутируемый стейт. Для безопасного ветвления одного билдера в несколько запросов — публичный `.clone()`.
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/where-helpers.ts` (addOrCondition)

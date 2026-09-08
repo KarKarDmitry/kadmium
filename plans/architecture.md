@@ -5,6 +5,7 @@
 > Updated 2026-09-05 — added importance fields, new findings (A3-A7). A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 resolved (`53a69b2`).
 > Updated 2026-09-05 — BREAKING: create()/createMany() return builders, not Promises. All callers must add `.go()`.
 > Updated 2026-09-07 — includes refactor resolved (`1cacf6a`): record-based API, ~relInfo phantom, relations.d.ts deleted. single.ts 419 lines, ~12 any casts (down from 537/18).
+> Updated 2026-09-08 — A1 resolved via B+C (`b709ad1` + this PR): snapshot terminals + public `.clone()`.
 
 ---
 
@@ -40,13 +41,22 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - Автоматический `clone()` в начале цепочки — безопаснее, но сложнее отследить
 - Компромисс: document-only (unsafe to reuse)
 
+**Статус:** ✅ Решено комбинацией **B (снапшоты на терминалах) + C (публичный `.clone()`)** в двух PR:
+- **PR1 (`b709ad1`)** — терминалы (`go`, `toSql`, `count`, `exists`, `update`, `delete`, `create`, `createMany`, multi `select`) работают на снапшоте (`sqb.clone()` на момент вызова) и больше не мутируют builder. `KadmiumSqb.clone()` глубоко копирует selects (агрегаты — иначе `AggregateField.as()` мутирует alias). В итоге: `count()` не перезатирает select, `exists()` не прилепляет `limit(1)`, два `create()` на одном билдере не делят `upsertData`.
+- **PR2 (этот)** — интеграционные тесты `test-project/test/orm/clone.test.ts` (паттерн `base.clone()`, регрессы count/exists/update) + обновлённый раздел про reuse в `core/AGENTS.md`.
+- **Документированное поведение:** конфиг-вызовы (`.where`, `.limit`, `.order`) по-прежнему мутируют builder in-place; `const q = …; q.limit(10)` меняет `q` намеренно — для безопасного ветвления использовать `.clone()`:
+  ```typescript
+  const base = app.orm.single(User);
+  await base.clone().page(1, 10).go(); // base не тронут
+  ```
+
 **Связанные файлы:**
 - `packages/core/src/orm/sqb.ts`
 - `packages/core/src/orm/builders/single.ts`
 - `packages/core/src/orm/builders/multi.ts`
 - `packages/core/src/orm/field-builders/relation.ts`
 
-**Коммит:**
+**Коммит:** `b709ad1` + PR2
 
 ---
 
