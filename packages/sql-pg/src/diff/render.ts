@@ -3,8 +3,10 @@
  */
 
 import type { DiffOp, DiffResult } from './types';
+import { assertDiffOpSqlSafe } from '../ddl-validate';
 
 function opToSql(op: DiffOp): string {
+  assertDiffOpSqlSafe(op);
   switch (op.type) {
     case 'create-table': {
       const colDefs = op.columns

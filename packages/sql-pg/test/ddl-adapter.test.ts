@@ -68,7 +68,7 @@ describe('PgDdlAdapter', () => {
             column_name: 'id',
             data_type: 'integer',
             is_nullable: 'NO',
-            column_default: 'nextval(\'users_id_seq\'::regclass)',
+            column_default: "nextval('users_id_seq'::regclass)",
             character_maximum_length: null,
             is_primary: true,
             is_unique: true,
@@ -86,7 +86,7 @@ describe('PgDdlAdapter', () => {
             column_name: 'id',
             data_type: 'bigint',
             is_nullable: 'NO',
-            column_default: 'nextval(\'users_id_seq\'::regclass)',
+            column_default: "nextval('users_id_seq'::regclass)",
             character_maximum_length: null,
             is_primary: true,
             is_unique: true,
@@ -113,7 +113,12 @@ describe('PgDdlAdapter', () => {
       });
       const result = await ddl.inspectIndexes('users');
       expect(result).toEqual([
-        { name: 'idx_name', tableName: 'users', columns: ['name', 'email'], isUnique: false },
+        {
+          name: 'idx_name',
+          tableName: 'users',
+          columns: ['name', 'email'],
+          isUnique: false,
+        },
       ]);
     });
   });
@@ -127,8 +132,22 @@ describe('PgDdlAdapter', () => {
     it('groups composite FK', async () => {
       client.query.mockResolvedValue({
         rows: [
-          { fk_name: 'fk复合', column_name: 'a', ref_table: 't1', ref_column: 'x', on_delete: 'CASCADE', on_update: 'NO ACTION' },
-          { fk_name: 'fk复合', column_name: 'b', ref_table: 't1', ref_column: 'y', on_delete: 'CASCADE', on_update: 'NO ACTION' },
+          {
+            fk_name: 'fk复合',
+            column_name: 'a',
+            ref_table: 't1',
+            ref_column: 'x',
+            on_delete: 'CASCADE',
+            on_update: 'NO ACTION',
+          },
+          {
+            fk_name: 'fk复合',
+            column_name: 'b',
+            ref_table: 't1',
+            ref_column: 'y',
+            on_delete: 'CASCADE',
+            on_update: 'NO ACTION',
+          },
         ],
       });
       const result = await ddl.inspectForeignKeys('posts');
@@ -145,7 +164,15 @@ describe('PgDdlAdapter', () => {
 
     it('creates basic table', async () => {
       const cols: DbColumn[] = [
-        { name: 'name', tableName: 'users', dataType: 'text', isNullable: false, defaultValue: null, isPrimary: false, isUnique: false },
+        {
+          name: 'name',
+          tableName: 'users',
+          dataType: 'text',
+          isNullable: false,
+          defaultValue: null,
+          isPrimary: false,
+          isUnique: false,
+        },
       ];
       await ddl.createTable('users', cols);
       const sql = client.query.mock.calls[0][0];
@@ -155,7 +182,16 @@ describe('PgDdlAdapter', () => {
 
     it('autoIncrement integer → serial', async () => {
       const cols: DbColumn[] = [
-        { name: 'id', tableName: 'users', dataType: 'integer', isNullable: false, defaultValue: null, isPrimary: true, isUnique: true, autoIncrement: true },
+        {
+          name: 'id',
+          tableName: 'users',
+          dataType: 'integer',
+          isNullable: false,
+          defaultValue: null,
+          isPrimary: true,
+          isUnique: true,
+          autoIncrement: true,
+        },
       ];
       await ddl.createTable('users', cols);
       const sql = client.query.mock.calls[0][0];
@@ -165,7 +201,16 @@ describe('PgDdlAdapter', () => {
 
     it('autoIncrement bigint → bigserial', async () => {
       const cols: DbColumn[] = [
-        { name: 'id', tableName: 'users', dataType: 'bigint', isNullable: false, defaultValue: null, isPrimary: true, isUnique: true, autoIncrement: true },
+        {
+          name: 'id',
+          tableName: 'users',
+          dataType: 'bigint',
+          isNullable: false,
+          defaultValue: null,
+          isPrimary: true,
+          isUnique: true,
+          autoIncrement: true,
+        },
       ];
       await ddl.createTable('users', cols);
       const sql = client.query.mock.calls[0][0];
@@ -174,7 +219,15 @@ describe('PgDdlAdapter', () => {
 
     it('unique column → UNIQUE', async () => {
       const cols: DbColumn[] = [
-        { name: 'email', tableName: 'users', dataType: 'text', isNullable: false, defaultValue: null, isPrimary: false, isUnique: true },
+        {
+          name: 'email',
+          tableName: 'users',
+          dataType: 'text',
+          isNullable: false,
+          defaultValue: null,
+          isPrimary: false,
+          isUnique: true,
+        },
       ];
       await ddl.createTable('users', cols);
       const sql = client.query.mock.calls[0][0];
@@ -183,7 +236,15 @@ describe('PgDdlAdapter', () => {
 
     it('primary key → PRIMARY KEY, no UNIQUE', async () => {
       const cols: DbColumn[] = [
-        { name: 'id', tableName: 'users', dataType: 'integer', isNullable: false, defaultValue: null, isPrimary: true, isUnique: true },
+        {
+          name: 'id',
+          tableName: 'users',
+          dataType: 'integer',
+          isNullable: false,
+          defaultValue: null,
+          isPrimary: true,
+          isUnique: true,
+        },
       ];
       await ddl.createTable('users', cols);
       const sql = client.query.mock.calls[0][0];
@@ -193,7 +254,15 @@ describe('PgDdlAdapter', () => {
 
     it('column with defaultValue → DEFAULT clause', async () => {
       const cols: DbColumn[] = [
-        { name: 'active', tableName: 'users', dataType: 'boolean', isNullable: false, defaultValue: 'true', isPrimary: false, isUnique: false },
+        {
+          name: 'active',
+          tableName: 'users',
+          dataType: 'boolean',
+          isNullable: false,
+          defaultValue: 'true',
+          isPrimary: false,
+          isUnique: false,
+        },
       ];
       await ddl.createTable('users', cols);
       const sql = client.query.mock.calls[0][0];
@@ -204,8 +273,13 @@ describe('PgDdlAdapter', () => {
   describe('addColumn', () => {
     it('with defaultValue → DEFAULT clause', async () => {
       await ddl.addColumn('users', {
-        name: 'score', tableName: 'users', dataType: 'integer',
-        isNullable: false, defaultValue: '0', isPrimary: false, isUnique: false,
+        name: 'score',
+        tableName: 'users',
+        dataType: 'integer',
+        isNullable: false,
+        defaultValue: '0',
+        isPrimary: false,
+        isUnique: false,
       });
       const sql = client.query.mock.calls[0][0];
       expect(sql).toContain('DEFAULT 0');
@@ -213,8 +287,13 @@ describe('PgDdlAdapter', () => {
 
     it('null defaultValue → no DEFAULT', async () => {
       await ddl.addColumn('users', {
-        name: 'score', tableName: 'users', dataType: 'integer',
-        isNullable: false, defaultValue: null, isPrimary: false, isUnique: false,
+        name: 'score',
+        tableName: 'users',
+        dataType: 'integer',
+        isNullable: false,
+        defaultValue: null,
+        isPrimary: false,
+        isUnique: false,
       });
       const sql = client.query.mock.calls[0][0];
       expect(sql).not.toContain('DEFAULT');
@@ -260,14 +339,24 @@ describe('PgDdlAdapter', () => {
 
   describe('addIndex', () => {
     it('non-unique → CREATE INDEX', async () => {
-      await ddl.addIndex({ name: 'idx_name', tableName: 'users', columns: ['name'], isUnique: false });
+      await ddl.addIndex({
+        name: 'idx_name',
+        tableName: 'users',
+        columns: ['name'],
+        isUnique: false,
+      });
       const sql = client.query.mock.calls[0][0];
       expect(sql).toContain('CREATE  INDEX');
       expect(sql).toContain('"idx_name"');
     });
 
     it('unique → CREATE UNIQUE INDEX', async () => {
-      await ddl.addIndex({ name: 'idx_email', tableName: 'users', columns: ['email'], isUnique: true });
+      await ddl.addIndex({
+        name: 'idx_email',
+        tableName: 'users',
+        columns: ['email'],
+        isUnique: true,
+      });
       const sql = client.query.mock.calls[0][0];
       expect(sql).toContain('CREATE UNIQUE INDEX');
     });
@@ -276,8 +365,13 @@ describe('PgDdlAdapter', () => {
   describe('addForeignKey', () => {
     it('generates correct SQL', async () => {
       await ddl.addForeignKey({
-        name: 'fk_author', tableName: 'posts', columns: ['authorId'],
-        refTable: 'users', refColumns: ['id'], onDelete: 'CASCADE', onUpdate: 'NO ACTION',
+        name: 'fk_author',
+        tableName: 'posts',
+        columns: ['authorId'],
+        refTable: 'users',
+        refColumns: ['id'],
+        onDelete: 'CASCADE',
+        onUpdate: 'NO ACTION',
       });
       const sql = client.query.mock.calls[0][0];
       expect(sql).toContain('FOREIGN KEY ("authorId")');
@@ -324,6 +418,92 @@ describe('PgDdlAdapter', () => {
       client.query.mockResolvedValue({ rows: [] });
       await ddl.raw('SELECT $1', ['hello']);
       expect(client.query).toHaveBeenCalledWith('SELECT $1', ['hello']);
+    });
+  });
+
+  describe('DDL validation (S2)', () => {
+    it('createTable rejects malicious table name before query', async () => {
+      await expect(
+        ddl.createTable('users; DROP TABLE users; --', []),
+      ).rejects.toThrow();
+      expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('createTable rejects malicious column name', async () => {
+      const cols: DbColumn[] = [
+        {
+          name: 'name" TEXT; --',
+          tableName: 'users',
+          dataType: 'text',
+          isNullable: false,
+          defaultValue: null,
+          isPrimary: false,
+          isUnique: false,
+        },
+      ];
+      await expect(ddl.createTable('users', cols)).rejects.toThrow();
+      expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('createTable rejects sql injection in dataType', async () => {
+      const cols: DbColumn[] = [
+        {
+          name: 'name',
+          tableName: 'users',
+          dataType: 'text; DROP TABLE users; --',
+          isNullable: false,
+          defaultValue: null,
+          isPrimary: false,
+          isUnique: false,
+        },
+      ];
+      await expect(ddl.createTable('users', cols)).rejects.toThrow();
+      expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('createTable rejects sql injection in defaultValue', async () => {
+      const cols: DbColumn[] = [
+        {
+          name: 'active',
+          tableName: 'users',
+          dataType: 'boolean',
+          isNullable: false,
+          defaultValue: 'true; DROP TABLE users; --',
+          isPrimary: false,
+          isUnique: false,
+        },
+      ];
+      await expect(ddl.createTable('users', cols)).rejects.toThrow();
+      expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('alterType rejects malicious newType', async () => {
+      await expect(
+        ddl.alterType('users', 'age', 'bigint; DROP TABLE users; --'),
+      ).rejects.toThrow();
+      expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('alterDefault rejects malicious defaultValue', async () => {
+      await expect(
+        ddl.alterDefault('users', 'name', "'x'; DROP TABLE users; --"),
+      ).rejects.toThrow();
+      expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('addForeignKey rejects malicious ON UPDATE', async () => {
+      await expect(
+        ddl.addForeignKey({
+          name: 'fk_author',
+          tableName: 'posts',
+          columns: ['authorId'],
+          refTable: 'users',
+          refColumns: ['id'],
+          onDelete: 'CASCADE',
+          onUpdate: 'NO ACTION; DROP TABLE users; --',
+        }),
+      ).rejects.toThrow();
+      expect(client.query).not.toHaveBeenCalled();
     });
   });
 });
