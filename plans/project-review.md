@@ -5,6 +5,7 @@
 > Updated 2026-08-29 — Phase 1 (correctness) + integration test harness completed.
 > Updated 2026-09-05 — importance fields, corrected findings (T1 removed, A3-A7 added).
 > Updated 2026-09-07 — includes refactor done (`1cacf6a`): record-based API, ~relInfo phantom. A5+A6 resolved (`f3917da`). A4 resolved (`c138f7b`). A7 resolved (`9e45588`). A3 partially resolved.
+> Updated 2026-09-08 — A1 resolved (`b709ad1` + `f5023c9`): snapshot terminals + public `.clone()`. F7 resolved (`2f251dc`). A3 fully resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts → 4 inherent, write-finalizer.ts + include-utils.ts extraction.
 
 ## Repository snapshot
 
@@ -15,7 +16,7 @@
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) now verified against a live DB and substantially fixed; includes refactored to record-based API (−117 lines net). **Still not production-ready**: type error in `model.test.ts:44` (`foreignKey` on `StandardField`), single.ts 419 lines with ~12 `any` casts, 95 lint warnings, no README, S2 (DDL injection) unresolved.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals). **Still not production-ready**: type error in `model.test.ts:44` (`foreignKey` on `StandardField`), no README, 89 lint warnings (2 pre-existing errors, rest style/`any` warnings).
 
 ---
 
@@ -50,7 +51,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A4 | 🟡 | Type layer is ~60% of ORM code | 🟡 Partial: pure type files moved to `.d.ts` (`orm/types/*`, `model/types/*`). Real consumer compile-speed win still needs shipping built `.d.ts` (`main`/`types` → `dist`) — deferred. |
 | A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ✅ Fixed: `OrmManager` reuses the registry IR (compiled once at register); `compileCount` stays 0 in the hot path. |
 | A6 | 🟡 | `help_source/` confusing coexistence | ⬜ Pending (cleanup) |
-| A7 | 🔴 | **single.ts 419 lines, ~12 `any` casts** — breaks type-safety in query builders | ⬜ Open — down from 537/18, further reduction needed |
+| A7 | 🔴 | **single.ts 419 lines, ~12 `any` casts** — breaks type-safety in query builders | ✅ Resolved (`c78c0e7` + `2ec3067` + `72e66fc`): single.ts → ~405 lines, 4 inherent `any` only (overload impl signatures, findById phantom PK, go() result, include callback). Update/delete finalizer extracted to `write-finalizer.ts`; include resolution deduped via `include-utils.ts` (`buildRelation` + `configureRelation`). Lint warnings 97→89. |
 | A8 | 🔴 | **diff.ts split into 5 files** — was 696 lines, now divided by SRP | ✅ Resolved (`c138f7b`): `diff/types.ts`, `diff/compute.ts`, `diff/apply.ts`, `diff/render.ts`, `diff/index.ts` |
 | A9 | 🟡 | **BaseWhereBuilder (49 lines) — dead code** — not used by any builder | ✅ Resolved (`f3917da`): deleted, shared `addOrCondition()` in `where-helpers.ts` |
 | A10 | 🟡 | **_or() duplicated** in single.ts and multi.ts — ~25 lines of identical logic | ✅ Resolved (`f3917da`): shared `addOrCondition()` in `where-helpers.ts` |

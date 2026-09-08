@@ -6,6 +6,7 @@
 > Updated 2026-09-05 — BREAKING: create()/createMany() return builders, not Promises. All callers must add `.go()`.
 > Updated 2026-09-07 — includes refactor resolved (`1cacf6a`): record-based API, ~relInfo phantom, relations.d.ts deleted. single.ts 419 lines, ~12 any casts (down from 537/18).
 > Updated 2026-09-08 — A1 resolved via B+C (`b709ad1` + this PR): snapshot terminals + public `.clone()`.
+> Updated 2026-09-08 — A3 resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts 12→4 inherent, update/delete → write-finalizer.ts, includes dedup → include-utils.ts.
 
 ---
 
@@ -89,13 +90,21 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `select() / first()` — return type `any` (lines 155, 356)
 - `_buildSelectFinalizer()` — остатки `any` кастов
 
-**Статус:** ⬜ Частично решено. single.ts: 537 → 419 строк (−22%), `any` касты: 18 → ~12 (−33%). Proxy-фабрики извлечены в `query-proxies.ts` (`53a69b2`). includes refactor убрал Relation-related касты (`1cacf6a`). Осталось: finalizer-билдеры и замена оставшихся `any`.
+**Статус:** ✅ Полностью решено в три коммита:
+- **`c78c0e7` (A3-1)** — убраны/сужены `any`-касты в `SingleQueryBuilder`: оставшиеся 5 сведены к 4 **inherent** позициям (сигнатуры реализации перегрузок, фантомный PK в findById, результат `go()` через `Evaluate<>`, колбэк `_resolveIncludes`). Остались касты `select`/`returning` через `AnySelectableField`.
+- **`2ec3067` (A3-2)** — из `update()`/`delete()` (~150 ×2 строк) извлечён `buildWriteFinalizer()` в `write-finalizer.ts`; маппинг рядов вынесен в `_mapAliases`. single.ts: 548 → ~440 строк.
+- **`72e66fc` (A3-3)** — трижды продублированный include-resolution (single/multi/relation) консолидирован в `buildRelation()` + `configureRelation()` из `include-utils.ts`; relation.ts snake_case-fallback → `toSnakeCase()`. Удалён write-only `multi._includeConfigs`. single.ts: ~440 → ~405 строк.
+
+Итог: 5 → 4 inherent `any` (перегрузки `select`/`first`, findById, go-результат), дубликатов include-логики нет. Лint warnings: 97 → 89. Core 284/284, sql-pg 194/194, проект 98/98.
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/query-proxies.ts` (создан)
+- `packages/core/src/orm/builders/write-finalizer.ts` (создан)
+- `packages/core/src/orm/builders/include-utils.ts` (создан)
+- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/field-builders/relation.ts`
 
-**Коммиты:** `53a69b2`, `1cacf6a`
+**Коммиты:** `53a69b2`, `1cacf6a`, `c78c0e7`, `2ec3067`, `72e66fc`
 
 ---
 
