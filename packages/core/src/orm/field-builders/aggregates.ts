@@ -1,5 +1,6 @@
 import { AggregateField } from '../ast/aggregate';
 import type { SelectableField } from '../ast/selectable';
+import type { GetFieldType } from '../types/proxy';
 
 type AggregateFunction<T> = (
   field: SelectableField<any, any, any> | '*',
@@ -16,9 +17,6 @@ export type AggregateFunctions = {
     field: F,
   ) => AggregateField<GetFieldType<F> | null>;
 };
-
-type GetFieldType<F> =
-  F extends SelectableField<infer T, any, any> ? T : unknown;
 
 export const aggregates: AggregateFunctions = {
   count: (field) => new AggregateField<number>('count', field),

@@ -1,7 +1,7 @@
 import type { WhereCondition } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
-import type { OrderField } from './proxy';
+import type { OrderField, GetFieldName, GetFieldType } from './proxy';
 import type { Evaluate } from './relations';
 
 // ── Helper types ──
@@ -41,25 +41,8 @@ type RelationResult<M, K extends string> =
 
 // ── Selectable type helpers ──
 
-/** Извлекает имя поля: alias если есть, иначе fieldName */
-export type GetFieldName<S> =
-  S extends AggregateField<any>
-    ? S['alias'] extends string
-      ? S['alias']
-      : never
-    : S extends SelectableField<any, any, infer A>
-      ? A extends string
-        ? A
-        : S['fieldName'] & string
-      : never;
-
-/** Извлекает TS-тип поля из phantom-параметра */
-export type GetFieldType<S> =
-  S extends AggregateField<infer T>
-    ? T
-    : S extends SelectableField<infer T, any, any>
-      ? T
-      : unknown;
+/** Канон GetFieldName/GetFieldType — в proxy.d.ts */
+export type { GetFieldName, GetFieldType } from './proxy';
 
 export type AnySelectable =
   SelectableField<any, any, any> | AggregateField<any>;
@@ -79,11 +62,6 @@ export type FlatFinalResult<S extends readonly any[]> = {
 /** Извлечь return type select callback */
 type ExtractSelectResult<C> = C extends { select: (t: any) => infer R }
   ? R
-  : never;
-
-/** Извлечь alias из include config */
-type ExtractIncludeAlias<C> = C extends { alias: infer A extends string }
-  ? A
   : never;
 
 // ── Include Config ──
