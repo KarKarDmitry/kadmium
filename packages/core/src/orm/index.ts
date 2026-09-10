@@ -1,4 +1,4 @@
-export { orm, OrmManager } from './orm';
+export { OrmManager } from './orm';
 export { SingleQueryBuilder } from './builders/single';
 export { MultiQueryBuilder } from './builders/multi';
 export { KadmiumSqb } from './sqb';

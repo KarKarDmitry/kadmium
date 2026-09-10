@@ -141,30 +141,16 @@ export class OrmManager {
     }
     return new MultiQueryBuilder<T>(irs, this._irLookup, this._adapter);
   }
+
+  /**
+   * OrmManager с указанным adapter вместо глобального (appCore.sqlAdapter).
+   * Общий appCore/registry/IR — меняется только подключение/рендер SQL.
+   *
+   * @example
+   *   app.orm.withAdapter(createDebugAdapter()).single(User).toSql();
+   *   app.orm.withAdapter(readReplica).single(User).where(...).go();
+   */
+  withAdapter(adapter: SqlAdapter): OrmManager {
+    return new OrmManager(this.appCore, adapter);
+  }
 }
-
-/**
- * Автономный orm — без AppCore (irLookup только через Model.resolve).
- * IR кешируется на уровне модуля.
- */
-const standaloneCache = new Map<string, ModelIR>();
-
-export const orm = {
-  single<
-    TModel extends {
-      ['~shape']: Record<string, unknown>;
-      ['~rel']: Record<string, unknown>;
-      ['~relInfo']: Record<string, unknown>;
-    },
-  >(modelClass: { new (): TModel }, ir?: ModelIR): SingleQueryBuilder<TModel> {
-    const name = modelClass.name;
-    let compiled = ir ?? standaloneCache.get(name);
-    if (!compiled) {
-      compiled = compileModel(
-        new (modelClass as unknown as { new (): Model })(),
-      );
-      standaloneCache.set(name, compiled);
-    }
-    return new SingleQueryBuilder<TModel>(compiled, buildIrLookup());
-  },
-};

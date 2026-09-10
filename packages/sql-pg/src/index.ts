@@ -362,8 +362,10 @@ class DebugSqlGenerator extends SqlGenerator {}
  *
  * @example
  *   import { createDebugAdapter } from '@karkardmitry/kadmium-sql-pg';
- *   const adapter = createDebugAdapter();
- *   orm.single(User, adapter).where(u => u.name.eq('Alice')).toSql();
+ *   const app = new KadmiumApp();
+ *   app.modules.sql.set(createDebugAdapter());
+ *   await app.init();
+ *   app.orm.single(User).where(u => u.name.eq('Alice')).toSql();
  */
 export function createDebugAdapter(): SqlAdapter {
   const gen = new DebugSqlGenerator();
