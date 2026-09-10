@@ -92,7 +92,8 @@ Runtime `Proxy` objects provide type-safe field access:
 ### AST (`ast/`)
 
 - **`WhereCondition`** — `{ alias, field, column, op, value }`
-- **`WhereGroup`** — `{ op: 'AND'|'OR', conditions: [...] }`
+- **`WhereStep`** — `{ join: 'AND'|'OR', condition: Condition | Group }`
+- **`WhereGroup`** — `{ elements: WhereStep[] }`; `WhereExpression = Condition | Group`
 - **`SelectableField`** — SELECT field with phantom types
 - **`AggregateField`** — COUNT/SUM/AVG/MIN/MAX
 
@@ -158,6 +159,7 @@ Generates TypeScript models from IR. Run via `kadmium generate`.
 - **Parameterized queries only** — no string interpolation
 - **Integration tests** in `test-project/test/` — need Postgres (`npm run db:up`)
 - **Tests required** for new behavior — this is an ORM, correctness matters
+- **WHERE composition**: builder methods (`where/and/or/having/havingOr`) push flat steps — no scopes/auto-grouping, no `group()`/`groupAnd()`. Nested groups only via `and()/or()` expressions (re-exported at package root). SQL relies on PG precedence (AND > OR); explicit grouping = parentheses. Cursor pagination (`after`) is planned as sugar over `where` + order guard (see `plans/builder-expression.md`).
 
 ## Verification
 

@@ -175,6 +175,12 @@ orm.single(Order)
 - `single()`, `multi()`, `Relation.order()` единый сигнатуру `(t) => OrderDirection[]`
 - Разобраны вызовы в core/tests и test-project
 
+### Подготовка: WHERE-выражения (breaking) — предпосылка `.after()`
+
+Keyset по нескольким ключам требует вложенности `AND` внутрь `OR` — `(k1 > $1) OR (k1 = $1 AND k2 < $2)`. Старый DSL (плоские `or`/`group`) это не выражал. Поэтому перед `.after()` сделан рефакторинг композиции: билдеры `where/and/or/having/havingOr` пушат плоские шаги, вложенные группы — только выражениями `and()`/`or()` (рендер — минимальные скобки). Описание и полный план — `plans/builder-expression.md`.
+
+Реализовано в `8c1bae7`.
+
 ---
 
 ## F6: Нет createMany() / updateMany() / deleteMany()
