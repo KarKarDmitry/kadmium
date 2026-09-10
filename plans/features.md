@@ -153,8 +153,10 @@ orm.single(Order)
 
 **Краткое описание:** Только offset-based пагинация (`page()`, `limit()`, `offset()`). Для больших таблиц offset медленный.
 
+**Статус:** ✅ Реализовано. `.cursor(fn)` — keyset-пагинация на базе WHERE-выражений (оба плана в `plans/builder-expression.md`). Отдельный AST-узел `sqb.cursor: WhereGroup`; дирекция — оператором (`gt/lt`), инклюзивность — `gte/lte/eq`; multi-key через `or/and`; guard'ы: `order()` обязателен, `offset()/page()` конфликтуют, второй `cursor()` — ошибка. `before()` — вне scope MVP.
+
 **Риски изменений:**
-- Добавить `cursor()` метод — потребует изменений в SqlGenerator
+- Добавить `cursor()` метод — потребовал изменения в SqlGenerator (рендер AND-члена в селект-пути)
 - Использовать where + order — workaround, но ручной
 - Риск: средний
 
@@ -162,7 +164,7 @@ orm.single(Order)
 - `packages/core/src/orm/builders/single.ts`
 - `packages/sql-pg/src/sql-generator.ts`
 
-**Коммит:**
+**Коммит:** `0dcc309` (`.cursor()` + AST-узел + guards; тесты core/sql-pg/test-project)
 
 ### Подготовка: новый API `.order` (breaking)
 
@@ -175,9 +177,9 @@ orm.single(Order)
 - `single()`, `multi()`, `Relation.order()` единый сигнатуру `(t) => OrderDirection[]`
 - Разобраны вызовы в core/tests и test-project
 
-### Подготовка: WHERE-выражения (breaking) — предпосылка `.after()`
+### Подготовка: WHERE-выражения (breaking) — предпосылка `.cursor()`
 
-Keyset по нескольким ключам требует вложенности `AND` внутрь `OR` — `(k1 > $1) OR (k1 = $1 AND k2 < $2)`. Старый DSL (плоские `or`/`group`) это не выражал. Поэтому перед `.after()` сделан рефакторинг композиции: билдеры `where/and/or/having/havingOr` пушат плоские шаги, вложенные группы — только выражениями `and()`/`or()` (рендер — минимальные скобки). Описание и полный план — `plans/builder-expression.md`.
+Keyset по нескольким ключам требует вложенности `AND` внутрь `OR` — `(k1 > $1) OR (k1 = $1 AND k2 < $2)`. Старый DSL (плоские `or`/`group`) это не выражал. Поэтому перед `.cursor()` сделан рефакторинг композиции: билдеры `where/and/or/having/havingOr` пушат плоские шаги, вложенные группы — только выражениями `and()`/`or()` (рендер — минимальные скобки). Описание и полный план — `plans/builder-expression.md`.
 
 Реализовано в `8c1bae7`.
 

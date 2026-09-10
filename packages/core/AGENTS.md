@@ -159,7 +159,7 @@ Generates TypeScript models from IR. Run via `kadmium generate`.
 - **Parameterized queries only** — no string interpolation
 - **Integration tests** in `test-project/test/` — need Postgres (`npm run db:up`)
 - **Tests required** for new behavior — this is an ORM, correctness matters
-- **WHERE composition**: builder methods (`where/and/or/having/havingOr`) push flat steps — no scopes/auto-grouping, no `group()`/`groupAnd()`. Nested groups only via `and()/or()` expressions (re-exported at package root). SQL relies on PG precedence (AND > OR); explicit grouping = parentheses. Cursor pagination (`after`) is planned as sugar over `where` + order guard (see `plans/builder-expression.md`).
+- **WHERE composition**: builder methods (`where/and/or/having/havingOr`) push flat steps — no scopes/auto-grouping, no `group()`/`groupAnd()`. Nested groups only via `and()/or()` expressions (re-exported at package root). SQL relies on PG precedence (AND > OR); explicit grouping = parentheses. Cursor pagination: `cursor()` renders as a dedicated `sqb.cursor` WhereGroup — always parenthesized AND-member with the main where-group wrapped only when it contains OR steps; requires `order()` and conflicts with `offset()/page()` (see `plans/builder-expression.md`).
 
 ## Verification
 
