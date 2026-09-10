@@ -48,6 +48,8 @@ export class KadmiumSqb {
   }[] = [];
   public limit: number | null = null;
   public offset: number | null = null;
+  /** Cursor-based пагинация: позиция рендерится AND-членом в WHERE */
+  public cursor: WhereGroup = createWhereGroup();
   public groupBy: string[] = [];
   /** Data for UPDATE operations */
   public updateData: Record<string, unknown> | null = null;
@@ -67,6 +69,7 @@ export class KadmiumSqb {
     c.tableContext = new Map(this.tableContext);
     c.wheres = this._cloneWhereGroup(this.wheres);
     c.havings = this._cloneWhereGroup(this.havings);
+    c.cursor = this._cloneWhereGroup(this.cursor);
     c.selects = this.selects ? this._cloneSelects(this.selects) : null;
     c.joins = [...this.joins];
     c.includes = [...this.includes];

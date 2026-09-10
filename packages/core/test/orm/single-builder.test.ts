@@ -141,6 +141,98 @@ describe('SingleQueryBuilder — modifiers', () => {
   });
 });
 
+describe('SingleQueryBuilder — cursor', () => {
+  it('pushes expression to sqb.cursor', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.order((u: any) => [u.id.asc]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.cursor((u: any) => u.id.gt(42));
+    expect(b.sqb.cursor.elements.length).toBe(1);
+    expect(b.sqb.wheres.elements.length).toBe(0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((b.sqb.cursor.elements[0] as any).condition).toMatchObject({
+      field: 'id',
+      column: 'id',
+      op: '>',
+      value: 42,
+    });
+  });
+
+  it('accepts and/or multi-key expression', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.order((u: any) => [u.age.asc, u.id.desc]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.cursor((u: any) => or(u.age.gt(30), and(u.age.eq(30), u.id.lt(500))));
+    expect(b.sqb.cursor.elements.length).toBe(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const group = (b.sqb.cursor.elements[0] as any).condition as {
+      elements: unknown[];
+    };
+    expect(group.elements.length).toBe(2);
+  });
+
+  it('throws without order()', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => b.cursor((u: any) => u.id.gt(42))).toThrow(/requires an order/);
+    expect(b.sqb.cursor.elements.length).toBe(0);
+  });
+
+  it('throws when offset() already set', () => {
+    const b = builder();
+    b.offset(5);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.order((u: any) => [u.id.asc]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => b.cursor((u: any) => u.id.gt(42))).toThrow(
+      /cannot be combined/,
+    );
+  });
+
+  it('throws when called twice', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.order((u: any) => [u.id.asc]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.cursor((u: any) => u.id.gt(42));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => b.cursor((u: any) => u.id.gt(43))).toThrow(/already set/);
+    expect(b.sqb.cursor.elements.length).toBe(1);
+  });
+
+  it('offset() after cursor throws', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.order((u: any) => [u.id.asc]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.cursor((u: any) => u.id.gt(42));
+    expect(() => b.offset(5)).toThrow(/cannot be combined/);
+    expect(b.sqb.offset).toBeNull();
+  });
+
+  it('page() after cursor throws', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.order((u: any) => [u.id.asc]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.cursor((u: any) => u.id.gt(42));
+    expect(() => b.page(2, 10)).toThrow(/cannot be combined/);
+  });
+
+  it('skips undefined expression (cursor not set)', () => {
+    const b = builder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.order((u: any) => [u.id.asc]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.cursor(() => undefined as any);
+    expect(b.sqb.cursor.elements.length).toBe(0);
+    b.offset(5);
+    expect(b.sqb.offset).toBe(5);
+  });
+});
+
 describe('SingleQueryBuilder — having', () => {
   it('pushes aggregate-alias condition to sqb.havings', () => {
     const b = builder();

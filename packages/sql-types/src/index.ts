@@ -80,6 +80,8 @@ export interface ReadonlySqb {
   readonly tableContext: ReadonlyMap<string, string>;
   readonly wheres: WhereGroup;
   readonly havings: WhereGroup;
+  /** Cursor-based пагинация: позиция, рендерится AND-членом в WHERE */
+  readonly cursor: WhereGroup;
   readonly selects: readonly SelectItem[] | null;
   readonly joins: readonly JoinOptions[];
   readonly includes: readonly IncludedRelation[];

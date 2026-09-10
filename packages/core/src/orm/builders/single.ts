@@ -233,17 +233,46 @@ export class SingleQueryBuilder<
     return this;
   }
 
+  /**
+   * Keyset-пагинация: продолжить выборку с ключевой позиции.
+   * Семантически WHERE-условие, рендерится отдельным AND-членом в скобках.
+   */
+  cursor(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
+    if (this.sqb.orders.length === 0) {
+      throw new Error(
+        'cursor() requires an order: call .order() before .cursor().',
+      );
+    }
+    if (this.sqb.offset !== null) {
+      throw new Error('cursor() cannot be combined with offset()/page().');
+    }
+    if (this.sqb.cursor.elements.length > 0) {
+      throw new Error('cursor() is already set.');
+    }
+    const expression = fn(this._createFilterProxy());
+    if (expression !== undefined) {
+      this.sqb.cursor.elements.push({ join: 'AND', condition: expression });
+    }
+    return this;
+  }
+
   limit(n: number): this {
     this.sqb.limit = n;
     return this;
   }
 
   offset(n: number): this {
+    if (this.sqb.cursor.elements.length > 0) {
+      throw new Error('offset() cannot be combined with cursor().');
+    }
     this.sqb.offset = n;
     return this;
   }
 
   page(page: number, size: number): this {
+    if (this.sqb.cursor.elements.length > 0) {
+      throw new Error('page() cannot be combined with cursor().');
+    }
     this.sqb.limit = Math.max(1, size);
     this.sqb.offset = (Math.max(1, page) - 1) * size;
     return this;

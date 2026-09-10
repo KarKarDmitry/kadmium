@@ -10,6 +10,7 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
     tableContext: new Map([['u', 'users']]),
     wheres: { elements: [] },
     havings: { elements: [] },
+    cursor: { elements: [] },
     selects: null,
     joins: [],
     includes: [],

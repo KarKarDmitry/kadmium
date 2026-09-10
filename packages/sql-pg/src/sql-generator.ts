@@ -508,12 +508,29 @@ export abstract class SqlGenerator {
     }
 
     // WHERE
-    const whereClause = this._buildWhereClause(
-      sqb.wheres,
-      values,
-      paramIndex,
-      extraWhereConditions,
-    );
+    // Курсор — отдельный AND-член, всегда в скобках; главная группа
+    // оборачивается, если содержит OR-шаги (иначе AND-курсор перехватит хвост).
+    let whereClause = '';
+    let cursorSql = '';
+    if (
+      sqb.wheres.elements.length > 0 ||
+      sqb.cursor.elements.length > 0 ||
+      extraWhereConditions.length > 0
+    ) {
+      const mainSql = this._buildWhereGroupSql(sqb.wheres, values, paramIndex);
+      const hasOr = sqb.wheres.elements.some((s) => s.join === 'OR');
+      const main = hasOr && mainSql !== '' ? `(${mainSql})` : mainSql;
+      if (sqb.cursor.elements.length > 0) {
+        const cursorInner = this._buildWhereGroupSql(
+          sqb.cursor,
+          values,
+          paramIndex,
+        );
+        cursorSql = cursorInner === '' ? '' : `(${cursorInner})`;
+      }
+      const all = [main, cursorSql, ...extraWhereConditions].filter(Boolean);
+      whereClause = `WHERE ${all.join(' AND ')}`;
+    }
 
     // GROUP BY
     let groupByClause = '';

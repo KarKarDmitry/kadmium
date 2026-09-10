@@ -7,6 +7,7 @@ describe('KadmiumSqb', () => {
     expect(sqb.operation).toBe('select');
     expect(sqb.tableContext.size).toBe(0);
     expect(sqb.wheres).toEqual({ elements: [] });
+    expect(sqb.cursor).toEqual({ elements: [] });
     expect(sqb.selects).toBeNull();
     expect(sqb.joins).toEqual([]);
     expect(sqb.includes).toEqual([]);
@@ -62,6 +63,34 @@ describe('KadmiumSqb', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(
       (cloned.wheres.elements[1] as any).condition.elements[0].condition.value,
+    ).toBe(18);
+  });
+
+  it('clone deep-copies cursor', () => {
+    const sqb = new KadmiumSqb();
+    sqb.cursor.elements.push({
+      join: 'AND',
+      condition: { field: 'id', op: '>', value: 42 },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nested: any = {
+      elements: [
+        { join: 'OR', condition: { field: 'age', op: '>', value: 18 } },
+      ],
+    };
+    sqb.cursor.elements.push({ join: 'AND', condition: nested });
+
+    const cloned = sqb.clone();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sqb.cursor.elements[0] as any).condition.value = 100;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sqb.cursor.elements[1] as any).condition.elements[0].condition.value = 25;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((cloned.cursor.elements[0] as any).condition.value).toBe(42);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(
+      (cloned.cursor.elements[1] as any).condition.elements[0].condition.value,
     ).toBe(18);
   });
 
