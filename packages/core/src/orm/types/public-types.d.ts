@@ -23,6 +23,8 @@ export type {
 
 export type { Evaluate } from './relations';
 
+export type { WhereExpression } from '../ast/where';
+
 export type {
   AnySelectable,
   AllFields,

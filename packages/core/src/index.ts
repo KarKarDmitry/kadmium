@@ -9,6 +9,9 @@ export { compileModel } from './ir/index';
 
 export { OrmManager } from './orm/orm';
 
+export { and, or } from './orm';
+export type { WhereExpression } from './orm';
+
 export {
   AppCore,
   KadmiumApp,

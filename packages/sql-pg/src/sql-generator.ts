@@ -6,6 +6,7 @@ import type {
   ReadonlySqb,
   WhereCondition,
   WhereGroup,
+  WhereExpression,
   SelectItem,
   IncludedRelation,
 } from '@karkardmitry/kadmium-sql-types';
@@ -71,26 +72,61 @@ export abstract class SqlGenerator {
     return `$${paramIndex.p++}`;
   }
 
-  /** Рендерит WHERE дерево */
+  /** Рендерит WHERE дерево (группа = последовательность шагов). */
   protected _buildWhereGroupSql(
     group: WhereGroup,
     values: unknown[],
     paramIndex: { p: number },
     resolveBare?: (col: string) => string,
   ): string {
-    if (group.conditions.length === 0) return '';
-    const parts = group.conditions.map((c) => {
-      if ('conditions' in c) {
-        return `(${this._buildWhereGroupSql(c, values, paramIndex, resolveBare)})`;
-      }
-      const col = c.column ?? c.field;
-      const left = c.alias
-        ? `"${c.alias}"."${col}"`
-        : (resolveBare?.(col) ?? `"${col}"`);
-      const right = this._renderValue(c, values, paramIndex);
-      return `${left} ${c.op} ${right}`;
+    if (group.elements.length === 0) return '';
+    const parts = group.elements.map((step, i) => {
+      const condSql = this._renderWhereExpression(
+        step.condition,
+        values,
+        paramIndex,
+        resolveBare,
+        step.join,
+        group.elements.length > 1,
+      );
+      return i === 0 ? condSql : `${step.join} ${condSql}`;
     });
-    return parts.join(` ${group.op} `);
+    return parts.join(' ');
+  }
+
+  /**
+   * Рендер одного выражения-условия. Минимальные скобки: группа выводится
+   * в скобках только если её uniform-join не совпадает с join текущего шага
+   * (или она смешанная) и у родителя есть соседние шаги, с которыми могла бы
+   * перепутаться ассоциативность.
+   */
+  private _renderWhereExpression(
+    expression: WhereExpression,
+    values: unknown[],
+    paramIndex: { p: number },
+    resolveBare: ((col: string) => string) | undefined,
+    contextJoin: 'AND' | 'OR',
+    hasSiblings: boolean,
+  ): string {
+    if (!('elements' in expression)) {
+      const col = expression.column ?? expression.field;
+      const left = expression.alias
+        ? `"${expression.alias}"."${col}"`
+        : (resolveBare?.(col) ?? `"${col}"`);
+      const right = this._renderValue(expression, values, paramIndex);
+      return `${left} ${expression.op} ${right}`;
+    }
+    const inner = this._buildWhereGroupSql(
+      expression,
+      values,
+      paramIndex,
+      resolveBare,
+    );
+    if (inner === '') return '';
+    const uniform = expression.elements[0]?.join;
+    const mixed = expression.elements.some((e) => e.join !== uniform);
+    const needsParens = mixed || uniform !== contextJoin;
+    return needsParens && hasSiblings ? `(${inner})` : inner;
   }
 
   /** Рендерит WHERE clause целиком */
@@ -127,7 +163,7 @@ export abstract class SqlGenerator {
     values: unknown[],
     paramIndex: { p: number },
   ): string {
-    if (sqb.havings.conditions.length === 0) return '';
+    if (sqb.havings.elements.length === 0) return '';
     const aggAliases = new Map<string, string>();
     for (const sel of sqb.selects ?? []) {
       if (sel.kind === 'aggregate' && sel.alias && sel.func) {
@@ -251,8 +287,10 @@ export abstract class SqlGenerator {
 
     // WHERE: пользовательский + correlation
     const subqueryWheres: WhereGroup = {
-      op: 'AND',
-      conditions: [...relatedSqb.wheres.conditions, correlationCondition],
+      elements: [
+        ...relatedSqb.wheres.elements,
+        { join: 'AND', condition: correlationCondition },
+      ],
     };
     const whereClause = this._buildWhereClause(
       subqueryWheres,
@@ -442,7 +480,7 @@ export abstract class SqlGenerator {
             islandTablesInFrom.has(join.left) &&
             islandTablesInFrom.has(join.right)
           ) {
-            if (join.on && !('conditions' in join.on)) {
+            if (join.on && !('elements' in join.on)) {
               extraWhereConditions.push(
                 this._buildConditionSql(join.on, values, paramIndex),
               );
@@ -450,7 +488,7 @@ export abstract class SqlGenerator {
             processedJoins.add(join);
             continue;
           }
-          if (newAlias && join.on && !('conditions' in join.on)) {
+          if (newAlias && join.on && !('elements' in join.on)) {
             const onSql = this._buildConditionSql(join.on, values, paramIndex);
             islandFromClause += ` ${(join.direction || 'inner').toUpperCase()} JOIN "${sqb.tableContext.get(newAlias)}" AS "${newAlias}" ON ${onSql}`;
             islandTablesInFrom.add(newAlias);

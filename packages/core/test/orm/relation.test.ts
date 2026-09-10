@@ -78,7 +78,7 @@ describe('Relation — where/order/limit/select', () => {
     const rel = new Relation(sqb, 'posts', makePostIR(), makeFieldIr());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rel.where((t: any) => t.title.eq('Hello'));
-    expect(rel.internalSqb.wheres.conditions.length).toBe(1);
+    expect(rel.internalSqb.wheres.elements.length).toBe(1);
   });
 
   it('order pushes to internalSqb.orders', () => {

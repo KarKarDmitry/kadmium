@@ -1,4 +1,4 @@
-import type { WhereCondition } from '../ast/where';
+import type { WhereExpression } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
 import type { OrderDirection, GetFieldName, GetFieldType } from './proxy';
@@ -92,7 +92,9 @@ type IncludeRelationConfig<M, K extends string> =
       select?: (
         t: IncludeSelectProxy<RelTarget<M, K>>,
       ) => readonly AnySelectable[];
-      where?: (t: IncludeFilterProxy<RelTarget<M, K>>) => WhereCondition;
+      where?: (
+        t: IncludeFilterProxy<RelTarget<M, K>>,
+      ) => WhereExpression | undefined;
       order?: (t: IncludeFilterProxy<RelTarget<M, K>>) => OrderDirection[];
       limit?: number;
       include?: IncludeConfig<RelTarget<M, K>>;

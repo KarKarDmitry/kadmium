@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SingleQueryBuilder } from '../../src/orm/builders/single';
+import { and, or } from '../../src/orm/where-expression';
 import { makeUserIR, makeMockAdapter, type MockAdapter } from './helpers';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
@@ -23,58 +24,47 @@ describe('SingleQueryBuilder — where/and/or', () => {
     const b = builder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => u.name.eq('Alice'));
-    expect(b.sqb.wheres.conditions.length).toBe(1);
+    expect(b.sqb.wheres.elements.length).toBe(1);
   });
 
   it('and is alias for where', () => {
     const b = builder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.and((u: any) => u.name.eq('Alice'));
-    expect(b.sqb.wheres.conditions.length).toBe(1);
+    expect(b.sqb.wheres.elements.length).toBe(1);
   });
 
-  it('or uses addOrCondition', () => {
+  it('or appends an OR step (no auto-grouping)', () => {
     const b = builder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => u.name.eq('Alice'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.or((u: any) => u.name.eq('Bob'));
-    expect(b.sqb.wheres.op).toBe('OR');
-  });
-});
-
-describe('SingleQueryBuilder — group', () => {
-  it('empty callback does not push group', () => {
-    const b = builder();
-    b.group(() => {});
-    expect(b.sqb.wheres.conditions.length).toBe(0);
+    expect(b.sqb.wheres.elements.length).toBe(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((b.sqb.wheres.elements[1] as any).join).toBe('OR');
   });
 
-  it('with conditions pushes group', () => {
+  it('where accepts and/or expressions as one step', () => {
     const b = builder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    b.group((q: any) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      q.where((u: any) => u.name.eq('Alice'));
-    });
-    expect(b.sqb.wheres.conditions.length).toBe(1);
+    b.where((u: any) => or(u.name.eq('Alice'), and(u.name.eq('Bob'), u.active.eq(true))));
+    expect(b.sqb.wheres.elements.length).toBe(1);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const group = b.sqb.wheres.conditions[0] as any;
-    expect(group.op).toBe('AND');
-    expect(group.conditions).toBeDefined();
+    const group = (b.sqb.wheres.elements[0] as any).condition as {
+      elements: unknown[];
+    };
+    expect(group.elements.length).toBe(2);
   });
 
-  it('restores wheres even on exception', () => {
+  it('skips undefined expressions (and() with all-empty args)', () => {
     const b = builder();
-    const original = b.sqb.wheres;
-    try {
-      b.group(() => {
-        throw new Error('test');
-      });
-    } catch {
-      /* expected */
-    }
-    expect(b.sqb.wheres).toBe(original);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.where((u: any) => and(u.name.eq('Alice'), undefined));
+    expect(b.sqb.wheres.elements.length).toBe(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.where(() => undefined as any);
+    expect(b.sqb.wheres.elements.length).toBe(1);
   });
 });
 
@@ -156,8 +146,8 @@ describe('SingleQueryBuilder — having', () => {
     const b = builder();
     b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
     b.having((t: any) => t.total.gt(5));
-    expect(b.sqb.havings.conditions.length).toBe(1);
-    const c = b.sqb.havings.conditions[0] as {
+    expect(b.sqb.havings.elements.length).toBe(1);
+    const c = b.sqb.havings.elements[0].condition as {
       field: string;
       op: string;
       alias?: string;
@@ -181,39 +171,17 @@ describe('SingleQueryBuilder — having', () => {
     b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
     b.having((t: any) => t.total.gt(5));
     const c = b.clone();
-    expect(c.sqb.havings.conditions.length).toBe(1);
+    expect(c.sqb.havings.elements.length).toBe(1);
   });
 
-  it('havingOr flips the having group to OR', () => {
+  it('havingOr appends an OR step (no auto-grouping)', () => {
     const b = builder();
     b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
     b.having((t: any) => t.total.gt(5));
     b.havingOr((t: any) => t.total.lt(1));
-    expect(b.sqb.havings.op).toBe('OR');
-    expect(b.sqb.havings.conditions.length).toBe(2);
-  });
-
-  it('havingGroup pushes a nested group (parentheses)', () => {
-    const b = builder();
-    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
-    b.havingGroup((q) => {
-      q.having((t: any) => t.total.gt(5));
-      q.havingOr((t: any) => t.total.lt(1));
-    });
-    expect(b.sqb.havings.conditions.length).toBe(1);
-    const child = b.sqb.havings.conditions[0] as {
-      op: string;
-      conditions: unknown[];
-    };
-    expect(child.op).toBe('OR');
-    expect(child.conditions.length).toBe(2);
-  });
-
-  it('havingGroup empty callback pushes nothing', () => {
-    const b = builder();
-    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
-    b.havingGroup(() => {});
-    expect(b.sqb.havings.conditions.length).toBe(0);
+    expect(b.sqb.havings.elements.length).toBe(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((b.sqb.havings.elements[1] as any).join).toBe('OR');
   });
 });
 
@@ -242,7 +210,7 @@ describe('SingleQueryBuilder — findById', () => {
     const b = builder();
     b.findById(42);
     expect(b.sqb.limit).toBe(1);
-    expect(b.sqb.wheres.conditions.length).toBe(1);
+    expect(b.sqb.wheres.elements.length).toBe(1);
   });
 });
 
@@ -297,13 +265,13 @@ describe('SingleQueryBuilder — update', () => {
     const f = b.update({ name: 'Alice' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.where((u: any) => u.id.eq(1));
-    expect(b.sqb.wheres.conditions.length).toBe(0);
+    expect(b.sqb.wheres.elements.length).toBe(0);
     await f.go();
     expect(adapter.execute).toHaveBeenCalledWith(
       expect.objectContaining({
         operation: 'update',
         wheres: expect.objectContaining({
-          conditions: expect.arrayContaining([expect.anything()]),
+          elements: expect.arrayContaining([expect.anything()]),
         }),
       }),
     );
@@ -401,7 +369,7 @@ describe('SingleQueryBuilder — update returning', () => {
       .where((u: any) => u.id.eq(1))
       .returning((u: any) => [u.id])
       .go();
-    expect(b.sqb.wheres.conditions.length).toBe(0);
+    expect(b.sqb.wheres.elements.length).toBe(0);
     expect(result).toEqual([{ id: 42 }]);
   });
 });
@@ -508,9 +476,9 @@ describe('SingleQueryBuilder — clone', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     c.where((u: any) => u.name.eq('Alice'));
     c.limit(10);
-    expect(b.sqb.wheres.conditions.length).toBe(0);
+    expect(b.sqb.wheres.elements.length).toBe(0);
     expect(b.sqb.limit).toBeNull();
-    expect(c.sqb.wheres.conditions.length).toBe(1);
+    expect(c.sqb.wheres.elements.length).toBe(1);
     expect(c.sqb.limit).toBe(10);
   });
 
@@ -520,7 +488,7 @@ describe('SingleQueryBuilder — clone', () => {
     b.where((u: any) => u.name.eq('Alice'));
     b.first();
     const c = b.clone();
-    expect(c.sqb.wheres.conditions.length).toBe(1);
+    expect(c.sqb.wheres.elements.length).toBe(1);
     expect(c.sqb.limit).toBe(1);
   });
 

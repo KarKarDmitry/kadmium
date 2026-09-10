@@ -14,8 +14,8 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
   return {
     operation: 'select',
     tableContext: new Map([['u', 'users']]),
-    wheres: { op: 'AND', conditions: [] },
-    havings: { op: 'AND', conditions: [] },
+    wheres: { elements: [] },
+    havings: { elements: [] },
     selects: null,
     joins: [],
     includes: [],
@@ -42,10 +42,10 @@ function where(
 }
 
 function group(
-  op: 'AND' | 'OR',
-  conditions: Array<WhereCondition | WhereGroup>,
+  join: 'AND' | 'OR',
+  conditions: WhereCondition[],
 ): WhereGroup {
-  return { op, conditions };
+  return { elements: conditions.map((condition) => ({ join, condition })) };
 }
 
 function selectable(
@@ -302,8 +302,7 @@ describe('SqlGenerator — toSql: select', () => {
       selects: [selectable('u', 'id'), aggregate('u', 'count', 'total')],
       groupBy: ['id'],
       havings: {
-        op: 'AND',
-        conditions: [where('total', '>', 5, '')],
+        elements: [{ join: 'AND', condition: where('total', '>', 5, '') }],
       },
     });
     const { text, values } = gen.toSql(q);
@@ -316,8 +315,7 @@ describe('SqlGenerator — toSql: select', () => {
     const q = sqb({
       selects: [aggregate('u', 'count', 'total')],
       havings: {
-        op: 'AND',
-        conditions: [where('total', '>', 3, '')],
+        elements: [{ join: 'AND', condition: where('total', '>', 3, '') }],
       },
     });
     const { text, values } = gen.toSql(q);

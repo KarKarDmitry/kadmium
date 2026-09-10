@@ -1,5 +1,5 @@
 import { KadmiumSqb, type AnySelectableField } from '../sqb';
-import type { WhereCondition } from '../ast/where';
+import type { WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import type { ModelIR } from '../../ir/index';
 import type {
@@ -21,7 +21,6 @@ import type { Evaluate } from '../types/relations';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import { addOrCondition, withChildGroup } from './where-helpers';
 import {
   createFilterProxy,
   createSelectProxy,
@@ -80,27 +79,32 @@ export class SingleQueryBuilder<
     return b;
   }
 
-  // ── where / and / or / group — return this (no type change) ──
+  // ── where / and / or — return this (no type change) ──
+  // Линейная последовательность шагов: скобок/групп на уровне API нет.
+  // Вложенные структуры — только через and()/or() выражения.
 
-  where(fn: (t: FilterProxy<TModel>) => WhereCondition): this {
-    const proxy = this._createFilterProxy();
-    this.sqb.wheres.conditions.push(fn(proxy));
+  where(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
+    this._pushWhere('AND', fn);
     return this;
   }
 
-  and(fn: (t: FilterProxy<TModel>) => WhereCondition): this {
+  and(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
     return this.where(fn);
   }
 
-  or(fn: (t: FilterProxy<TModel>) => WhereCondition): this {
-    const proxy = this._createFilterProxy();
-    addOrCondition(this.sqb.wheres, fn(proxy));
+  or(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
+    this._pushWhere('OR', fn);
     return this;
   }
 
-  group(callback: (q: this) => void): this {
-    withChildGroup(this.sqb, 'wheres', () => callback(this));
-    return this;
+  private _pushWhere(
+    join: 'AND' | 'OR',
+    fn: (t: FilterProxy<TModel>) => WhereExpression | undefined,
+  ): void {
+    const expression = fn(this._createFilterProxy());
+    if (expression !== undefined) {
+      this.sqb.wheres.elements.push({ join, condition: expression });
+    }
   }
 
   // ── select — returns this with updated TSelect ──
@@ -191,28 +195,31 @@ export class SingleQueryBuilder<
   }
 
   /** Фильтр по агрегатным алиасам (HAVING). Алиасы — из select()/.as(). */
-  having(fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereCondition): this {
-    this.sqb.havings.conditions.push(
-      fn(createHavingProxy(this.sqb, this._aggregateAliases())),
-    );
-    return this;
-  }
-
-  /** OR-композиция для HAVING (оборачивает предыдущие AND-условия). */
-  havingOr(
-    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereCondition,
+  having(
+    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereExpression | undefined,
   ): this {
-    addOrCondition(
-      this.sqb.havings,
-      fn(createHavingProxy(this.sqb, this._aggregateAliases())),
-    );
+    this._pushHaving('AND', fn);
     return this;
   }
 
-  /** Вложенная HAVING-группа со скобками: q.having(...).havingOr(...). */
-  havingGroup(callback: (q: this) => void): this {
-    withChildGroup(this.sqb, 'havings', () => callback(this));
+  /** OR-шаг для HAVING (линейная последовательность, как where/or). */
+  havingOr(
+    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereExpression | undefined,
+  ): this {
+    this._pushHaving('OR', fn);
     return this;
+  }
+
+  private _pushHaving(
+    join: 'AND' | 'OR',
+    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereExpression | undefined,
+  ): void {
+    const expression = fn(
+      createHavingProxy(this.sqb, this._aggregateAliases()),
+    );
+    if (expression !== undefined) {
+      this.sqb.havings.elements.push({ join, condition: expression });
+    }
   }
 
   order(fn: (t: OrderProxy<TModel>) => OrderDirection[]): this {

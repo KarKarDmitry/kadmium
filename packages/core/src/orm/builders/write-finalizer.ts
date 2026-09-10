@@ -74,7 +74,10 @@ export function buildWriteFinalizer<TModel extends Model>(
 
   return {
     where: (clause) => {
-      sqb.wheres.conditions.push(clause(createFilterProxy()));
+      const expression = clause(createFilterProxy());
+      if (expression !== undefined) {
+        sqb.wheres.elements.push({ join: 'AND', condition: expression });
+      }
       return { returning, go, sql };
     },
     returning,

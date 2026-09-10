@@ -5,7 +5,7 @@ import type {
   BooleanFilter,
   DateFilter,
 } from '../field-builders/filters';
-import type { WhereCondition } from '../ast/where';
+import type { WhereExpression } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
 import type {
@@ -119,7 +119,7 @@ export interface UpdateFinalizer<
     go: () => Promise<FlatFinalResult<S>[]>;
     sql: () => string;
   };
-  where(clause: (t: FilterProxy<TModel>) => WhereCondition): {
+  where(clause: (t: FilterProxy<TModel>) => WhereExpression | undefined): {
     returning<S extends readonly AnySelectable[]>(
       fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
     ): {

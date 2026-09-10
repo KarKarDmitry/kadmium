@@ -84,6 +84,6 @@ describe('clone: safe builder reuse via snapshots', () => {
       'Hello Postgres',
     ]);
     expect(bob.map((r) => r.p.title)).toEqual(['Bob Writes']);
-    expect(base.sqb.wheres.conditions.length).toBe(0);
+    expect(base.sqb.wheres.elements.length).toBe(0);
   });
 });

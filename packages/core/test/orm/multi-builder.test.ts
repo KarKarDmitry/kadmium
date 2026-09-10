@@ -24,7 +24,7 @@ describe('MultiQueryBuilder — where', () => {
     const b = multiBuilder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((t: any) => t.u.name.eq('Alice'));
-    expect(b.sqb.wheres.conditions.length).toBe(1);
+    expect(b.sqb.wheres.elements.length).toBe(1);
   });
 
   it('invalid alias throws', () => {
@@ -88,9 +88,9 @@ describe('MultiQueryBuilder — clone', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     c.where((t: any) => t.u.name.eq('Alice'));
     c.limit(10);
-    expect(b.sqb.wheres.conditions.length).toBe(0);
+    expect(b.sqb.wheres.elements.length).toBe(0);
     expect(b.sqb.limit).toBeNull();
-    expect(c.sqb.wheres.conditions.length).toBe(1);
+    expect(c.sqb.wheres.elements.length).toBe(1);
     expect(c.sqb.limit).toBe(10);
   });
 
@@ -100,7 +100,7 @@ describe('MultiQueryBuilder — clone', () => {
     b.where((t: any) => t.u.name.eq('Alice'));
     b.include({ u: { posts: true } });
     const c = b.clone();
-    expect(c.sqb.wheres.conditions.length).toBe(1);
+    expect(c.sqb.wheres.elements.length).toBe(1);
     expect(c.sqb.includes.length).toBe(1);
   });
 });

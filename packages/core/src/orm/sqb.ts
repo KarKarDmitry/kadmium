@@ -83,11 +83,13 @@ export class KadmiumSqb {
 
   private _cloneWhereGroup(g: WhereGroup): WhereGroup {
     return {
-      op: g.op,
-      conditions: g.conditions.map((c) => {
-        if ('conditions' in c) return this._cloneWhereGroup(c);
-        return { ...c };
-      }),
+      elements: g.elements.map((step) => ({
+        join: step.join,
+        condition:
+          'elements' in step.condition
+            ? this._cloneWhereGroup(step.condition)
+            : { ...step.condition },
+      })),
     };
   }
 

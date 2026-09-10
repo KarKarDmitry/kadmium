@@ -3,6 +3,7 @@ import { SqlGenerator } from '../../src/sql-generator';
 import type {
   WhereCondition,
   WhereGroup,
+  WhereStep,
 } from '@karkardmitry/kadmium-sql-types';
 
 class TestGenerator extends SqlGenerator {}
@@ -17,25 +18,29 @@ function where(
   return { field, op, value, alias, column };
 }
 
-function group(
-  op: 'AND' | 'OR',
-  conditions: Array<WhereCondition | WhereGroup>,
-): WhereGroup {
-  return { op, conditions };
+function step(
+  join: 'AND' | 'OR',
+  condition: WhereCondition | WhereGroup,
+): WhereStep {
+  return { join, condition };
+}
+
+function group(elements: WhereStep[]): WhereGroup {
+  return { elements };
 }
 
 describe('SqlGenerator — _buildWhereGroupSql', () => {
   const gen = new TestGenerator();
 
-  it('returns empty string for empty conditions', () => {
-    const g = group('AND', []);
+  it('returns empty string for empty elements', () => {
+    const g = group([]);
     const values: unknown[] = [];
     const p = { p: 1 };
     expect(gen['_buildWhereGroupSql'](g, values, p)).toBe('');
   });
 
   it('renders a single condition', () => {
-    const g = group('AND', [where('name', '=', 'Alice', 'u')]);
+    const g = group([step('AND', where('name', '=', 'Alice', 'u'))]);
     const values: unknown[] = [];
     const p = { p: 1 };
     expect(gen['_buildWhereGroupSql'](g, values, p)).toBe('"u"."name" = $1');
@@ -43,9 +48,9 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
   });
 
   it('renders AND between conditions', () => {
-    const g = group('AND', [
-      where('name', '=', 'Alice', 'u'),
-      where('age', '>', 18, 'u'),
+    const g = group([
+      step('AND', where('name', '=', 'Alice', 'u')),
+      step('AND', where('age', '>', 18, 'u')),
     ]);
     const values: unknown[] = [];
     const p = { p: 1 };
@@ -56,9 +61,9 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
   });
 
   it('renders OR between conditions', () => {
-    const g = group('OR', [
-      where('name', '=', 'Alice', 'u'),
-      where('name', '=', 'Bob', 'u'),
+    const g = group([
+      step('OR', where('name', '=', 'Alice', 'u')),
+      step('OR', where('name', '=', 'Bob', 'u')),
     ]);
     const values: unknown[] = [];
     const p = { p: 1 };
@@ -67,13 +72,16 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     );
   });
 
-  it('renders nested groups with parentheses', () => {
-    const g = group('AND', [
-      where('active', '=', true, 'u'),
-      group('OR', [
-        where('name', '=', 'Alice', 'u'),
-        where('name', '=', 'Bob', 'u'),
-      ]),
+  it('renders nested groups with parentheses when join differs', () => {
+    const g = group([
+      step('AND', where('active', '=', true, 'u')),
+      step(
+        'AND',
+        group([
+          step('OR', where('name', '=', 'Alice', 'u')),
+          step('OR', where('name', '=', 'Bob', 'u')),
+        ]),
+      ),
     ]);
     const values: unknown[] = [];
     const p = { p: 1 };
@@ -83,8 +91,63 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     expect(values).toEqual([true, 'Alice', 'Bob']);
   });
 
+  it('renders nested group without parens when join matches', () => {
+    const g = group([
+      step('AND', where('a', '=', 1, 'u')),
+      step(
+        'AND',
+        group([
+          step('AND', where('b', '=', 2, 'u')),
+          step('AND', where('c', '=', 3, 'u')),
+        ]),
+      ),
+    ]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
+      '"u"."a" = $1 AND "u"."b" = $2 AND "u"."c" = $3',
+    );
+  });
+
+  it('renders mixed nested group with parentheses', () => {
+    const g = group([
+      step('AND', where('a', '=', 1, 'u')),
+      step(
+        'AND',
+        group([
+          step('AND', where('b', '=', 2, 'u')),
+          step('OR', where('c', '=', 3, 'u')),
+        ]),
+      ),
+    ]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
+      '"u"."a" = $1 AND ("u"."b" = $2 OR "u"."c" = $3)',
+    );
+  });
+
+  it('skips parens for a single-element parent group', () => {
+    const g = group([
+      step(
+        'OR',
+        group([
+          step('AND', where('a', '=', 1, 'u')),
+          step('OR', where('c', '=', 3, 'u')),
+        ]),
+      ),
+    ]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
+      '"u"."a" = $1 OR "u"."c" = $2',
+    );
+  });
+
   it('uses column over field when column is set', () => {
-    const g = group('AND', [where('name', '=', 'Alice', 'u', 'display_name')]);
+    const g = group([
+      step('AND', where('name', '=', 'Alice', 'u', 'display_name')),
+    ]);
     const values: unknown[] = [];
     const p = { p: 1 };
     expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
@@ -97,14 +160,14 @@ describe('SqlGenerator — _buildWhereClause', () => {
   const gen = new TestGenerator();
 
   it('returns empty string when no conditions and no extras', () => {
-    const g = group('AND', []);
+    const g = group([]);
     const values: unknown[] = [];
     const p = { p: 1 };
     expect(gen['_buildWhereClause'](g, values, p, [])).toBe('');
   });
 
   it('renders WHERE from conditions', () => {
-    const g = group('AND', [where('name', '=', 'Alice', 'u')]);
+    const g = group([step('AND', where('name', '=', 'Alice', 'u'))]);
     const values: unknown[] = [];
     const p = { p: 1 };
     expect(gen['_buildWhereClause'](g, values, p, [])).toBe(
@@ -113,7 +176,7 @@ describe('SqlGenerator — _buildWhereClause', () => {
   });
 
   it('appends extraConditions with AND', () => {
-    const g = group('AND', [where('name', '=', 'Alice', 'u')]);
+    const g = group([step('AND', where('name', '=', 'Alice', 'u'))]);
     const values: unknown[] = [];
     const p = { p: 1 };
     expect(gen['_buildWhereClause'](g, values, p, ['"u"."id" = t.id'])).toBe(

@@ -2,6 +2,7 @@ export { OrmManager } from './orm';
 export { SingleQueryBuilder } from './builders/single';
 export { MultiQueryBuilder } from './builders/multi';
 export { KadmiumSqb } from './sqb';
+export { and, or } from './where-expression';
 export { SelectableField } from './ast/selectable';
 export { BaseFilter } from './field-builders/base-filter';
 export {
@@ -35,6 +36,7 @@ export type {
   FlatFinalResult,
   GetFieldName,
   GetFieldType,
+  WhereExpression,
 } from './types/public-types';
 export type {
   IncludeConfig,

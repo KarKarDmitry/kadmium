@@ -6,7 +6,7 @@ describe('KadmiumSqb', () => {
     const sqb = new KadmiumSqb();
     expect(sqb.operation).toBe('select');
     expect(sqb.tableContext.size).toBe(0);
-    expect(sqb.wheres).toEqual({ op: 'AND', conditions: [] });
+    expect(sqb.wheres).toEqual({ elements: [] });
     expect(sqb.selects).toBeNull();
     expect(sqb.joins).toEqual([]);
     expect(sqb.includes).toEqual([]);
@@ -37,26 +37,32 @@ describe('KadmiumSqb', () => {
 
   it('clone deep-copies wheres', () => {
     const sqb = new KadmiumSqb();
-    sqb.wheres.conditions.push({ field: 'name', op: '=', value: 'Alice' });
+    sqb.wheres.elements.push({
+      join: 'AND',
+      condition: { field: 'name', op: '=', value: 'Alice' },
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nested: any = {
-      op: 'AND',
-      conditions: [{ field: 'age', op: '>', value: 18 }],
+      elements: [
+        { join: 'OR', condition: { field: 'age', op: '>', value: 18 } },
+      ],
     };
-    sqb.wheres.conditions.push(nested);
+    sqb.wheres.elements.push({ join: 'OR', condition: nested });
 
     const cloned = sqb.clone();
 
     // Mutate original
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sqb.wheres.conditions[0] as any).value = 'Bob';
+    (sqb.wheres.elements[0] as any).condition.value = 'Bob';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sqb.wheres.conditions[1] as any).conditions[0].value = 25;
+    (sqb.wheres.elements[1] as any).condition.elements[0].condition.value = 25;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((cloned.wheres.conditions[0] as any).value).toBe('Alice');
+    expect((cloned.wheres.elements[0] as any).condition.value).toBe('Alice');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((cloned.wheres.conditions[1] as any).conditions[0].value).toBe(18);
+    expect(
+      (cloned.wheres.elements[1] as any).condition.elements[0].condition.value,
+    ).toBe(18);
   });
 
   it('clone copies tableContext Map', () => {

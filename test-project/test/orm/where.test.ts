@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { and, or } from '@karkardmitry/kadmium-core';
 import { User as UserModel, Post as PostModel } from '../../src/models';
 import { makeHarness, type Harness } from '../helpers';
 import { resetAndSeed } from '../fixtures';
@@ -52,14 +53,26 @@ describe('where: filters, groups, ordering, pagination', () => {
     expect(rows.map((r) => r.name).sort()).toEqual(['Alice', 'Bob', 'Carol']);
   });
 
-  it('group() creates parenthesized subclause', async () => {
+  it('flat sequence follows PG precedence: A OR B AND C = A OR (B AND C)', async () => {
+    const rows = await h.orm
+      .single(UserModel)
+      .where((u) => u.name.eq('Bob'))
+      .or((u) => u.age.gt(25))
+      .and((u) => u.active.eq(true))
+      .go();
+    // SQL: name='Bob' OR age>25 AND active — без скобок, AND приоритетнее OR:
+    // Bob OR (Alice-30-active AND Carol-40-active) => все трое (детерминизм)
+    expect(rows.map((r) => r.name).sort()).toEqual(['Alice', 'Bob', 'Carol']);
+  });
+
+  it('and()/or() expressions create parenthesized groups', async () => {
     const rows = await h.orm
       .single(PostModel)
-      .where((p) => p.published.eq(true))
-      .group((q) =>
-        q
-          .where((p) => p.title.like('%Postgres%'))
-          .or((p) => p.title.like('%Bob%')),
+      .where((p) =>
+        and(
+          p.published.eq(true),
+          or(p.title.like('%Postgres%'), p.title.like('%Bob%')),
+        ),
       )
       .go();
     // published AND (title~Postgres OR title~Bob) => оба опубликованы и подходят

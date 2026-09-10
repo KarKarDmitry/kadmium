@@ -1,5 +1,5 @@
 import { KadmiumSqb } from '../sqb';
-import type { WhereCondition } from '../ast/where';
+import type { WhereCondition, WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
@@ -18,7 +18,6 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import type { AnySelectable } from '../types/includes';
-import { addOrCondition } from './where-helpers';
 import {
   buildRelation,
   configureRelation,
@@ -80,20 +79,30 @@ export class MultiQueryBuilder<
   }
 
   // ── where ──
+  // Линейная последовательность шагов; группы — только выражениями (and/or).
 
-  where(fn: (t: MultiFilterProxy<T>) => WhereCondition): this {
-    this.sqb.wheres.conditions.push(fn(this._createFilterProxy()));
+  where(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
+    this._pushWhere('AND', fn);
     return this;
   }
 
-  and(fn: (t: MultiFilterProxy<T>) => WhereCondition): this {
+  and(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
     return this.where(fn);
   }
 
-  or(fn: (t: MultiFilterProxy<T>) => WhereCondition): this {
-    const condition = fn(this._createFilterProxy());
-    addOrCondition(this.sqb.wheres, condition);
+  or(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
+    this._pushWhere('OR', fn);
     return this;
+  }
+
+  private _pushWhere(
+    join: 'AND' | 'OR',
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined,
+  ): void {
+    const expression = fn(this._createFilterProxy());
+    if (expression !== undefined) {
+      this.sqb.wheres.elements.push({ join, condition: expression });
+    }
   }
 
   // ── join ──

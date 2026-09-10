@@ -8,8 +8,8 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
   return {
     operation: 'select',
     tableContext: new Map([['u', 'users']]),
-    wheres: { op: 'AND', conditions: [] },
-    havings: { op: 'AND', conditions: [] },
+    wheres: { elements: [] },
+    havings: { elements: [] },
     selects: null,
     joins: [],
     includes: [],

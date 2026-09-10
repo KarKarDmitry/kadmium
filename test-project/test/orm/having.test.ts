@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { or } from '@karkardmitry/kadmium-core';
 import { Post as PostModel } from '../../src/models';
 import { makeHarness, type Harness } from '../helpers';
 import { resetAndSeed } from '../fixtures';
@@ -78,17 +79,14 @@ describe('having: filter grouped aggregates', () => {
     expect(rows.length).toBe(2);
   });
 
-  it('havingGroup nests a parenthesized OR/AND subclause', async () => {
+  it('or() expression nests a parenthesized subclause', async () => {
     const rows = await h.orm
       .single(PostModel)
       .select((p, aggs) => [p.author, aggs.count('*').as('cnt'), aggs.sum(p.views).as('totalViews')])
       .groupBy((p) => [p.author])
-      .havingGroup((q) => {
-        q.having((t) => t.cnt.gt(0));
-        q.havingOr((t) => t.totalViews.gt(100));
-      })
+      .having((t) => or(t.cnt.gt(0), t.totalViews.gt(100)))
       .go();
-    // (cnt > 0 OR totalViews > 100): у обеих cnt=1+, Alice и Bob проходят
+    // (cnt > 0 OR totalViews > 100): у обеих cnt≥1, Alice и Bob проходят
     expect(rows.length).toBe(2);
   });
 });

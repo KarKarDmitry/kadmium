@@ -13,8 +13,8 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
   return {
     operation: 'select',
     tableContext: new Map([['u', 'users']]),
-    wheres: { op: 'AND', conditions: [] },
-    havings: { op: 'AND', conditions: [] },
+    wheres: { elements: [] },
+    havings: { elements: [] },
     selects: null,
     joins: [],
     includes: [],
@@ -41,10 +41,10 @@ function where(
 }
 
 function group(
-  op: 'AND' | 'OR',
-  conditions: Array<WhereCondition | WhereGroup>,
+  join: 'AND' | 'OR',
+  conditions: WhereCondition[],
 ): WhereGroup {
-  return { op, conditions };
+  return { elements: conditions.map((condition) => ({ join, condition })) };
 }
 
 function includedRelation(

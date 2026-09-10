@@ -1,7 +1,7 @@
 import { KadmiumSqb } from '../sqb';
 import { Relation } from '../field-builders/relation';
 import { toSnakeCase, type ModelIR } from '../../ir/index';
-import type { WhereCondition } from '../ast/where';
+import type { WhereExpression } from '../ast/where';
 import type { OrderDirection } from '../types/proxy';
 
 /**
@@ -12,7 +12,7 @@ export type IncludeConfigValue =
   | boolean
   | {
       alias?: string;
-      where?: (proxy: any) => WhereCondition;
+      where?: (proxy: any) => WhereExpression | undefined;
       order?: (proxy: any) => OrderDirection[];
       limit?: number;
       select?: (proxy: any) => readonly any[];

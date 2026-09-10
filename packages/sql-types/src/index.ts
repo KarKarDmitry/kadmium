@@ -15,10 +15,17 @@ export interface WhereCondition {
   value: unknown;
 }
 
-export interface WhereGroup {
-  op: 'AND' | 'OR';
-  conditions: Array<WhereCondition | WhereGroup>;
+/** Шаг последовательности: с каким join присоединяется условие */
+export interface WhereStep {
+  join: 'AND' | 'OR';
+  condition: WhereCondition | WhereGroup;
 }
+
+export interface WhereGroup {
+  elements: WhereStep[];
+}
+
+export type WhereExpression = WhereCondition | WhereGroup;
 
 export interface SelectableField {
   readonly kind: 'selectable';

@@ -1,5 +1,5 @@
 import { KadmiumSqb, type IncludedRelation } from '../sqb';
-import type { WhereCondition } from '../ast/where';
+import type { WhereExpression } from '../ast/where';
 import type { FieldIR, ModelIR } from '../../ir/index';
 import type { OrderDirection } from '../types/proxy';
 import {
@@ -70,14 +70,19 @@ export class Relation implements IncludedRelation {
     return this;
   }
 
-  where(fn: (t: any) => WhereCondition): this {
+  where(fn: (t: any) => WhereExpression | undefined): this {
     const proxy = createFilterProxy(
       this.alias,
       this.targetIr,
       this.internalSqb,
     );
-    const condition = fn(proxy);
-    this.internalSqb.wheres.conditions.push(condition);
+    const expression = fn(proxy);
+    if (expression !== undefined) {
+      this.internalSqb.wheres.elements.push({
+        join: 'AND',
+        condition: expression,
+      });
+    }
     return this;
   }
 
