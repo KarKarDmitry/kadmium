@@ -1,3 +1,7 @@
+// Загрузка моделей/конфига в собранных пакетах (dist CJS) идёт через нативный
+// require() пользовательского TS — как в проде, ему нужен ts-node.
+import 'ts-node/register';
+
 import { makeHarness, dropAllTables, syncSchema } from './helpers';
 import { seed } from './fixtures';
 

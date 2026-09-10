@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": [
+    "packages/core/src/**/*",
+    "packages/core/types/**/*",
+    "packages/core/test/**/*",
+    "packages/sql-pg/src/**/*",
+    "packages/sql-types/src/**/*"
+  ]
+}
