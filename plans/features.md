@@ -164,6 +164,17 @@ orm.single(Order)
 
 **Коммит:**
 
+### Подготовка: новый API `.order` (breaking)
+
+`order()` переведён на массив направлений per-field: `order(u => [u.id.asc, u.name.desc])` вместо `order(fn, dir)`. Это предпосылка F5: `sqb.orders[]` несёт полный упорядоченный список ключей, keyset = row-value сравнение `(k1, k2) > ($1, $2)`.
+
+Реализовано в `6395f0c`:
+- `OrderDirection { tableAlias, fieldName, column?, direction }` — создаётся флагом `u.id.asc` / `u.id.desc`
+- `OrderField { ..., asc, desc }` — больше не «голое» направление
+- `createOrderProxy` возвращает объекты с `.asc`/`.desc`; `MultiOrderProxy<T>` для multi-запросов
+- `single()`, `multi()`, `Relation.order()` единый сигнатуру `(t) => OrderDirection[]`
+- Разобраны вызовы в core/tests и test-project
+
 ---
 
 ## F6: Нет createMany() / updateMany() / deleteMany()
