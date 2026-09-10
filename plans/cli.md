@@ -41,6 +41,15 @@
 4. Решить судьбу `ts-node` как зависимости (сейчас devDep помещён на корне; для потребителей bin должен стать `dependencies`).
 5. Бонус: `--version`, унифицированные exit codes, README-скаффолд, пример модели с relations.
 
+**Статус:** ✅ Пункты 1–4 решены в `40c71a2`. Пункт 5 — перенесён в G1.
+
+**Что сделано (40c71a2):**
+- `tsconfig.build.json` для core (вкл. `src/codegen`) и sql-pg — сборка только `src/**`; единый прогон `npm run check:type` через корневой `tsconfig.check.json`.
+- `main`/`types`/`bin` → dist (`bin` → `dist/src/bin/kadmium.js`), `files: ["dist"]`, `prebuild` clean; `build` = упорядоченно `sql-types → sql-pg → core`.
+- Бин-хак убран вместе со `bin/kadmium.js`: `src/bin/kadmium.ts` регистрирует ts-node (`transpileOnly`) со shebang.
+- `ts-node` → `dependencies` пакета core.
+- Development-флоу: vitest alias `@karkardmitry/*` → src (unit-тесты на исходниках), `test:project` против dist (регистрация ts-node в `setupFiles`/глобал-сетапе, `rootDir` задан в tsconfig тест-проекта).
+
 **Связанные файлы:**
 - `packages/core/bin/kadmium.js` (хак + TODO)
 - `packages/core/package.json` (bin → dist, потом main/types)
