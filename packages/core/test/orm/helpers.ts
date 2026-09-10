@@ -7,6 +7,17 @@ export interface MockAdapter {
   toSql: Mock<(sqb: ReadonlySqb) => { text: string; values: unknown[] }>;
   execute: Mock<(sqb: ReadonlySqb) => Promise<Record<string, unknown>[]>>;
   create: Mock<(table: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>>;
+  createMany: Mock<
+    (
+      table: string,
+      rows: Record<string, unknown>[],
+      options?: {
+        transaction?: boolean;
+        conflictTarget?: string[];
+        doNothing?: boolean;
+      },
+    ) => Promise<Record<string, unknown>[]>
+  >;
   raw: Mock<(sql: string, values: unknown[]) => Promise<Record<string, unknown>[]>>;
   ddl: SqlAdapter['ddl'];
   beginTransaction: Mock<() => Promise<{
@@ -27,6 +38,7 @@ export function makeMockAdapter(): MockAdapter {
     toSql: vi.fn().mockReturnValue({ text: 'SELECT 1', values: [] }),
     execute: vi.fn().mockResolvedValue([]),
     create: vi.fn().mockResolvedValue({ id: 1 }),
+    createMany: vi.fn().mockResolvedValue([]),
     raw: vi.fn().mockResolvedValue([]),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ddl: {} as any,

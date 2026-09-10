@@ -15,6 +15,26 @@ interface SqlIdentifierRef {
   getIdentifierForSql(): string;
 }
 
+/**
+ * ON CONFLICT (target) DO UPDATE/NOTHING для INSERT.
+ * Обновляются все ключи, кроме входящих в conflictTarget.
+ */
+export function renderConflictClause(
+  keys: string[],
+  conflictTarget: string[],
+  doNothing: boolean,
+): string {
+  const target = conflictTarget.map((c) => `"${c}"`).join(', ');
+  if (doNothing) return ` ON CONFLICT (${target}) DO NOTHING`;
+  const updateCols = keys
+    .filter((k) => !conflictTarget.includes(k))
+    .map((k) => `"${k}" = EXCLUDED."${k}"`)
+    .join(', ');
+  return updateCols
+    ? ` ON CONFLICT (${target}) DO UPDATE SET ${updateCols}`
+    : ` ON CONFLICT (${target}) DO NOTHING`;
+}
+
 export abstract class SqlGenerator {
   /** Преобразует значение WhereCondition в SQL-строку + параметры */
   protected _renderValue(
@@ -568,18 +588,11 @@ export abstract class SqlGenerator {
 
     let onConflict = '';
     if (sqb.conflictTarget?.length) {
-      const target = sqb.conflictTarget.map((c) => `"${c}"`).join(', ');
-      if (sqb.doNothing) {
-        onConflict = ` ON CONFLICT (${target}) DO NOTHING`;
-      } else {
-        const updateCols = keys
-          .filter((k) => !sqb.conflictTarget!.includes(k))
-          .map((k) => `"${k}" = EXCLUDED."${k}"`)
-          .join(', ');
-        onConflict = updateCols
-          ? ` ON CONFLICT (${target}) DO UPDATE SET ${updateCols}`
-          : ` ON CONFLICT (${target}) DO NOTHING`;
-      }
+      onConflict = renderConflictClause(
+        keys,
+        sqb.conflictTarget,
+        sqb.doNothing,
+      );
     }
 
     return {

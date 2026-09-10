@@ -159,4 +159,64 @@ describe('createMany().onConflict() — batch upsert', () => {
     expect(rows[0].name).toBe('GraceUpdated');
     expect(rows[0].age).toBe(31);
   });
+
+  it('mixed insert + update in a single batch statement', async () => {
+    // Insert first (will be updated by the batch)
+    await h.orm
+      .single(UserModel)
+      .create({ name: 'Helen', email: 'helen@mix.test', age: 44, active: true })
+      .go();
+
+    const rows = await h.orm
+      .single(UserModel)
+      .createMany([
+        { name: 'Iris', email: 'iris@mix.test', age: 20, active: true },
+        { name: 'HelenUpdated', email: 'helen@mix.test', age: 45, active: false },
+      ])
+      .onConflict((t) => [t.email])
+      .go();
+
+    expect(rows).toHaveLength(2);
+    const byEmail = Object.fromEntries(rows.map((r) => [r.email, r]));
+    expect(byEmail['iris@mix.test'].name).toBe('Iris');
+    expect(byEmail['helen@mix.test'].name).toBe('HelenUpdated');
+    expect(byEmail['helen@mix.test'].age).toBe(45);
+
+    // No duplicates for the updated email
+    const count = await h.orm
+      .single(UserModel)
+      .where((u) => u.email.eq('helen@mix.test'))
+      .count()
+      .go();
+    expect(count).toBe(1);
+  });
+
+  it('doNothing batch returns only actually inserted rows', async () => {
+    await h.orm
+      .single(UserModel)
+      .create({ name: 'John', email: 'john@nothing.test', age: 33, active: true })
+      .go();
+
+    const rows = await h.orm
+      .single(UserModel)
+      .createMany([
+        { name: 'JohnUpdated', email: 'john@nothing.test', age: 99, active: false },
+        { name: 'Kate', email: 'kate@nothing.test', age: 27, active: true },
+      ])
+      .onConflict((t) => [t.email])
+      .doNothing()
+      .go();
+
+    // DO NOTHING + RETURNING: only the inserted row comes back
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('Kate');
+
+    const john = await h.orm
+      .single(UserModel)
+      .where((u) => u.email.eq('john@nothing.test'))
+      .first()
+      .go();
+    expect(john!.name).toBe('John');
+    expect(john!.age).toBe(33);
+  });
 });

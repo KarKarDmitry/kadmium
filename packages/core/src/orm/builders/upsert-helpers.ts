@@ -109,36 +109,15 @@ export function buildCreateManyFinalizer<TModel extends Model>(
       return _finalize();
     },
     go: async () => {
-      if (!baseSqb.conflictTarget?.length) {
-        const rows = await adapter.createMany(
-          ir.collection,
-          mappedRows,
-          options,
-        );
-        return rows.map((r) => mapRow(ir, r)) as TModel['~shape'][];
-      }
-      // With ON CONFLICT: each row needs its own INSERT
-      const results: TModel['~shape'][] = [];
-      for (const row of mappedRows) {
-        const sqb = new (baseSqb.constructor as any)();
-        sqb.operation = 'upsert';
-        sqb.upsertData = row;
-        sqb.tableContext = new Map(baseSqb.tableContext);
-        sqb.conflictTarget = [...baseSqb.conflictTarget!];
-        sqb.doNothing = baseSqb.doNothing;
-        const result = await adapter.execute(sqb);
-        if (result[0])
-          results.push(
-            mapRow(
-              ir,
-              result[0] as Record<string, unknown>,
-            ) as TModel['~shape'],
-          );
-      }
-      return results;
+      const rows = await adapter.createMany(ir.collection, mappedRows, {
+        transaction: options?.transaction,
+        conflictTarget: baseSqb.conflictTarget ?? undefined,
+        doNothing: baseSqb.doNothing,
+      });
+      return rows.map((r) => mapRow(ir, r)) as TModel['~shape'][];
     },
     sql: () => {
-      // Show SQL for first row as preview
+      // Preview for the first row (batch upsert issues a single multi-row statement)
       const sqb = new (baseSqb.constructor as any)();
       sqb.operation = 'upsert';
       sqb.upsertData = mappedRows[0];

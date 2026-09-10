@@ -116,7 +116,13 @@ export interface SqlAdapter {
   createMany(
     collectionName: string,
     data: Record<string, unknown>[],
-    options?: { transaction?: boolean },
+    options?: {
+      transaction?: boolean;
+      /** Column(s) for ON CONFLICT — batches become multi-row upsert */
+      conflictTarget?: string[];
+      /** ON CONFLICT DO NOTHING instead of DO UPDATE */
+      doNothing?: boolean;
+    },
   ): Promise<Record<string, unknown>[]>;
 
   /** DDL operations */

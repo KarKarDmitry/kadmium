@@ -15,7 +15,7 @@ import type {
   ReadonlySqb,
   IncludedRelation,
 } from '@karkardmitry/kadmium-sql-types';
-import { SqlGenerator } from './sql-generator';
+import { SqlGenerator, renderConflictClause } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { PgDdlAdapter } from './ddl-adapter';
 
@@ -70,6 +70,35 @@ function buildInsertManySql(
   return { text, values };
 }
 
+function buildUpsertManySql(
+  collectionName: string,
+  rows: Record<string, unknown>[],
+  conflictTarget: string[],
+  doNothing: boolean,
+): { text: string; values: unknown[] } {
+  if (rows.length === 0)
+    throw new Error('createMany requires at least one row');
+  const keys = Object.keys(rows[0]);
+  const columns = keys.map((k) => `"${k}"`).join(', ');
+  const values: unknown[] = [];
+  const valuePlaceholders = rows.map((row) => {
+    const placeholders = keys.map((_, i) => `$${values.length + i + 1}`);
+    values.push(...keys.map((k) => row[k]));
+    return `(${placeholders.join(', ')})`;
+  });
+  const onConflict = renderConflictClause(keys, conflictTarget, doNothing);
+  const text =
+    `INSERT INTO "${collectionName}" (${columns}) VALUES ${valuePlaceholders.join(', ')}${onConflict} RETURNING *`
+      .trim()
+      .replace(/\s+/g, ' ');
+  return { text, values };
+}
+
+type ManyRowsSqlBuilder = (
+  collectionName: string,
+  rows: Record<string, unknown>[],
+) => { text: string; values: unknown[] };
+
 /** Max rows per single INSERT to stay under PostgreSQL's 65535 parameter limit. */
 const MAX_BATCH_ROWS = 1000;
 
@@ -77,12 +106,13 @@ async function createManyRows(
   queryFn: QueryFn,
   collectionName: string,
   rows: Record<string, unknown>[],
+  builder: ManyRowsSqlBuilder = buildInsertManySql,
 ): Promise<Record<string, unknown>[]> {
   if (rows.length === 0) return [];
   const results: Record<string, unknown>[] = [];
   for (let i = 0; i < rows.length; i += MAX_BATCH_ROWS) {
     const batch = rows.slice(i, i + MAX_BATCH_ROWS);
-    const { text, values } = buildInsertManySql(collectionName, batch);
+    const { text, values } = builder(collectionName, batch);
     const result = await queryFn(text, values);
     results.push(...(result.rows as Record<string, unknown>[]));
   }
@@ -237,13 +267,23 @@ class TransactionalPgAdapter
   async createMany(
     collectionName: string,
     rows: Record<string, unknown>[],
-    _options?: { transaction?: boolean },
+    options?: {
+      transaction?: boolean;
+      conflictTarget?: string[];
+      doNothing?: boolean;
+    },
   ): Promise<Record<string, unknown>[]> {
     // Already in a transaction — ignore options.transaction
+    const conflictTarget = options?.conflictTarget ?? [];
+    const builder = conflictTarget.length
+      ? (name: string, batch: Record<string, unknown>[]) =>
+          buildUpsertManySql(name, batch, conflictTarget, !!options?.doNothing)
+      : buildInsertManySql;
     return createManyRows(
       (t, v) => this.client.query(t, v),
       collectionName,
       rows,
+      builder,
     );
   }
 
@@ -304,16 +344,26 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
   async createMany(
     collectionName: string,
     rows: Record<string, unknown>[],
-    _options?: { transaction?: boolean },
+    options?: {
+      transaction?: boolean;
+      conflictTarget?: string[];
+      doNothing?: boolean;
+    },
   ): Promise<Record<string, unknown>[]> {
     if (rows.length === 0) return [];
     const needsTransaction =
-      _options?.transaction !== false && rows.length > MAX_BATCH_ROWS;
+      options?.transaction !== false && rows.length > MAX_BATCH_ROWS;
+    const conflictTarget = options?.conflictTarget ?? [];
+    const builder = conflictTarget.length
+      ? (name: string, batch: Record<string, unknown>[]) =>
+          buildUpsertManySql(name, batch, conflictTarget, !!options?.doNothing)
+      : buildInsertManySql;
     if (!needsTransaction) {
       return createManyRows(
         (t, v) => this.pool.query(t, v),
         collectionName,
         rows,
+        builder,
       );
     }
     // Multi-chunk: wrap in transaction
@@ -323,7 +373,7 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       const results: Record<string, unknown>[] = [];
       for (let i = 0; i < rows.length; i += MAX_BATCH_ROWS) {
         const batch = rows.slice(i, i + MAX_BATCH_ROWS);
-        const { text, values } = buildInsertManySql(collectionName, batch);
+        const { text, values } = builder(collectionName, batch);
         this.logger?.(text, values);
         const result = await client.query(text, values);
         results.push(...(result.rows as Record<string, unknown>[]));

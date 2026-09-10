@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppCore } from '../../src/core/app-core';
 import { OrmManager } from '../../src/orm/orm';
 import { Model } from '../../src/model/index';
+import f from '../../src/model/fields';
 import { makeMockAdapter } from './helpers';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
 class User extends Model {
+  name = f.string;
   ['~shape']!: Record<string, unknown>;
   ['~rel']!: Record<string, unknown>;
   ['~relInfo']!: Record<string, unknown>;
@@ -53,5 +55,63 @@ describe('OrmManager — adapter routing', () => {
 
     expect(overrideAdapter.execute).toHaveBeenCalledTimes(1);
     expect(globalAdapter.execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('OrmManager — batch upsert routing', () => {
+  let app: AppCore;
+  let adapter: ReturnType<typeof makeMockAdapter>;
+
+  beforeEach(() => {
+    Model.clear();
+    app = new AppCore();
+    app.register([User]);
+    adapter = makeMockAdapter();
+    app.sqlAdapter = adapter as unknown as SqlAdapter;
+  });
+
+  afterEach(() => Model.clear());
+
+  it('createMany().onConflict().go() issues ONE createMany, no per-row execute', async () => {
+    const orm = new OrmManager(app);
+    adapter.createMany.mockResolvedValue([
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ]);
+
+    const rows = await orm
+      .single(User)
+      .createMany([{ name: 'Alice' }, { name: 'Bob' }])
+      .onConflict((t) => [t.email])
+      .go();
+
+    expect(adapter.createMany).toHaveBeenCalledTimes(1);
+    expect(adapter.createMany).toHaveBeenCalledWith(
+      'user',
+      [{ name: 'Alice' }, { name: 'Bob' }],
+      expect.objectContaining({ conflictTarget: ['email'], doNothing: false }),
+    );
+    expect(adapter.execute).not.toHaveBeenCalled();
+    expect(rows).toHaveLength(2);
+    expect(rows[0].name).toBe('Alice');
+  });
+
+  it('doNothing forwards doNothing: true', async () => {
+    const orm = new OrmManager(app);
+    adapter.createMany.mockResolvedValue([]);
+
+    await orm
+      .single(User)
+      .createMany([{ name: 'X' }])
+      .onConflict((t) => [t.email])
+      .doNothing()
+      .go();
+
+    expect(adapter.createMany).toHaveBeenCalledWith(
+      'user',
+      [{ name: 'X' }],
+      expect.objectContaining({ conflictTarget: ['email'], doNothing: true }),
+    );
+    expect(adapter.execute).not.toHaveBeenCalled();
   });
 });
