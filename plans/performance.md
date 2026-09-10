@@ -63,6 +63,10 @@ await orm.single(BigTable).select(t => [t.f1, t.f2, ..., t.f50]).go();
 
 ## P6: Batch upsert (createMany().onConflict()) — N+1 запись
 
+**Статус:** ✅ Готово
+
+**Коммит:** `a5f3a4d`
+
 **Важность:** 🟡 High
 
 **Краткое описание:** При указанном conflict target `createMany(...).onConflict(...).go()` терминал в цикле выполняет отдельный `adapter.execute(sqb)` для **каждого** ряда.
@@ -86,8 +90,10 @@ for (const row of mappedRows) {
 **Связанные файлы:**
 - `packages/core/src/orm/builders/upsert-helpers.ts` (go())
 - `packages/sql-pg/src/sql-generator.ts` (_buildUpsertQuery)
+- `packages/sql-pg/src/index.ts` (buildUpsertManySql, createManyRows)
+- `packages/sql-types/src/index.ts` (options createMany)
 
-**Коммит:**
+**Коммит:** `a5f3a4d`
 
 ---
 
