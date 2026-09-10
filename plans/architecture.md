@@ -178,7 +178,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ## A12: Процесс-глобальный стейт (registry, singleton) — latent hazard ✅
 
-**Статус:** ✅ Resolved. Пункты 1-2 закрыты; пункт 3 (`ModelImporter.sourceFiles`) — per-instance, перезапись детерминирована, оставлено как есть; пункт 4 (`standaloneCache`) — перенесено в D5 (удаление standalone `orm`).
+**Статус:** ✅ Resolved. Пункты 1-2 закрыты; пункт 3 (`ModelImporter.sourceFiles`) — per-instance, перезапись детерминирована, оставлено как есть; пункт 4 (`standaloneCache`) удалён вместе со standalone `orm` в D5.
 
 **Важность:** 🟢 Medium (design debt — нет активных сбоев, но риск для reload/multi-app)
 

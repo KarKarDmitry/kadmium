@@ -77,7 +77,9 @@ const adapter = new PgAdapter({
 
 ---
 
-## D5: Standalone orm — нерабочий (adapter никогда не получает)
+## D5: Standalone orm — нерабочий (adapter никогда не получает) ✅
+
+**Статус:** ✅ Resolved — standalone `orm` + `standaloneCache` удалены (`orm.ts`); добавлен `OrmManager.withAdapter(adapter)` для запросов через конкретный adapter; JSDoc `createDebugAdapter` переписан на каноничный путь `KadmiumApp` + `modules.sql`. F4 (transaction в standalone orm) закрыт как moot — транзакции на `OrmManager.transaction()`.
 
 **Важность:** 🟡 High
 
@@ -113,7 +115,7 @@ export const orm = {
 - `packages/sql-pg/src/index.ts` (createDebugAdapter JSDoc)
 - `packages/core/src/index.ts` (НЕ экспортирует `orm`)
 
-**Коммит:**
+**Коммит:** `8fb4bf9`
 
 ---
 

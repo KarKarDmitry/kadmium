@@ -127,7 +127,9 @@ orm.single(Order)
 
 ---
 
-## F4: Нет transaction() в standalone orm
+## F4: Нет transaction() в standalone orm ✅
+
+**Статус:** ✅ Closed as moot — standalone `orm` удалён (D5). Транзакции доступны на `OrmManager.transaction()`; потребность закрыта.
 
 **Важность:** ⚪ Low
 
@@ -141,7 +143,7 @@ orm.single(Order)
 **Связанные файлы:**
 - `packages/core/src/orm/orm.ts`
 
-**Коммит:**
+**Коммит:** `8fb4bf9` (закрыто через D5)
 
 ---
 
