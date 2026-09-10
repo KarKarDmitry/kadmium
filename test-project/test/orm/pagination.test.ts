@@ -69,6 +69,34 @@ describe('cursor: keyset pagination', () => {
     expect(new Set(ids).size).toBe(10);
   });
 
+  it('string key lexicographic cursor via gt', async () => {
+    const page1 = await h.orm
+      .single(UserModel)
+      .order((u) => [u.name.asc])
+      .limit(3)
+      .go();
+    expect(page1.map((r) => r.name)).toEqual(['Alice', 'Bob', 'Carol']);
+
+    const page2 = await h.orm
+      .single(UserModel)
+      .order((u) => [u.name.asc])
+      .cursor((u) => u.name.gt('Carol'))
+      .limit(10)
+      .go();
+    const page2Names = page2.map((r) => r.name);
+    expect(page2Names).toContain('Dave');
+    expect(page2Names).toContain('Frank');
+    expect(page2Names).toContain('Grace');
+    expect(page2Names).toContain('Heidi');
+    expect(page2Names).toContain('Ivy');
+    expect(page2Names).toContain('Jack');
+    expect(page2Names.every((n) => n > 'Carol')).toBe(true);
+    const known = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank', 'Grace', 'Heidi', 'Ivy', 'Jack'];
+    const covered = [...page1.map((r) => r.name), ...page2Names];
+    expect(known.every((n) => covered.includes(n))).toBe(true);
+    expect(page2Names.length).toBeGreaterThanOrEqual(7);
+  });
+
   it('descending feed with lt cursor', async () => {
     const page1 = await h.orm
       .single(UserModel)

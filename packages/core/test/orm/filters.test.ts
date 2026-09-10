@@ -21,6 +21,26 @@ describe('StringFilter', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
     expect(f.neq('Bob')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '!=', value: 'Bob' });
   });
+  it('gt', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.gt('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '>', value: 'Carol' });
+  });
+  it('gte', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.gte('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '>=', value: 'Carol' });
+  });
+  it('lt', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.lt('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '<', value: 'Carol' });
+  });
+  it('lte', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.lte('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '<=', value: 'Carol' });
+  });
+  it('between returns array', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.between('A', 'M')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'BETWEEN', value: ['A', 'M'] });
+  });
   it('like wraps with %', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
     expect(f.like('Ali')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'LIKE', value: '%Ali%' });

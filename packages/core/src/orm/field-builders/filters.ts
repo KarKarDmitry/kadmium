@@ -8,6 +8,21 @@ export class StringFilter extends BaseFilter {
   neq(val: string | BaseFilter): WhereCondition {
     return this.clause('!=', val);
   }
+  gt(val: string | BaseFilter): WhereCondition {
+    return this.clause('>', val);
+  }
+  gte(val: string | BaseFilter): WhereCondition {
+    return this.clause('>=', val);
+  }
+  lt(val: string | BaseFilter): WhereCondition {
+    return this.clause('<', val);
+  }
+  lte(val: string | BaseFilter): WhereCondition {
+    return this.clause('<=', val);
+  }
+  between(a: string, b: string): WhereCondition {
+    return this.clause('BETWEEN', [a, b]);
+  }
   like(val: string): WhereCondition {
     return this.clause('LIKE', `%${val}%`);
   }
