@@ -2,7 +2,7 @@ import { KadmiumSqb } from '../sqb';
 import { Relation } from '../field-builders/relation';
 import { toSnakeCase, type ModelIR } from '../../ir/index';
 import type { WhereCondition } from '../ast/where';
-import type { OrderField } from '../types/proxy';
+import type { OrderDirection } from '../types/proxy';
 
 /**
  * Значение конфига одного relation. Колбэки принимают `any`-proxy:
@@ -13,7 +13,7 @@ export type IncludeConfigValue =
   | {
       alias?: string;
       where?: (proxy: any) => WhereCondition;
-      order?: (proxy: any) => OrderField;
+      order?: (proxy: any) => OrderDirection[];
       limit?: number;
       select?: (proxy: any) => readonly any[];
       include?: Record<string, IncludeConfigValue>;

@@ -2,11 +2,14 @@ import { KadmiumSqb } from '../sqb';
 import type { WhereCondition } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
+import { createOrderProxy } from './query-proxies';
 import type { ModelIR } from '../../ir/index';
 import type {
   FilterProxy,
   MultiFilterProxy,
   MultiSelectProxy,
+  MultiOrderProxy,
+  OrderDirection,
   AliasesMap,
   FinalResult,
 } from '../types/proxy';
@@ -161,16 +164,14 @@ export class MultiQueryBuilder<
     return this;
   }
 
-  order(
-    fn: (t: MultiSelectProxy<T>) => SelectableField,
-    dir: 'asc' | 'desc' = 'asc',
-  ): this {
-    const field = fn(this._createSelectProxy());
-    this.sqb.orders.push({
-      field: field.fieldName,
-      column: field.column,
-      direction: dir,
-    });
+  order(fn: (t: MultiOrderProxy<T>) => OrderDirection[]): this {
+    for (const d of fn(this._createOrderProxy())) {
+      this.sqb.orders.push({
+        field: d.fieldName,
+        column: d.column,
+        direction: d.direction,
+      });
+    }
     return this;
   }
 
@@ -248,6 +249,21 @@ export class MultiQueryBuilder<
             ),
         });
       },
+    });
+  }
+
+  private _createOrderProxy(): MultiOrderProxy<T> {
+    const irs = this.irs;
+    return new Proxy({} as MultiOrderProxy<T>, {
+      get: (_, alias: string) =>
+        createOrderProxy(
+          alias,
+          irs.get(alias) ?? {
+            name: alias,
+            collection: alias,
+            fields: {},
+          },
+        ),
     });
   }
 }

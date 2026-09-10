@@ -1,7 +1,7 @@
 import type { WhereCondition } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
-import type { OrderField, GetFieldName, GetFieldType } from './proxy';
+import type { OrderDirection, GetFieldName, GetFieldType } from './proxy';
 import type { Evaluate } from './relations';
 
 // ── Helper types ──
@@ -93,7 +93,7 @@ type IncludeRelationConfig<M, K extends string> =
         t: IncludeSelectProxy<RelTarget<M, K>>,
       ) => readonly AnySelectable[];
       where?: (t: IncludeFilterProxy<RelTarget<M, K>>) => WhereCondition;
-      order?: (t: IncludeFilterProxy<RelTarget<M, K>>) => OrderField;
+      order?: (t: IncludeFilterProxy<RelTarget<M, K>>) => OrderDirection[];
       limit?: number;
       include?: IncludeConfig<RelTarget<M, K>>;
     };

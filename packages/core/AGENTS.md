@@ -118,7 +118,7 @@ Includes are implemented as `LEFT JOIN LATERAL` with JSON aggregation (in the ad
 ```typescript
 orm.single(User)
   .include(t => [
-    t.posts.where(p => p.published.eq(true)).order(p => p.createdAt, 'desc'),
+    t.posts.where(p => p.published.eq(true)).order(p => [p.createdAt.desc]),
     t.author,  // many-to-one
   ])
   .go();

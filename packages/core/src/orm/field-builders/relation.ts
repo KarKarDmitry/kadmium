@@ -1,7 +1,7 @@
 import { KadmiumSqb, type IncludedRelation } from '../sqb';
 import type { WhereCondition } from '../ast/where';
 import type { FieldIR, ModelIR } from '../../ir/index';
-import type { OrderField } from '../types/proxy';
+import type { OrderDirection } from '../types/proxy';
 import {
   createFilterProxy,
   createSelectProxy,
@@ -81,14 +81,15 @@ export class Relation implements IncludedRelation {
     return this;
   }
 
-  order(fn: (t: any) => OrderField, dir: 'asc' | 'desc' = 'asc'): this {
+  order(fn: (t: any) => OrderDirection[]): this {
     const proxy = createOrderProxy(this.alias, this.targetIr);
-    const field = fn(proxy);
-    this.internalSqb.orders.push({
-      field: field.fieldName,
-      column: field.column,
-      direction: dir,
-    });
+    for (const d of fn(proxy)) {
+      this.internalSqb.orders.push({
+        field: d.fieldName,
+        column: d.column,
+        direction: d.direction,
+      });
+    }
     return this;
   }
 

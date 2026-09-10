@@ -85,7 +85,7 @@ describe('Relation — where/order/limit/select', () => {
     const sqb = makeSqb();
     const rel = new Relation(sqb, 'posts', makePostIR(), makeFieldIr());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rel.order((t: any) => t.title, 'desc');
+    rel.order((t: any) => [t.title.desc]);
     expect(rel.internalSqb.orders.length).toBe(1);
     expect(rel.internalSqb.orders[0].direction).toBe('desc');
   });

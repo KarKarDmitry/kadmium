@@ -20,11 +20,13 @@ export type {
   MultiFilterProxy,
   MultiSelectProxy,
   MultiRelationProxy,
+  MultiOrderProxy,
   UpdateFinalizer,
   AliasesMap,
   FinalResult,
   OrderProxy,
   OrderField,
+  OrderDirection,
 } from './types/public-types';
 export type {
   Evaluate,

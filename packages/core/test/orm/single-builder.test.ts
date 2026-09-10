@@ -114,7 +114,7 @@ describe('SingleQueryBuilder — modifiers', () => {
   it('order pushes to sqb.orders', () => {
     const b = builder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    b.order((t: any) => t.name, 'desc');
+    b.order((t: any) => [t.name.desc]);
     expect(b.sqb.orders.length).toBe(1);
     expect(b.sqb.orders[0].direction).toBe('desc');
   });

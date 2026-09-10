@@ -59,11 +59,18 @@ export function createOrderProxy<TModel extends Model>(
   ir: ModelIR,
 ): OrderProxy<TModel> {
   return new Proxy({} as OrderProxy<TModel>, {
-    get: (_, field: string) => ({
-      tableAlias: alias,
-      fieldName: field as string,
-      column: ir.fields[field]?.alias,
-    }),
+    get: (_, field: string) => {
+      const base = {
+        tableAlias: alias,
+        fieldName: field as string,
+        column: ir.fields[field]?.alias,
+      };
+      return {
+        ...base,
+        asc: { ...base, direction: 'asc' },
+        desc: { ...base, direction: 'desc' },
+      };
+    },
   });
 }
 

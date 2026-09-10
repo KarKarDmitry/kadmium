@@ -48,12 +48,18 @@ describe('createSelectProxy', () => {
 });
 
 describe('createOrderProxy', () => {
-  it('valid field returns order object', () => {
+  it('valid field returns order object with asc/desc directions', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const proxy = createOrderProxy<any>('u', ir);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const order = (proxy as any).name;
-    expect(order).toEqual({ tableAlias: 'u', fieldName: 'name', column: 'name' });
+    expect(order).toEqual({
+      tableAlias: 'u',
+      fieldName: 'name',
+      column: 'name',
+      asc: { tableAlias: 'u', fieldName: 'name', column: 'name', direction: 'asc' },
+      desc: { tableAlias: 'u', fieldName: 'name', column: 'name', direction: 'desc' },
+    });
   });
 
   it('field with alias uses alias as column', () => {

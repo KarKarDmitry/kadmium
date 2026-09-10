@@ -94,7 +94,7 @@ describe('alias(): property name vs DB column name', () => {
     const rows = await h.orm
       .single(CommentModel)
       .select((c) => [c.text])
-      .order((c) => c.flagged, 'asc')
+      .order((c) => [c.flagged.asc])
       .go();
     expect(Array.isArray(rows)).toBe(true);
   });

@@ -6,7 +6,7 @@ import type {
   FilterProxy,
   SelectProxy,
   OrderProxy,
-  OrderField,
+  OrderDirection,
   UpdateFinalizer,
   HavingProxy,
   HavingSource,
@@ -215,16 +215,14 @@ export class SingleQueryBuilder<
     return this;
   }
 
-  order(
-    fn: (t: OrderProxy<TModel>) => OrderField,
-    dir: 'asc' | 'desc' = 'asc',
-  ): this {
-    const field = fn(this._createOrderProxy());
-    this.sqb.orders.push({
-      field: field.fieldName,
-      column: field.column,
-      direction: dir,
-    });
+  order(fn: (t: OrderProxy<TModel>) => OrderDirection[]): this {
+    for (const d of fn(this._createOrderProxy())) {
+      this.sqb.orders.push({
+        field: d.fieldName,
+        column: d.column,
+        direction: d.direction,
+      });
+    }
     return this;
   }
 

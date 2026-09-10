@@ -72,7 +72,7 @@ describe('where: filters, groups, ordering, pagination', () => {
   it('order + limit + offset', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => u.age, 'desc')
+      .order((u) => [u.age.desc])
       .limit(2)
       .offset(1)
       .go();

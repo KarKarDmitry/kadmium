@@ -129,7 +129,7 @@ describe('MultiQueryBuilder — modifiers', () => {
   it('order', () => {
     const b = multiBuilder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    b.order((t: any) => t.u.name, 'desc');
+    b.order((t: any) => [t.u.name.desc]);
     expect(b.sqb.orders.length).toBe(1);
     expect(b.sqb.orders[0].direction).toBe('desc');
   });

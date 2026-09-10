@@ -55,21 +55,42 @@ export type SelectProxy<
 };
 
 /**
- * OrderField — упрощённый тип для ORDER BY.
+ * OrderDirection — готовое направление сортировки для ORDER BY.
+ * Создаётся вызовом флага поля: `u.id.asc` / `u.id.desc`.
+ */
+export interface OrderDirection {
+  readonly tableAlias: string;
+  readonly fieldName: string;
+  /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
+  readonly column?: string;
+  readonly direction: 'asc' | 'desc';
+}
+
+/**
+ * OrderField — флаг поля в OrderProxy. Сам по себе не направление:
+ * обязателен вызов `.asc` / `.desc`, возвращающий OrderDirection.
  */
 export interface OrderField {
   readonly tableAlias: string;
   readonly fieldName: string;
-  readonly alias?: string;
   /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
   readonly column?: string;
-  readonly ['~orderField']: unique symbol;
+  readonly asc: OrderDirection;
+  readonly desc: OrderDirection;
 }
 
 export type OrderProxy<TModel extends { ['~shape']: Record<string, unknown> }> =
   {
     [K in keyof TModel['~shape'] & string]: OrderField;
   };
+
+export type MultiOrderProxy<T extends AliasesMap> = {
+  [TAlias in keyof T & string]: OrderProxy<
+    InstanceType<T[TAlias]> extends { ['~shape']: Record<string, unknown> }
+      ? InstanceType<T[TAlias]>
+      : { ['~shape']: Record<string, never> }
+  >;
+};
 
 // ── Having (HAVING) proxy ──
 

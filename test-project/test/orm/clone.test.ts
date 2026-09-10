@@ -42,7 +42,7 @@ describe('clone: safe builder reuse via snapshots', () => {
   });
 
   it('exists() no longer leaves limit(1) on the builder', async () => {
-    const base = h.orm.single(UserModel).order((u) => u.name);
+    const base = h.orm.single(UserModel).order((u) => [u.name.asc]);
     const yes = await base.exists().go();
     const rows = await base.go();
     expect(yes).toBe(true);
