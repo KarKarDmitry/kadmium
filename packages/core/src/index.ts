@@ -12,7 +12,6 @@ export { OrmManager } from './orm/orm';
 export {
   AppCore,
   KadmiumApp,
-  Kadmium,
   ModuleSlot,
   defineConfig,
   loadCodegenProject,

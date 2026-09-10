@@ -2,7 +2,7 @@ export { AppCore } from './app-core';
 export { ConfigLoader } from './config-loader';
 export { ModelImporter } from './model-importer';
 export { ModelRegistry } from './model-registry';
-export { KadmiumApp, Kadmium } from './kadmium-app';
+export { KadmiumApp } from './kadmium-app';
 export { ModuleSlot } from './modules';
 export { KadmiumError, notFound, configError } from './errors';
 export type { ErrorCode } from './errors';

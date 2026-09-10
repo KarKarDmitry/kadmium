@@ -18,14 +18,9 @@ class Profile extends Model {
   user = f.ref.target(User).oneToOne().inverse('profile');
 }
 
-function clearRegistry() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (Model as any).registry.clear();
-}
-
 describe('compileModel', () => {
-  beforeEach(() => clearRegistry());
-  afterEach(() => clearRegistry());
+  beforeEach(() => Model.clear());
+  afterEach(() => Model.clear());
 
   describe('normalizeType', () => {
     it('maps all known types correctly', () => {

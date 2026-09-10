@@ -12,14 +12,9 @@ class Post extends Model {
   author = f.ref.target(User).manyToOne().fk('authorId');
 }
 
-function clearRegistry() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (Model as any).registry.clear();
-}
-
 describe('Model', () => {
-  beforeEach(() => clearRegistry());
-  afterEach(() => clearRegistry());
+  beforeEach(() => Model.clear());
+  afterEach(() => Model.clear());
 
   describe('$build', () => {
     it('sets _meta.name to class name', () => {
@@ -111,6 +106,13 @@ describe('Model', () => {
       Model.register(User);
       Model.register(User);
       expect(Model.models.length).toBe(1);
+    });
+
+    it('clear empties the registry', () => {
+      Model.register(User);
+      expect(Model.resolve('User')).toBe(User);
+      Model.clear();
+      expect(Model.resolve('User')).toBeUndefined();
     });
   });
 

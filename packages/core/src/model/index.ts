@@ -31,6 +31,11 @@ export class Model {
     return this.registry.get(name);
   }
 
+  /** Очистить глобальный реестр моделей (для тестов, HMR, hot-reload). */
+  static clear(): void {
+    this.registry.clear();
+  }
+
   /** Все зарегистрированные классы моделей */
   static get models(): ModelClass[] {
     return [...this.registry.values()];

@@ -44,11 +44,3 @@ export class KadmiumApp {
     return this;
   }
 }
-
-/**
- * Kadmium — предварительно сконфигурированный синглтон.
- * Используется для быстрого старта:
- *   await Kadmium.init();
- *   Kadmium.orm.single(User).select().go();
- */
-export const Kadmium = new KadmiumApp();
