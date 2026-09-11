@@ -1,4 +1,4 @@
-import { Model, f } from '@karkardmitry/kadmium-core';
+import { Model, f } from '../../../../src';
 
 export class User extends Model {
   id = f.pk;
