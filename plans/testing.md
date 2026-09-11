@@ -129,13 +129,13 @@
 
 ---
 
-## TG7: Нет unit-тестов для diff/compute, diff/apply, diff/render
+## TG7: Нет unit-тестов для diff/compute, diff/apply, diff/render ✅ Done (`e7a90d6`)
 
 **Важность:** 🟡 High
 
 **Краткое описание:** `diff/compute.ts` (202 строки), `diff/apply.ts` (105), `diff/render.ts` (63) — нет dedicated unit-тестов. Тестируются только косвенно.
 
-**Решение:** Unit-тесты с мок-адаптерами.
+**Решение:** ✅ `packages/sql-pg/test/diff/` — `compute.test.ts` (14), `apply.test.ts` (10, включая `applyDiffTransactional`), `render.test.ts` (6) + общий in-memory `MockDdl` в `fixtures.ts`. Тесты вскрыли инвертированное условие в `applyDiff`: inline UNIQUE стрипался из колонок БЕЗ отдельного index-op и оставался там, где add-index есть — исправлено на `idxFieldNames.has(name) ? false : isUnique`.
 
 **Связанные файлы:**
 - `packages/sql-pg/src/diff/compute.ts`

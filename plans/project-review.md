@@ -12,6 +12,7 @@
 > Updated 2026-09-11 — decisions: C9 verified NOT a bug (include-FROM reads `targetIr.collection`, tableContext value is dead); C10 deferred to separate adapter-level validation module; TG11 decision `eq(null)` → `IS NULL` (listed in testing.md TG11). Verdict updated accordingly.
 > Updated 2026-09-11 — code landings: C9 done (`6a82a14`: relation.ts stores `collection` + tests incl. SQL regression); TG11+S5 done (`6572887`: `eq(null)`/`neq(null)` → IS NULL/IS NOT NULL + undefined throw, `_renderCondition` renders IS ops without right-hand side and rejects non-whitelisted ops). S6/S9-S11 are now moot — see security.md. Completed rows moved to 📦 Done.
 > Updated 2026-09-11 — code landings: S7 done (`aa29c92`): `assertSqlIdentifier` on DML collection names + DB-free tests; C11 done (`c98f947`): duplicate joins deduped in AST; S8 done (`ea589e2`): escaped quotes in DDL expression validation. Tests: core 315, sql-pg 215, project 115; lint baseline 87 (2 errors in includes.d.ts).
+> Updated 2026-09-11 - code landings: P8 done (`3ba5613`): `maxBatchRows(columns)` dynamic batching; TG7 done (`e7a90d6`): diff unit tests (MockDdl) + fix for inverted UNIQUE strip in applyDiff; P7 done (`fee95eb`): `applyDiffTransactional` + CLI fallback prompt + CLI loads project `.env` (`process.loadEnvFile`). Tests: core 319, sql-pg 249, project 117; lint baseline 87 (2 errors in includes.d.ts, untouched).
 
 ## Repository snapshot
 
@@ -99,8 +100,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | P4 | 🟢 | **ResultReshaper O(n × m)** — quadratic reshaping | ✅ Verified optimal for typical cases (pre-computation overhead offsets benefit) |
 | P5 | 🟢 | **unpackIncludes recursive** — O(n × k) per-row traversal | ✅ Optimized: `Map.get()` O(1) instead of `find()` O(k) |
 | P6 | 🟡 | **computeDiff 3N+1 queries** for N tables (inspectColumns + inspectIndexes + inspectForeignKeys per table) | ⬜ Open — see performance.md P5 |
-| P7 | 🟡 | **applyDiff no transaction wrapping** — partial failure leaves DB in partially-migrated state | ⬜ Open — see performance.md P6 |
-| P8 | 🟢 | **MAX_BATCH_ROWS hardcoded** without column count consideration | ⬜ Open — see performance.md P7 |
+| P7 | 🟡 | **applyDiff no transaction wrapping** — partial failure leaves DB in partially-migrated state | ✅ Done (`fee95eb`) — `applyDiffTransactional` + CLI fallback prompt, см. performance.md P6 |
+| P8 | 🟢 | **MAX_BATCH_ROWS hardcoded** without column count consideration | ✅ Done (`3ba5613`) — `maxBatchRows(columns)`, см. performance.md P7 |
 
 ### 5️⃣ Readability / Hygiene
 
@@ -122,7 +123,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG4 | 🟢 | **pgType/diffToHealth/compile unit tests removed** — pure functions covered only indirectly | ✅ Fixed (`dec901e`): compileModel 30 cases + TG5 below |
 | TG5 | 🟡 | **No unit tests for Model DSL, field builders, codegen, DDL adapter, sql-generator** | ✅ Fixed (`dec901e`): 226 cases across 19 new test files |
 | TG6 | 🟡 | **Zero CLI tests** — db, generate, init, format, check commands | ⬜ Open — see testing.md TG6 |
-| TG7 | 🟡 | **No unit tests for diff/compute, diff/apply, diff/render** | ⬜ Open — see testing.md TG7 |
+| TG7 | 🟡 | **No unit tests for diff/compute, diff/apply, diff/render** | ✅ Done (`e7a90d6`) — 30 тестов + MockDdl, вскрыт баг UNIQUE-strip, см. testing.md TG7 |
 | TG8 | 🟡 | **~100 `any` casts in unit tests** — masks proxy type regressions | ⬜ Open — see testing.md TG8 |
 | TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ⬜ Open — see testing.md TG9 |
 | TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ⬜ Open — see testing.md TG10 |

@@ -128,24 +128,26 @@ for (const row of mappedRows) {
 
 ---
 
-## P6: applyDiff не оборачивает в транзакцию
+## P6: applyDiff не оборачивает в транзакцию ✅ Done (`fee95eb`)
 
 **Важность:** 🟡 High
 
 **Краткое описание:** `applyDiff` (diff/apply.ts) применяет DDL-операции последовательно без транзакции. Сбой в середине миграции оставляет БД в частично-применённом состоянии. `renderSql` корректно оборачивает в `BEGIN/COMMIT`, но `applyDiff` — нет.
 
-**Решение:** Обернуть `applyDiff` в BEGIN/COMMIT (PG поддерживает DDL в транзакциях с 9.1+).
+**Решение:** ✅ Обёрнуто — `applyDiffTransactional(diff, adapter)` выполняет оба этапа (phase 1: CREATE TABLE, phase 2: INDEX/FK/ALTER) внутри одной транзакции и делает rollback всего diff при сбое любой операции. CLI `db:push` использует транзакционный путь, при ошибке предлагает fallback без транзакции (`Retry without transaction? [y/N]`). Эмпирически проверено на PG 16: таблицы, созданные в той же транзакции, видны для CREATE INDEX/FK; реальное ограничение — только forward-FK на ещё не созданную таблицу, что двухфазный порядок уже учитывает. Интеграционные тесты: commit-кейс + rollback-кейс (FK на несуществующую таблицу) в `test-project/test/db.test.ts`.
 
 **Связанные файлы:**
-- `packages/sql-pg/src/diff/apply.ts`
+- `packages/sql-pg/src/diff/apply.ts` (`applyDiffTransactional`, `applyDiffOps`)
 
 ---
 
-## P7: MAX_BATCH_ROWS хардкод без учёта количества колонок
+## P7: MAX_BATCH_ROWS хардкод без учёта количества колонок ✅ Done (`3ba5613`)
 
 **Важность:** 🟢 Low
 
 **Краткое описание:** `MAX_BATCH_ROWS = 1000` (index.ts:103) не зависит от числа колонок. При 1 колонке PG разрешает 65,535 параметров. Динамический расчёт `floor(65535 / columnsPerRow)` эффективнее.
+
+**Решение:** ✅ `maxBatchRows(columnCount) = max(1, floor(65535 / columnCount))` в новом `packages/sql-pg/src/batch.ts`; используется в `PgAdapter.createMany` и `createManyRows` вместо константа. Unit-тесты: `packages/sql-pg/test/batch.test.ts`.
 
 **Связанные файлы:**
 - `packages/sql-pg/src/index.ts` (line 103)
