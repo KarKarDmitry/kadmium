@@ -122,19 +122,7 @@ export class SingleQueryBuilder<
       | ((t: SelectProxy<TModel>, a: AggregateFunctions) => AnySelectable[]),
   ): any {
     if (!fn) {
-      const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
-      this.sqb.selects = Object.entries(this.ir.fields)
-        .filter(([, f]) => !f.sourceModel)
-        .map(
-          ([name, f]) =>
-            new SelectableField(
-              tableAlias,
-              name,
-              undefined,
-              undefined,
-              f.alias,
-            ),
-        );
+      this.sqb.selects = this._buildAllSelects();
     } else {
       this.sqb.selects = fn(this._createSelectProxy(), aggregates);
     }
@@ -168,19 +156,7 @@ export class SingleQueryBuilder<
         ...fn(this._createSelectProxy(), aggregates),
       ] as AnySelectableField[];
     } else {
-      const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
-      this.sqb.selects = Object.entries(this.ir.fields)
-        .filter(([, f]) => !f.sourceModel)
-        .map(
-          ([name, f]) =>
-            new SelectableField(
-              tableAlias,
-              name,
-              undefined,
-              undefined,
-              f.alias,
-            ),
-        );
+      this.sqb.selects = this._buildAllSelects();
     }
     this.sqb.limit = 1;
     this._isFirst = true;
@@ -426,15 +402,19 @@ export class SingleQueryBuilder<
     return mapped;
   }
 
-  private _materializeSelects(sqb: KadmiumSqb): void {
-    if (sqb.selects) return;
-    const tableAlias = [...sqb.tableContext.keys()][0] ?? '';
-    sqb.selects = Object.entries(this.ir.fields)
+  private _buildAllSelects(): AnySelectableField[] {
+    const tableAlias = [...this.sqb.tableContext.keys()][0] ?? '';
+    return Object.entries(this.ir.fields)
       .filter(([, f]) => !f.sourceModel)
       .map(
         ([name, f]) =>
           new SelectableField(tableAlias, name, undefined, undefined, f.alias),
       );
+  }
+
+  private _materializeSelects(sqb: KadmiumSqb): void {
+    if (sqb.selects) return;
+    sqb.selects = this._buildAllSelects();
   }
 
   private _toSqlFrom(sqb: KadmiumSqb): string {
