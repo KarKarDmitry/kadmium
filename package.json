@@ -4,7 +4,8 @@
   "workspaces": [
     "packages/core",
     "packages/sql-types",
-    "packages/sql-pg"
+    "packages/sql-pg",
+    "test-project"
   ],
   "scripts": {
     "build": "npm run build -w packages/sql-types && npm run build -w packages/sql-pg && npm run build -w packages/core",
