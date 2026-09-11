@@ -3,6 +3,7 @@ import type { WhereCondition, WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
+import { pushWhere } from './utils';
 import type { ModelIR } from '../../ir/index';
 import type {
   FilterProxy,
@@ -83,7 +84,7 @@ export class MultiQueryBuilder<
   // Линейная последовательность шагов; группы — только выражениями (and/or).
 
   where(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
-    this._pushWhere('AND', fn);
+    pushWhere('AND', fn, this.sqb, () => this._createFilterProxy());
     return this;
   }
 
@@ -92,18 +93,8 @@ export class MultiQueryBuilder<
   }
 
   or(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
-    this._pushWhere('OR', fn);
+    pushWhere('OR', fn, this.sqb, () => this._createFilterProxy());
     return this;
-  }
-
-  private _pushWhere(
-    join: 'AND' | 'OR',
-    fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined,
-  ): void {
-    const expression = fn(this._createFilterProxy());
-    if (expression !== undefined) {
-      this.sqb.wheres.elements.push({ join, condition: expression });
-    }
   }
 
   // ── join ──

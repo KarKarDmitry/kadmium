@@ -4,6 +4,7 @@
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { ModelIR } from '../../ir/index';
 import type { KadmiumSqb } from '../sqb';
+import type { WhereExpression } from '../ast/where';
 
 /** Human-readable SQL preview: "SQL: …\nVALUES: […]". */
 export function buildDebugSql(sqb: KadmiumSqb, adapter: SqlAdapter): string {
@@ -22,4 +23,17 @@ export function mapRow(
     if (row[col] !== undefined) out[prop] = row[col];
   }
   return out;
+}
+
+/** Push a flat where step; skips undefined expressions. */
+export function pushWhere<TProxy>(
+  join: 'AND' | 'OR',
+  fn: (t: TProxy) => WhereExpression | undefined,
+  sqb: KadmiumSqb,
+  createProxy: () => TProxy,
+): void {
+  const expression = fn(createProxy());
+  if (expression !== undefined) {
+    sqb.wheres.elements.push({ join, condition: expression });
+  }
 }
