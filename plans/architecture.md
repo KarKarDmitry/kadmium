@@ -224,3 +224,133 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `packages/sql-pg/src/index.ts` (PgAdapter, TransactionalPgAdapter)
 
 **Коммит:** `9e45588`
+
+---
+
+## A13: sql-generator.ts — 692 строки, _buildSelectQueryText 180 строк
+
+**Важность:** 🔴 Critical
+
+**Краткое описание:** `sql-generator.ts` — самый большой файл в проекте (692 строки). Метод `_buildSelectQueryText` один занимает ~180 строк и обрабатывает SELECT, FROM, JOINs, LATERAL, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT, OFFSET в одном монолитном методе. Тяжело навигировать, тестировать и расширять.
+
+**Решение:** Разложить на хелперы по клозам: `_buildFromClause()`, `_buildJoinClause()`, `_buildWhereClause()`, `_buildGroupByClause()`, `_buildHavingClause()`, `_buildOrderByClause()`, `_buildLimitClause()`. Каждый клоз — отдельная тестируемая функция.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/sql-generator.ts`
+
+---
+
+## A14: PgAdapter / TransactionalPgAdapter дублируют execute/create/raw
+
+**Важность:** 🟡 High
+
+**Краткое описание:** `PgAdapter.execute()` (lines 324-335) и `TransactionalPgAdapter.execute()` (lines 247-258) идентичны кроме `this.pool.query()` vs `this.client.query()`. То же для `create()` и `raw()`. Итого ~60 строк чистого дублирования.
+
+**Решение:** Вынести shared-хелпер `executeWithQueryFn(queryFn, sqb, logger)`, `createWithQueryFn(queryFn, collectionName, data)` и `rawWithQueryFn(queryFn, sql, params)`. Оба адаптера делегируют в хелпер с передачей `this.pool.query` / `this.client.query`.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/index.ts` (PgAdapter:324-393, TransactionalPgAdapter:247-292)
+
+---
+
+## A15: _buildSql / _toSqlFrom продублирован в 4 файлах
+
+**Важность:** 🟡 High
+
+**Краткое описание:** Идентичная функция форматирования SQL (`adapter.toSql(sqb)` → `` `SQL: ${text}\nVALUES: [...]` ``) продублирована в:
+- `write-finalizer.ts:10-13`
+- `upsert-helpers.ts:57-60`
+- `single.ts:448-455`
+- `multi.ts:195-202`
+
+**Решение:** Одна shared-утилита `buildDebugSql(sqb, adapter): string` в общем месте (например, `builders/utils.ts`).
+
+**Связанные файлы:**
+- `packages/core/src/orm/builders/write-finalizer.ts`
+- `packages/core/src/orm/builders/upsert-helpers.ts`
+- `packages/core/src/orm/builders/single.ts`
+- `packages/core/src/orm/builders/multi.ts`
+
+---
+
+## A16: _mapRow продублирован в single.ts и upsert-helpers.ts
+
+**Важность:** 🟡 High
+
+**Краткое описание:** Идентичная логика маппинга строк (`iterate ir.fields → alias ?? prop → filter undefined`) в:
+- `single.ts:419-426` (`_mapRow`)
+- `upsert-helpers.ts:36-46` (`mapRow`)
+
+**Решение:** Одна shared-утилита `mapRow(ir, row)`.
+
+**Связанные файлы:**
+- `packages/core/src/orm/builders/single.ts`
+- `packages/core/src/orm/builders/upsert-helpers.ts`
+
+---
+
+## A17: Default-select materialization продублирована 3 раза в single.ts
+
+**Важность:** 🟡 High
+
+**Краткое описание:** Логика "взять все поля из IR, исключить sourceModel, создать SelectableField" повторяется в:
+- `single.ts:124-136` (ветка `select()` без аргумента)
+- `single.ts:170-182` (ветка `first()` без аргумента)
+- `single.ts:437-446` (`_materializeSelects`)
+
+Хелпер `_materializeSelects` существует, но вызывается только из `go()` и `exists()`, а не из `select()`/`first()`.
+
+**Решение:** Все три ветки должны вызывать `_materializeSelects`.
+
+**Связанные файлы:**
+- `packages/core/src/orm/builders/single.ts`
+
+---
+
+## A18: diff/render.ts дублирует DDL SQL из ddl-adapter.ts
+
+**Важность:** 🟡 High
+
+**Краткое описание:** `diff/render.ts` и `ddl-adapter.ts` независимо строят идентичный DDL SQL (`create-table`, `add-column`, `alter-type`). Любое изменение формата DDL требует правок в обоих файлах.
+
+**Решение:** `diff/render.ts` делегирует в `ddl-adapter.ts` или вынести shared DDL-генератор.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/diff/render.ts`
+- `packages/sql-pg/src/ddl-adapter.ts`
+
+---
+
+## A19: _pushWhere структурно идентичен в single.ts и multi.ts
+
+**Важность:** 🟢 Medium
+
+**Краткое описание:** `SingleQueryBuilder._pushWhere` (lines 100-108) и `MultiQueryBuilder._pushWhere` (lines 98-106) структурно идентичны. Отличается только тип прокси (`FilterProxy<TModel>` vs `MultiFilterProxy<T>`).
+
+**Решение:** Обобщённая функция `_pushWhere(sqb, createProxy, fn)`.
+
+**Связанные файлы:**
+- `packages/core/src/orm/builders/single.ts`
+- `packages/core/src/orm/builders/multi.ts`
+
+---
+
+## A20: Dual IR caches в orm.ts
+
+**Важность:** 🟢 Medium
+
+**Краткое описание:** `OrmManager._irCache` (line 48) и кэш-замыкание в `buildIrLookup` (line 13) — два независимых IR-кэша. Оба заполняются из `appCore.ir()`, но через разные пути. Запутывающие имена, риск несвежих данных при динамической регистрации моделей.
+
+**Связанные файлы:**
+- `packages/core/src/orm/orm.ts` (lines 13, 48)
+
+---
+
+## A21: orm.ts импортирует Model из model-слоя
+
+**Важность:** 🟢 Medium
+
+**Краткое описание:** `orm.ts:4` импортирует `Model` из `../model/index`. AGENTS.md: «IR — контракт, не импортируй билдеры моделей из ORM.» `Model` — базовый класс, не билдер полей, серая зона — но создаёт зависимость ORM→Model. Используется в `buildIrLookup` и `_irFor` как fallback для компиляции IR из незарегистрированных моделей.
+
+**Связанные файлы:**
+- `packages/core/src/orm/orm.ts` (line 4)

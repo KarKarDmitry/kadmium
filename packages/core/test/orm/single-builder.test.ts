@@ -48,7 +48,9 @@ describe('SingleQueryBuilder — where/and/or', () => {
   it('where accepts and/or expressions as one step', () => {
     const b = builder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    b.where((u: any) => or(u.name.eq('Alice'), and(u.name.eq('Bob'), u.active.eq(true))));
+    b.where((u: any) =>
+      or(u.name.eq('Alice'), and(u.name.eq('Bob'), u.active.eq(true))),
+    );
     expect(b.sqb.wheres.elements.length).toBe(1);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const group = (b.sqb.wheres.elements[0] as any).condition as {
@@ -176,7 +178,9 @@ describe('SingleQueryBuilder — cursor', () => {
   it('throws without order()', () => {
     const b = builder();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(() => b.cursor((u: any) => u.id.gt(42))).toThrow(/requires an order/);
+    expect(() => b.cursor((u: any) => u.id.gt(42))).toThrow(
+      /requires an order/,
+    );
     expect(b.sqb.cursor.elements.length).toBe(0);
   });
 

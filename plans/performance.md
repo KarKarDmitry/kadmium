@@ -112,3 +112,40 @@ for (const row of mappedRows) {
 - `packages/core/src/orm/orm.ts` (OrmManager)
 
 **Коммит:**
+
+---
+
+## P5: computeDiff делает 3N+1 запросов для N таблиц
+
+**Важность:** 🟡 High
+
+**Краткое описание:** `computeDiff` (diff/compute.ts:79-82) для каждой таблицы выполняет 3 отдельных запроса (`inspectColumns`, `inspectIndexes`, `inspectForeignKeys`). Для схемы с N таблицами — 3N+1 запросов. Для 50+ таблиц это существенный round-trip overhead.
+
+**Решение:** Один batched-запрос к `information_schema`/`pg_catalog`, возвращающий метаданные всех таблиц за один round-trip.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/diff/compute.ts` (lines 79-82)
+
+---
+
+## P6: applyDiff не оборачивает в транзакцию
+
+**Важность:** 🟡 High
+
+**Краткое описание:** `applyDiff` (diff/apply.ts) применяет DDL-операции последовательно без транзакции. Сбой в середине миграции оставляет БД в частично-применённом состоянии. `renderSql` корректно оборачивает в `BEGIN/COMMIT`, но `applyDiff` — нет.
+
+**Решение:** Обернуть `applyDiff` в BEGIN/COMMIT (PG поддерживает DDL в транзакциях с 9.1+).
+
+**Связанные файлы:**
+- `packages/sql-pg/src/diff/apply.ts`
+
+---
+
+## P7: MAX_BATCH_ROWS хардкод без учёта количества колонок
+
+**Важность:** 🟢 Low
+
+**Краткое описание:** `MAX_BATCH_ROWS = 1000` (index.ts:103) не зависит от числа колонок. При 1 колонке PG разрешает 65,535 параметров. Динамический расчёт `floor(65535 / columnsPerRow)` эффективнее.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/index.ts` (line 103)

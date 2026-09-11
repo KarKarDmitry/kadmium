@@ -65,3 +65,51 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 - `packages/core/src/orm/builders/where-helpers.ts` (addOrCondition)
 - `packages/core/src/orm/builders/single.ts`
 - `packages/core/src/orm/builders/multi.ts`
+
+---
+
+## S5: expression.op интерполируется в SQL без runtime-валидации
+
+**Важность:** 🟡 High
+
+**Краткое описание:** `sql-generator.ts:117` интерполирует `expression.op` напрямую в SQL (`${left} ${expression.op} ${right}`). Тип `op` ограничен на уровне TS, но runtime-валидации нет. Если тип будет расширен — вектор SQL-инъекции.
+
+**Решение:** Allowlist-проверка `VALID_OPS = new Set(['=', '!=', '>', '<', '>=', '<=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN', 'BETWEEN', 'IS', 'IS NOT'])` + runtime guard.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/sql-generator.ts` (lines 117, 153)
+
+---
+
+## S6: Нет валидации идентификаторов в DML-пути
+
+**Важность:** 🟡 High
+
+**Краткое описание:** DDL-путь использует `assertSqlIdentifier()`. DML-путь (`buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`) интерполирует `collectionName` и имена колонок с кавычками, но без проверки. Маловероятно (collectionName из IR), но нарушает defense-in-depth.
+
+**Решение:** `assertSqlIdentifier(collectionName)` в начало каждого build-хелпера.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/index.ts` (lines 27, 52, 73)
+
+---
+
+## S7: pg_sleep() возможен через DEFAULT в DDL
+
+**Важность:** 🟢 Low
+
+**Краткое описание:** `assertSqlExpression` разрешает буквы и скобки → `pg_sleep(10)` проходит валидацию. DoS через DEFAULT теоретически возможен, маловероятен (только DDL,trusted source).
+
+**Связанные файлы:**
+- `packages/sql-pg/src/ddl-validate.ts` (line 17)
+
+---
+
+## S8: False positive на экранированные кавычки в ddl-validate
+
+**Важность:** 🟢 Low
+
+**Краткое описание:** Балансировка кавычек (lines 58-62) не обрабатывает `''` (escaped quotes). Валидный SQL `'it''s'` вызовет «несбалансированный синтаксис».
+
+**Связанные файлы:**
+- `packages/sql-pg/src/ddl-validate.ts` (lines 58-62)

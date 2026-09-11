@@ -8,6 +8,7 @@
 > Updated 2026-09-08 — A1 resolved (`b709ad1` + `f5023c9`): snapshot terminals + public `.clone()`. F7 resolved (`2f251dc`). A3 fully resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts → 4 inherent, write-finalizer.ts + include-utils.ts extraction.
 > Updated 2026-09-08 — plan sync: A6/help_source gone, S5 resolved via A1, T2.3 resolved by design via `createDebugAdapter()`, T3.8 covered by S2 (`ddl-validate`), verification checklist refreshed (typecheck pass, 284/194/98, lint 89w+2e).
 > Updated 2026-09-08 — project re-review: P6 (batch upsert N+1) added, D5 (standalone orm unusable) added, T5 (duplicated type helpers) added, A12 (global state/singleton) added, H5 (dead example scripts) added.
+> Updated 2026-09-10 — full five-axis re-review: A13-A21 (architecture duplication, sql-generator 692 lines), S6-S8 (DML validation, DDL edge cases), P6-P8 (computeDiff N+1, applyDiff no tx, batch sizing), TG6-TG11 (CLI tests, diff tests, any-casts in tests, console.log, inter-test deps, null filters), C9-C11 (relation.ts name/collection, empty data, duplicate joins).
 
 ## Repository snapshot
 
@@ -18,7 +19,7 @@
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals). **Still not production-ready**: type error in `model.test.ts:44` (`foreignKey` on `StandardField`), no README, 89 lint warnings (2 pre-existing errors, rest style/`any` warnings).
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals). **Still not production-ready**: potential bug in `relation.ts:57` (name vs collection), `sql-generator.ts` at 692 lines, missing DML identifier validation, no transactional DDL, zero CLI tests, 89 lint warnings.
 
 ---
 
@@ -42,6 +43,9 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ✅ Fixed (`78cff3b`): `renderDefault()` renders a strict per-type SQL literal; `IntegerFieldBuilder` rejects non-integer defaults. |
 | D7 | 🟡 | **`alias()` doesn't rename the DB column** — `irToColumns` uses the field name | ✅ Fixed: column/property split threaded through WHERE/SELECT/ORDER/GROUP BY/UPDATE/create + result mapping; `alias.test.ts` covers DDL, select, filter, update, order. |
 | D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ✅ Fixed: adapter parses `int8` → `number`. ⚠️ Precision limit 2^53 — use `f.pk.string`/`f.pk.uuid` for large ids. |
+| C9 | 🔴 | **relation.ts:57 uses `targetIr.name` instead of `targetIr.collection`** for table context — single.ts:63 and multi.ts:66 correctly use `ir.collection`. If adapter reads table context expecting collection names, includes generate `FROM "Post"` instead of `FROM "posts"`. | ⬜ Needs verification — may work if adapter resolves independently |
+| C10 | 🟡 | **`create({})` (empty object) silently passes through `_mapAliases`** — no validation that data keys match model fields. Unknown keys silently ignored. | ⬜ Open |
+| C11 | 🟡 | **`join()` on MultiQueryBuilder has no duplicate-join guard** — calling with same left/right alias silently adds duplicate JOINs. | ⬜ Open |
 
 ### 2️⃣ Architecture
 
@@ -58,6 +62,15 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A9 | 🟡 | **BaseWhereBuilder (49 lines) — dead code** — not used by any builder | ✅ Resolved (`f3917da`): deleted, shared `addOrCondition()` in `where-helpers.ts` |
 | A10 | 🟡 | **_or() duplicated** in single.ts and multi.ts — ~25 lines of identical logic | ✅ Resolved (`f3917da`): shared `addOrCondition()` in `where-helpers.ts` |
 | A11 | 🟡 | **create()/execute() duplicated** in PgAdapter and TransactionalPgAdapter | ✅ Resolved (`9e45588`): shared `createRow()` and `rawQuery()` helpers |
+| A12 | 🟡 | **sql-generator.ts 692 lines** — `_buildSelectQueryText` 180 lines, monolithic SELECT builder | ⬜ Open — see architecture.md A13 |
+| A13 | 🟡 | **PgAdapter/TransactionalPgAdapter duplicate ~60 lines** — execute/create/raw identical except pool.query vs client.query | ⬜ Open — see architecture.md A14 |
+| A14 | 🟡 | **`_buildSql`/`_toSqlFrom` duplicated in 4 files** | ⬜ Open — see architecture.md A15 |
+| A15 | 🟡 | **`_mapRow` duplicated** in single.ts and upsert-helpers.ts | ⬜ Open — see architecture.md A16 |
+| A16 | 🟡 | **Default-select materialization duplicated 3x** in single.ts | ⬜ Open — see architecture.md A17 |
+| A17 | 🟡 | **diff/render.ts duplicates DDL SQL** from ddl-adapter.ts | ⬜ Open — see architecture.md A18 |
+| A18 | 🟢 | **`_pushWhere` structurally identical** in single.ts and multi.ts | ⬜ Open — see architecture.md A19 |
+| A19 | 🟢 | **Dual IR caches** in orm.ts | ⬜ Open — see architecture.md A20 |
+| A20 | 🟢 | **orm.ts imports Model** from model layer | ⬜ Open — see architecture.md A21 |
 
 ### 3️⃣ Security
 
@@ -68,6 +81,10 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S3 | 🟢 | `.env` with `PGPASSWORD` committed / no `.gitignore` | ✅ Resolved (`.gitignore` present, `.env` untracked) |
 | S4 | 🟡 | **pgTypes global mutation** — conflicts with other pg users | ✅ Resolved (`04ee7e1`): per-pool `createKadmiumTypes()` |
 | S5 | 🟡 | **_or() race condition** when reusing builder in parallel async | ✅ Resolved via A1 (`b709ad1`): terminals work on `sqb.clone()` snapshots — see security.md |
+| S6 | 🟡 | **`expression.op` interpolated into SQL without runtime validation** | ⬜ Open — see security.md S5 |
+| S7 | 🟡 | **No identifier validation on DML path** (buildInsertSql, buildUpsertManySql) | ⬜ Open — see security.md S6 |
+| S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | ⬜ Open — see security.md S7 |
+| S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ⬜ Open — see security.md S8 |
 
 ### 4️⃣ Performance
 
@@ -78,6 +95,9 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | P3 | 🟢 | Schema inspection sequential per table | ✅ Acceptable |
 | P4 | 🟢 | **ResultReshaper O(n × m)** — quadratic reshaping | ✅ Verified optimal for typical cases (pre-computation overhead offsets benefit) |
 | P5 | 🟢 | **unpackIncludes recursive** — O(n × k) per-row traversal | ✅ Optimized: `Map.get()` O(1) instead of `find()` O(k) |
+| P6 | 🟡 | **computeDiff 3N+1 queries** for N tables (inspectColumns + inspectIndexes + inspectForeignKeys per table) | ⬜ Open — see performance.md P5 |
+| P7 | 🟡 | **applyDiff no transaction wrapping** — partial failure leaves DB in partially-migrated state | ⬜ Open — see performance.md P6 |
+| P8 | 🟢 | **MAX_BATCH_ROWS hardcoded** without column count consideration | ⬜ Open — see performance.md P7 |
 
 ### 5️⃣ Readability / Hygiene
 
@@ -98,6 +118,12 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG3 | 🟡 | **Proxy system not tested in isolation** — FilterProxy, SelectProxy, RelationProxy | ✅ Fixed: covered in `query-proxies.test.ts` (included in TG1) |
 | TG4 | 🟢 | **pgType/diffToHealth/compile unit tests removed** — pure functions covered only indirectly | ✅ Fixed (`dec901e`): compileModel 30 cases + TG5 below |
 | TG5 | 🟡 | **No unit tests for Model DSL, field builders, codegen, DDL adapter, sql-generator** | ✅ Fixed (`dec901e`): 226 cases across 19 new test files |
+| TG6 | 🟡 | **Zero CLI tests** — db, generate, init, format, check commands | ⬜ Open — see testing.md TG6 |
+| TG7 | 🟡 | **No unit tests for diff/compute, diff/apply, diff/render** | ⬜ Open — see testing.md TG7 |
+| TG8 | 🟡 | **~100 `any` casts in unit tests** — masks proxy type regressions | ⬜ Open — see testing.md TG8 |
+| TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ⬜ Open — see testing.md TG9 |
+| TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ⬜ Open — see testing.md TG10 |
+| TG11 | 🟢 | **No tests for null/undefined in filters** | ⬜ Open — see testing.md TG11 |
 
 ---
 

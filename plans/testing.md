@@ -113,3 +113,81 @@
 - `package.json` (добавлен `test` script)
 
 **Коммит:** `dec901e`
+
+---
+
+## TG6: Ноль тестов CLI
+
+**Важность:** 🟡 High
+
+**Краткое описание:** Команды `db`, `generate`, `init`, `format`, `check` не покрыты тестами. Ни одного unit/integration теста. CLI — публичный API, регрессии не отслеживаются.
+
+**Решение:** Минимум: `init`, `generate`, `check` с замоканной ФС. `db` — с мок-адаптером.
+
+**Связанные файлы:**
+- `packages/core/src/cli/*.ts`
+
+---
+
+## TG7: Нет unit-тестов для diff/compute, diff/apply, diff/render
+
+**Важность:** 🟡 High
+
+**Краткое описание:** `diff/compute.ts` (202 строки), `diff/apply.ts` (105), `diff/render.ts` (63) — нет dedicated unit-тестов. Тестируются только косвенно.
+
+**Решение:** Unit-тесты с мок-адаптерами.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/diff/compute.ts`
+- `packages/sql-pg/src/diff/apply.ts`
+- `packages/sql-pg/src/diff/render.ts`
+
+---
+
+## TG8: ~100 any-кастов в unit-тестах
+
+**Важность:** 🟡 High
+
+**Краткое описание:** Касты к `any` с `eslint-disable` в `single-builder.test.ts`, `multi-builder.test.ts`, `query-proxies.test.ts`. Маскируют регрессии в proxy-типах.
+
+**Решение:** Типизированные тестовые хелперы для proxy-объектов.
+
+**Связанные файлы:**
+- `packages/core/test/orm/single-builder.test.ts`
+- `packages/core/test/orm/multi-builder.test.ts`
+- `packages/core/test/orm/query-proxies.test.ts`
+
+---
+
+## TG9: console.log осталось в include.test.ts и multi.test.ts
+
+**Важность:** 🟢 Medium
+
+**Краткое описание:** 4 `console.log` в интеграционных тестах: `include.test.ts` (3), `multi.test.ts` (1).
+
+**Связанные файлы:**
+- `test-project/test/orm/include.test.ts`
+- `test-project/test/orm/multi.test.ts`
+
+---
+
+## TG10: Межтестовая зависимость состояния в single.test.ts
+
+**Важность:** 🟢 Medium
+
+**Краткое описание:** Assertions `count()` зависят от `delete()` из предыдущего теста. Fragile при переупорядочивании.
+
+**Связанные файлы:**
+- `test-project/test/orm/single.test.ts`
+
+---
+
+## TG11: Нет тестов для null/undefined в фильтрах
+
+**Важность:** 🟢 Medium
+
+**Краткое описание:** Фильтры не тестируются с `null`/`undefined`. `f.eq(null)` должен → `IS NULL`.
+
+**Связанные файлы:**
+- `packages/core/test/orm/filters.test.ts`
+- `packages/sql-pg/test/sql-generator/where-clause.test.ts`
