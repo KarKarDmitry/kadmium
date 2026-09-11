@@ -228,9 +228,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A13: sql-generator.ts — 692 строки, _buildSelectQueryText 180 строк
+## A13: sql-generator.ts — 692 строки, _buildSelectQueryText 180 строк — ✅ Done (`f3e2e4d`)
 
 **Важность:** 🔴 Critical
+
+**Статус:** ✅ Done (`f3e2e4d`). `_buildSelectQueryText` (182 строки) разложен на per-clause хелперы: `_mainTableAlias`, `_buildSelectFields`, `_buildIncludesClauses`, `_buildFromJoins`, `_buildSelectWhereClause`, `_buildGroupByClause`, `_buildOrderByClause`, `_buildPaginationClause`. Оркестратор сократился до ~30 строк. Поведение байт-в-байт: финальный SQL и раньше схлопывался через `.replace(/\s+/g, ' ')`, покрытие — 85 тестов `test/sql-generator/` + интеграционные. 143 insertions / 78 deletions.
 
 **Краткое описание:** `sql-generator.ts` — самый большой файл в проекте (692 строки). Метод `_buildSelectQueryText` один занимает ~180 строк и обрабатывает SELECT, FROM, JOINs, LATERAL, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT, OFFSET в одном монолитном методе. Тяжело навигировать, тестировать и расширять.
 
@@ -348,9 +350,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A20: Dual IR caches в orm.ts
+## A20: Dual IR caches в orm.ts — ✅ Done (`3fae15d`)
 
 **Важность:** 🟢 Medium
+
+**Статус:** ✅ Done (`3fae15d`). Единый кэш: `_irCache` расширен до `Map<string, ModelIR | undefined>` (вместил отрицательный кэш lookup), `buildIrLookup(app, cache)` теперь принимает общий Map вместо своего замыкания. Оба пути (`_irFor` из переданного класса и lookup по имени через `Model.resolve`) пишут в одну карту — для незарегистрированных моделей больше не создаются два разных `ModelIR`. `_irFor` не менялся: `undefined` читается как miss и перезаписывается компиляцией из класса. Тесты: +2 white-box кейса в `orm-manager.test.ts` на object-identity (общий кэш между `single()` и `_irLookup()`, в т.ч. для fallback-компиляции).
 
 **Краткое описание:** `OrmManager._irCache` (line 48) и кэш-замыкание в `buildIrLookup` (line 13) — два независимых IR-кэша. Оба заполняются из `appCore.ir()`, но через разные пути. Запутывающие имена, риск несвежих данных при динамической регистрации моделей.
 

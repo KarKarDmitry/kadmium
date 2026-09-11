@@ -4,7 +4,7 @@
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — all TG items resolved. 22 unit test files in core, 12 in sql-pg, 14 integration tests.
 > Updated 2026-09-11 — TG8 verdict (35 white-box casts, accepted); TG9/TG10 done (`8c515df`); TG6 partial (`de01375`, init); P5 done (`8e727d4`) — DDL-adapter coverage bullet refreshed (40 cases).
-> Updated 2026-09-11 — TG6 done (`610b403` generate/check, `d700609`+`5a4d3e6` db:*). Counts: core 334, sql-pg 252, test-project 117.
+> Updated 2026-09-11 — TG6 done (`610b403` generate/check, `d700609`+`5a4d3e6` db:*). Counts: core 336 (A20: +2 IR-cache identity cases), sql-pg 252, test-project 117.
 
 ---
 
