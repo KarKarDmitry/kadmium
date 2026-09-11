@@ -26,6 +26,23 @@ describe('renderSql', () => {
     expect(sql.endsWith('\n\nCOMMIT;\n')).toBe(true);
   });
 
+  it('preview matches the exact executed DDL (single source of truth)', () => {
+    expect(renderSql(diff([createUsersOp(), addEmailIndexOp()]))).toBe(
+      `BEGIN;
+
+CREATE TABLE "users" (
+  "id" serial NOT NULL PRIMARY KEY,
+  "name" character varying NOT NULL,
+  "email" character varying NOT NULL  UNIQUE
+);
+
+CREATE UNIQUE INDEX "idx_users_email" ON "users" ("email");
+
+COMMIT;
+`,
+    );
+  });
+
   it('renders create-table without inline unique for indexed columns', () => {
     const sql = renderSql(diff([createUsersOp(), addEmailIndexOp()]));
     expect(sql).toContain('CREATE TABLE "users" (');
@@ -52,9 +69,7 @@ describe('renderSql', () => {
     expect(sql).toContain(
       'ALTER TABLE "posts" ADD COLUMN "title" character varying NOT NULL;',
     );
-    expect(sql).toContain(
-      'ALTER TABLE "posts" DROP COLUMN "legacy" CASCADE;',
-    );
+    expect(sql).toContain('ALTER TABLE "posts" DROP COLUMN "legacy" CASCADE;');
     expect(sql).toContain(
       'ALTER TABLE "posts" ALTER COLUMN "author" TYPE integer USING "author"::integer;',
     );
@@ -63,12 +78,12 @@ describe('renderSql', () => {
     );
     expect(sql).toContain('DROP INDEX IF EXISTS "idx_posts_legacy";');
     expect(sql).toContain(
-      'ALTER TABLE "posts" ADD CONSTRAINT "fk_posts_author" FOREIGN KEY ("author") REFERENCES "user" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;',
+      'ALTER TABLE "posts" ADD CONSTRAINT "fk_posts_author"\n       FOREIGN KEY ("author") REFERENCES "user" ("id")\n       ON DELETE NO ACTION ON UPDATE NO ACTION;',
     );
     expect(sql).toContain(
       'ALTER TABLE "posts" DROP CONSTRAINT IF EXISTS "fk_posts_category";',
     );
-    expect(sql).toContain('DROP TABLE "posts" CASCADE;');
+    expect(sql).toContain('DROP TABLE IF EXISTS "posts" CASCADE;');
   });
 
   it('renders DROP NOT NULL for nullable alter-nullable', () => {

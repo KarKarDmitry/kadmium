@@ -15,6 +15,19 @@ import {
   assertSqlExpression,
   assertReferentialAction,
 } from './ddl-validate';
+import {
+  addColumnSql,
+  addForeignKeySql,
+  addIndexSql,
+  alterDefaultSql,
+  alterNullableSql,
+  alterTypeSql,
+  createTableSql,
+  dropColumnSql,
+  dropForeignKeySql,
+  dropIndexSql,
+  dropTableSql,
+} from './ddl-sql';
 
 interface ColumnRow {
   table_name: string;
@@ -198,25 +211,7 @@ export class PgDdlAdapter {
       if (col.defaultValue !== null)
         assertSqlExpression(col.defaultValue, `default of ${col.name}`);
     }
-    const colDefs = columns
-      .map((col) => {
-        let type = col.dataType;
-        if (col.autoIncrement) {
-          if (type === 'integer') type = 'serial';
-          else if (type === 'bigint') type = 'bigserial';
-        }
-        const nullable = col.isNullable ? 'NULL' : 'NOT NULL';
-        const pk = col.isPrimary ? 'PRIMARY KEY' : '';
-        const uniq = col.isUnique && !col.isPrimary ? 'UNIQUE' : '';
-        const def = col.autoIncrement
-          ? ''
-          : col.defaultValue !== null
-            ? `DEFAULT ${col.defaultValue}`
-            : '';
-        return `"${col.name}" ${type} ${nullable} ${pk} ${uniq} ${def}`.trim();
-      })
-      .join(',\n  ');
-    await this.client.query(`CREATE TABLE "${tableName}" (\n  ${colDefs}\n)`);
+    await this.client.query(createTableSql(tableName, columns));
   }
 
   async addColumn(table: string, col: DbColumn): Promise<void> {
@@ -225,20 +220,13 @@ export class PgDdlAdapter {
     assertSqlExpression(col.dataType, `type of ${col.name}`);
     if (col.defaultValue !== null)
       assertSqlExpression(col.defaultValue, `default of ${col.name}`);
-    const type = col.dataType;
-    const nullable = col.isNullable ? 'NULL' : 'NOT NULL';
-    const def = col.defaultValue !== null ? `DEFAULT ${col.defaultValue}` : '';
-    await this.client.query(
-      `ALTER TABLE "${table}" ADD COLUMN "${col.name}" ${type} ${nullable} ${def}`.trim(),
-    );
+    await this.client.query(addColumnSql(table, col));
   }
 
   async dropColumn(table: string, colName: string): Promise<void> {
     assertSqlIdentifier(table, 'table name');
     assertSqlIdentifier(colName, 'column name');
-    await this.client.query(
-      `ALTER TABLE "${table}" DROP COLUMN "${colName}" CASCADE`,
-    );
+    await this.client.query(dropColumnSql(table, colName));
   }
 
   async alterType(
@@ -249,9 +237,7 @@ export class PgDdlAdapter {
     assertSqlIdentifier(table, 'table name');
     assertSqlIdentifier(colName, 'column name');
     assertSqlExpression(newType, `type of ${colName}`);
-    await this.client.query(
-      `ALTER TABLE "${table}" ALTER COLUMN "${colName}" TYPE ${newType} USING "${colName}"::${newType}`,
-    );
+    await this.client.query(alterTypeSql(table, colName, newType));
   }
 
   async alterNullable(
@@ -261,10 +247,7 @@ export class PgDdlAdapter {
   ): Promise<void> {
     assertSqlIdentifier(table, 'table name');
     assertSqlIdentifier(colName, 'column name');
-    const action = nullable ? 'DROP NOT NULL' : 'SET NOT NULL';
-    await this.client.query(
-      `ALTER TABLE "${table}" ALTER COLUMN "${colName}" ${action}`,
-    );
+    await this.client.query(alterNullableSql(table, colName, nullable));
   }
 
   async alterDefault(
@@ -274,32 +257,21 @@ export class PgDdlAdapter {
   ): Promise<void> {
     assertSqlIdentifier(table, 'table name');
     assertSqlIdentifier(colName, 'column name');
-    if (defaultValue === null) {
-      await this.client.query(
-        `ALTER TABLE "${table}" ALTER COLUMN "${colName}" DROP DEFAULT`,
-      );
-    } else {
+    if (defaultValue !== null)
       assertSqlExpression(defaultValue, `default of ${colName}`);
-      await this.client.query(
-        `ALTER TABLE "${table}" ALTER COLUMN "${colName}" SET DEFAULT ${defaultValue}`,
-      );
-    }
+    await this.client.query(alterDefaultSql(table, colName, defaultValue));
   }
 
   async addIndex(idx: DbIndex): Promise<void> {
     assertSqlIdentifier(idx.name, 'index name');
     assertSqlIdentifier(idx.tableName, 'table name');
     assertSqlIdentifierList(idx.columns, 'index columns');
-    const cols = idx.columns.map((c) => `"${c}"`).join(', ');
-    const unique = idx.isUnique ? 'UNIQUE' : '';
-    await this.client.query(
-      `CREATE ${unique} INDEX "${idx.name}" ON "${idx.tableName}" (${cols})`,
-    );
+    await this.client.query(addIndexSql(idx));
   }
 
   async dropIndex(indexName: string): Promise<void> {
     assertSqlIdentifier(indexName, 'index name');
-    await this.client.query(`DROP INDEX IF EXISTS "${indexName}"`);
+    await this.client.query(dropIndexSql(indexName));
   }
 
   async addForeignKey(fk: DbForeignKey): Promise<void> {
@@ -310,26 +282,18 @@ export class PgDdlAdapter {
     assertSqlIdentifierList(fk.refColumns, 'referenced columns');
     assertReferentialAction(fk.onDelete, 'ON DELETE');
     assertReferentialAction(fk.onUpdate, 'ON UPDATE');
-    const cols = fk.columns.map((c) => `"${c}"`).join(', ');
-    const refCols = fk.refColumns.map((c) => `"${c}"`).join(', ');
-    await this.client.query(
-      `ALTER TABLE "${fk.tableName}" ADD CONSTRAINT "${fk.name}"
-       FOREIGN KEY (${cols}) REFERENCES "${fk.refTable}" (${refCols})
-       ON DELETE ${fk.onDelete} ON UPDATE ${fk.onUpdate}`,
-    );
+    await this.client.query(addForeignKeySql(fk));
   }
 
   async dropForeignKey(fkName: string, tableName: string): Promise<void> {
     assertSqlIdentifier(tableName, 'table name');
     assertSqlIdentifier(fkName, 'foreign key name');
-    await this.client.query(
-      `ALTER TABLE "${tableName}" DROP CONSTRAINT IF EXISTS "${fkName}"`,
-    );
+    await this.client.query(dropForeignKeySql(tableName, fkName));
   }
 
   async dropTable(tableName: string): Promise<void> {
     assertSqlIdentifier(tableName, 'table name');
-    await this.client.query(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
+    await this.client.query(dropTableSql(tableName));
   }
 
   async raw(

@@ -395,7 +395,7 @@ describe('PgDdlAdapter', () => {
         isUnique: false,
       });
       const sql = client.query.mock.calls[0][0];
-      expect(sql).toContain('CREATE  INDEX');
+      expect(sql).toContain('CREATE INDEX');
       expect(sql).toContain('"idx_name"');
     });
 
