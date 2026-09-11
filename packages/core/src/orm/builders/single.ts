@@ -1,7 +1,6 @@
 import { KadmiumSqb, type AnySelectableField } from '../sqb';
 import type { WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
-import { pushWhere } from './utils';
 import type { ModelIR } from '../../ir/index';
 import type {
   FilterProxy,
@@ -86,7 +85,7 @@ export class SingleQueryBuilder<
   // Вложенные структуры — только через and()/or() выражения.
 
   where(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
-    pushWhere('AND', fn, this.sqb, () => this._createFilterProxy());
+    this._pushWhere('AND', fn);
     return this;
   }
 
@@ -95,8 +94,18 @@ export class SingleQueryBuilder<
   }
 
   or(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
-    pushWhere('OR', fn, this.sqb, () => this._createFilterProxy());
+    this._pushWhere('OR', fn);
     return this;
+  }
+
+  private _pushWhere(
+    join: 'AND' | 'OR',
+    fn: (t: FilterProxy<TModel>) => WhereExpression | undefined,
+  ): void {
+    const expression = fn(this._createFilterProxy());
+    if (expression !== undefined) {
+      this.sqb.wheres.elements.push({ join, condition: expression });
+    }
   }
 
   // ── select — returns this with updated TSelect ──
