@@ -8,6 +8,7 @@
 > Updated 2026-09-08 — A1 resolved via B+C (`b709ad1` + this PR): snapshot terminals + public `.clone()`.
 > Updated 2026-09-08 — A3 resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts 12→4 inherent, update/delete → write-finalizer.ts, includes dedup → include-utils.ts.
 > Updated 2026-09-08 — added A12 (global state/singleton), from project review.
+> Updated 2026-09-11 — A15/A16 done (`6fb6711`): shared `buildDebugSql` + `mapRow` in `builders/utils.ts`. A18 done (`5f21a41`): DDL SQL in a single source of truth (`ddl-sql.ts`), preview and adapter delegate to it.
 
 ---
 
@@ -253,9 +254,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A15: _buildSql / _toSqlFrom продублирован в 4 файлах
+## A15: _buildSql / _toSqlFrom продублирован в 4 файлах — ✅ Done (`6fb6711`)
 
 **Важность:** 🟡 High
+
+**Статус:** ✅ Done (`6fb6711`). Shared `buildDebugSql(sqb, adapter)` в `packages/core/src/orm/builders/utils.ts`. Все копии удалены; `_toSqlFrom` в single/multi — thin wrapper с null-guard. Покрыт `test/orm/utils.test.ts`.
 
 **Краткое описание:** Идентичная функция форматирования SQL (`adapter.toSql(sqb)` → `` `SQL: ${text}\nVALUES: [...]` ``) продублирована в:
 - `write-finalizer.ts:10-13`
@@ -273,9 +276,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A16: _mapRow продублирован в single.ts и upsert-helpers.ts
+## A16: _mapRow продублирован в single.ts и upsert-helpers.ts — ✅ Done (`6fb6711`)
 
 **Важность:** 🟡 High
+
+**Статус:** ✅ Done (`6fb6711`). Shared `mapRow(ir, row)` в `builders/utils.ts`. single.ts и upsert-helpers.ts делегируют; `_mapRow` удалён. Покрыт `test/orm/utils.test.ts`.
 
 **Краткое описание:** Идентичная логика маппинга строк (`iterate ir.fields → alias ?? prop → filter undefined`) в:
 - `single.ts:419-426` (`_mapRow`)
@@ -307,9 +312,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A18: diff/render.ts дублирует DDL SQL из ddl-adapter.ts
+## A18: diff/render.ts дублирует DDL SQL из ddl-adapter.ts — ✅ Done (`5f21a41`)
 
 **Важность:** 🟡 High
+
+**Статус:** ✅ Done (`5f21a41`). Новый `packages/sql-pg/src/ddl-sql.ts` — единственный источник DDL SQL (12 чистых билдеров). `diff/render.ts` и `PgDdlAdapter` оба делегируют в него, поэтому превью и applied SQL физически не могут разойтись. Бонус-фиксы: drop-table превью теперь с `IF EXISTS`, не-unique `CREATE INDEX` без двойного пробела; тесты (`render.test.ts` 7, `ddl-adapter.test.ts` unaffected кроме whitespace).
 
 **Краткое описание:** `diff/render.ts` и `ddl-adapter.ts` независимо строят идентичный DDL SQL (`create-table`, `add-column`, `alter-type`). Любое изменение формата DDL требует правок в обоих файлах.
 

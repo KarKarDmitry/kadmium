@@ -4,6 +4,7 @@
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — all TG items resolved. 22 unit test files in core, 12 in sql-pg, 14 integration tests.
 > Updated 2026-09-11 — TG8 verdict (35 white-box casts, accepted); TG9/TG10 done (`8c515df`); TG6 partial (`de01375`, init); P5 done (`8e727d4`) — DDL-adapter coverage bullet refreshed (40 cases).
+> Updated 2026-09-11 — TG6 done (`610b403` generate/check, `d700609`+`5a4d3e6` db:*). Counts: core 334, sql-pg 252, test-project 117.
 
 ---
 
@@ -117,19 +118,25 @@
 
 ---
 
-## TG6: Ноль тестов CLI 🟡 Частично (`de01375`)
+## TG6: Ноль тестов CLI 🟢 Done (`de01375` init; `610b403` generate/check; `d700609`+`5a4d3e6` db:*)
 
 **Важность:** 🟡 High
 
 **Краткое описание:** Команды `db`, `generate`, `init`, `format`, `check` не покрыты тестами. Ни одного unit/integration теста. CLI — публичный API, регрессии не отслеживаются.
 
-**Сделано:** ✅ `init` покрыт unit-тестами (`test/cli/init.test.ts`, 4 кейса на temp-директориях): шаблоны создаются, package.json merge сохраняет существующие scripts, повторный запуск не перезаписывает, вложенные пути.
+**Сделано:** ✅
+- `init` — unit-тесты (`test/cli/init.test.ts`, 4 кейса на temp-директориях): шаблоны создаются, package.json merge сохраняет существующие scripts, повторный запуск не перезаписывает, вложенные пути.
+- `generate`/`check` — E2E через реальный `loadCodegenProject` (`test/cli/generate.test.ts` + fixture `test/cli/fixtures/models/user.ts` + tempdir `kadmium.config.ts`): augment-файл пишется и содержит `declare module`; `check` проходит сразу после generate и падает при tamper-файле.
+- `db` — команды на in-memory `DbDdlAdapter` (`test/cli/db.test.ts`, 6 кейсов): `dbCheck` (out-of-date + healthy), `dbPush` (транзакционный create + unique index), `dbSql` (пишет миграцию), `dbClear` (без force не дропает, с force — все таблицы). Обход CLI-гейта: `new KadmiumApp()` + `app.modules.sql.set(mock)` + `app.appCore.register([User])`.
 
-**Остаток:** `generate`/`check` (нужен мок ModelImporter/FS для template-файлов), `db` (мок-адаптер), `format` (обёртка prettier).
+**Остаток:** `format` (тонкая обёртка prettier — низкая ценность).
 
 **Связанные файлы:**
 - `packages/core/src/cli/*.ts`
 - `packages/core/test/cli/init.test.ts`
+- `packages/core/test/cli/generate.test.ts`
+- `packages/core/test/cli/db.test.ts`
+- `packages/core/test/cli/fixtures/models/user.ts
 
 ---
 
