@@ -97,16 +97,11 @@ export class KadmiumSqb {
   }
 
   /**
-   * Deep-copy selects: SelectableField immutable — можно шарить,
-   * AggregateField.as() мутирует alias — копируем.
+   * Shallow-copy selects: both SelectableField and AggregateField are
+   * now immutable (as() returns new instance), so sharing references is safe.
    */
   private _cloneSelects(selects: AnySelectableField[]): AnySelectableField[] {
-    return selects.map((s) => {
-      if (s.kind !== 'aggregate') return s;
-      const agg = new AggregateField(s.func, s.field);
-      agg.alias = s.alias;
-      return agg;
-    });
+    return [...selects];
   }
 
   /**

@@ -42,11 +42,12 @@ describe('aggregates', () => {
     expect(a.func).toBe('max');
   });
 
-  it('.as() sets alias and returns self', () => {
+  it('.as() returns new instance with alias, original unchanged', () => {
     const a = aggregates.count('*');
     const result = a.as('total');
-    expect(result).toBe(a);
-    expect(a.alias).toBe('total');
+    expect(result).not.toBe(a);
+    expect(result.alias).toBe('total');
+    expect(a.alias).toBe('');
   });
 });
 

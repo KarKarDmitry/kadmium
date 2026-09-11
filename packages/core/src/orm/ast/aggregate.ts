@@ -22,10 +22,11 @@ export class AggregateField<TResult = unknown> {
     return this.field === '*' ? '*' : this.field.fieldName;
   }
 
-  /** Переименовать агрегат в SELECT */
-  as<A extends string>(alias: A): this & { alias: A } {
-    this.alias = alias;
-    return this as any;
+  /** Переименовать агрегат в SELECT (возвращает новый инстанс) */
+  as<A extends string>(alias: A): AggregateField<TResult> & { alias: A } {
+    const copy = new AggregateField<TResult>(this.func, this.field);
+    copy.alias = alias;
+    return copy as AggregateField<TResult> & { alias: A };
   }
 
   /** SQL-представление */
