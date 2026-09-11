@@ -80,7 +80,10 @@ export abstract class SqlGenerator {
       return `(${vals})`;
     }
     // BETWEEN
-    if (w.op === 'BETWEEN' && Array.isArray(w.value) && w.value.length === 2) {
+    if (w.op === 'BETWEEN') {
+      if (!Array.isArray(w.value) || w.value.length !== 2) {
+        throw new Error('BETWEEN requires exactly two values');
+      }
       values.push(w.value[0], w.value[1]);
       return `$${paramIndex.p++} AND $${paramIndex.p++}`;
     }

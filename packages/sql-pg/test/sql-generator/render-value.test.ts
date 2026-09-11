@@ -71,13 +71,13 @@ describe('SqlGenerator — _renderValue', () => {
     expect(values).toEqual([10, 20]);
   });
 
-  it('falls through for BETWEEN with wrong-length array', () => {
+  it('throws for BETWEEN with wrong-length array', () => {
     const w = where('age', 'BETWEEN', [10]);
     const values: unknown[] = [];
     const p = { p: 1 };
-    const result = gen['_renderValue'](w, values, p);
-    expect(result).toBe('$1');
-    expect(values).toEqual([[10]]);
+    expect(() => gen['_renderValue'](w, values, p)).toThrow(
+      'BETWEEN requires exactly two values',
+    );
   });
 
   it('renders field-to-field comparison via getIdentifierForSql', () => {
