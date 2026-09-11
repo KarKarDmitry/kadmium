@@ -78,6 +78,13 @@ describe('assertSqlExpression', () => {
     expect(() => assertSqlExpression('a|b', 'default value')).toThrow();
   });
 
+  it('accepts escaped quotes inside string literals (S8)', () => {
+    const ok = ["'it''s'", '"a""b"', "'it''s' AND 'x''y'"];
+    for (const e of ok) {
+      expect(() => assertSqlExpression(e, 'default value')).not.toThrow();
+    }
+  });
+
   it('rejects unbalanced parens / quotes and empty', () => {
     expect(() => assertSqlExpression('(now()', 'x')).toThrow();
     expect(() => assertSqlExpression("now(')", 'x')).toThrow();

@@ -57,7 +57,11 @@ export function assertSqlExpression(expr: string, what: string): void {
   for (let i = 0; i < expr.length; i++) {
     const ch = expr[i];
     if (quote) {
-      if (ch === quote) quote = null;
+      if (ch === quote) {
+        // `` (escaped quote) — не закрывает строку
+        if (expr[i + 1] === quote) i++;
+        else quote = null;
+      }
     } else if (ch === "'" || ch === '"' || ch === '`') {
       quote = ch;
     } else if (ch === '(') {
