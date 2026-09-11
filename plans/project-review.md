@@ -60,7 +60,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | C14 | 🟡 | **Multi-row INSERT с неоднородными ключами → тихая потеря данных.** `buildInsertManySql` использует `Object.keys(rows[0])` для определения колонок; строки с другими ключами получают `NULL` без предупреждения. | ⬜ Open — фикс: валидировать единообразие ключей или нормализовать через union всех ключей. |
 | C15 | 🟡 | **`clone()` shallow-copies includes — `internalSqb` shared.** `sqb.includes` копируется как `[...this.includes]`, но `IncludedRelation` объекты содержат `internalSqb`. Мутации Relation в clone повлияют на оригинал. | ⬜ Open — фикс: deep-clone includes или задокументировать shallow-shared семантику. |
 | C16 | 🟡 | **`BETWEEN` с массивом длины ≠ 2 молча падает в generic path.** Если `w.op === 'BETWEEN'` и `w.value.length !== 2`, код попадает в generic `values.push(w.value); return $N` — PostgreSQL получит невалидный запрос. | ✅ Fixed (`c77d82b`): throw `'BETWEEN requires exactly two values'` + unit-тест. |
-| C17 | 🟢 | **`renderDefault` для datetime не экранирует одинарные кавычки.** `{ default: "it's now" }` → `'it's now'` — syntax error. Не эксплойтится (assertSqlExpression отrejectит), но ломает DDL. | ⬜ Open — фикс: добавить `.replace(/'/g, "''")` как для string/uuid. |
+| C17 | 🟢 | **`renderDefault` для datetime не экранирует одинарные кавычки.** `{ default: "it's now" }` → `'it's now'` — syntax error. Не эксплойтится (assertSqlExpression отrejectит), но ломает DDL. | ✅ Fixed (`98d3977`): `.replace(/'/g, "''")` + `.replace(/\\\\/g, '\\\\\\\\')` для datetime/date/time + unit-тесты. |
 
 ### 2️⃣ Architecture
 
