@@ -48,11 +48,11 @@ describe('Relation — constructor', () => {
     expect(rel.childField).toBe('id');
   });
 
-  it('sets internalSqb with targetIr name', () => {
+  it('sets internalSqb tableContext value to collection, not name (C9)', () => {
     const sqb = makeSqb();
     const targetIr = makePostIR();
     const rel = new Relation(sqb, 'posts', targetIr, makeFieldIr());
-    expect(rel.internalSqb.tableContext.get('posts')).toBe('Post');
+    expect(rel.internalSqb.tableContext.get('posts')).toBe('posts');
   });
 });
 

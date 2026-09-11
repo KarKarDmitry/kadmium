@@ -54,7 +54,7 @@ export class Relation implements IncludedRelation {
     this.childField = childField;
 
     this.internalSqb = new KadmiumSqb();
-    this.internalSqb.tableContext.set(this.alias, targetIr.name);
+    this.internalSqb.tableContext.set(this.alias, targetIr.collection);
   }
 
   get propertyName(): string {
@@ -64,7 +64,7 @@ export class Relation implements IncludedRelation {
   as(alias: string): this {
     const clone = this.internalSqb.clone();
     clone.tableContext.delete(this.alias);
-    clone.tableContext.set(alias, this.targetIr.name);
+    clone.tableContext.set(alias, this.targetIr.collection);
     this.internalSqb = clone;
     this.alias = alias;
     return this;

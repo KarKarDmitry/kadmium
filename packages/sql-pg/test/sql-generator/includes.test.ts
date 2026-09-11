@@ -116,6 +116,20 @@ describe('SqlGenerator — toSql: includes', () => {
     expect(text).toContain('row_to_json(subq)');
   });
 
+  it('include subquery FROM uses collection, not targetIr.name (C9)', () => {
+    const inc = includedRelation({
+      propertyName: 'posts',
+      relationType: 'one-to-many',
+      parentField: 'id',
+      childField: 'authorId',
+      internalSqb: sqb({ tableContext: new Map([['posts', 'Post']]) }),
+    });
+    const q = sqb({ includes: [inc] });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('FROM "posts" AS "posts"');
+    expect(text).not.toContain('FROM "Post"');
+  });
+
   it('include with WHERE in subquery', () => {
     const inc = includedRelation({
       propertyName: 'posts',
