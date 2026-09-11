@@ -87,7 +87,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A19 | 🟢 | **Dual IR caches** in orm.ts | ✅ Resolved (`3fae15d`, see architecture.md A20) |
 | A20 | 🟢 | **orm.ts imports Model** from model layer | ✅ Resolved (`8a051a9`, see architecture.md A21) |
 | A22 | 🟡 | **IR/compile.ts imports Model — direction violation.** Контрактный слой IR зависит от конкретного класса `Model` (walk prototype chain). Зависимость должна быть `Model → IR`, не `IR → Model`. | ⬜ Open — фикс: вынести `compileModel` из `ir/` в `model/` или `core/`, где можно зависеть от Model. Или расширить `CompilableModel` для walk prototype. |
-| A23 | 🟢 | **sql-pg/index.ts (461 строк) смешивает адаптеры и хелперы.** `PgAdapter`, `TransactionalPgAdapter`, `DebugSqlGenerator`, `buildInsertSql`, `unpackIncludes`, `finalizeRows` — всё в одном файле. | ⬜ Open — фикс: вынести `buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `createRow`, `createManyRows`, `rawQuery`, `unpackIncludes`, `finalizeRows` в `crud.ts`. |
+| A23 | 🟢 | **sql-pg/index.ts (461 строк) смешивает адаптеры и хелперы.** `PgAdapter`, `TransactionalPgAdapter`, `DebugSqlGenerator`, `buildInsertSql`, `unpackIncludes`, `finalizeRows` — всё в одном файле. | ✅ Fixed (`93c7ce6`): хелперы вынесены в `helpers.ts` (212 строк), index.ts — barrel + классы. Публичный API не изменился. |
 
 ### 3️⃣ Security
 
@@ -212,7 +212,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 **Low (backlog):**
 - T5.8 ⬜ — **A22: Move `compileModel` out of `ir/`** to resolve IR→Model direction violation.
-- T5.9 ⬜ — **A23: Extract CRUD helpers** from `sql-pg/index.ts` into `crud.ts`.
+- T5.9 ✅ — **A23: Extract CRUD helpers** from `sql-pg/index.ts` into `helpers.ts`.
 - T5.10 ✅ — **P9: Pre-compute Map** in `unpackIncludeValue` outside row loop.
 - T5.11 ⬜ — **P10: BFS instead of O(n²)** for join ordering in `_buildFromJoins`.
 - T5.12 ⬜ — **T6: Make `AggregateField.as()` immutable** (return new instance).
