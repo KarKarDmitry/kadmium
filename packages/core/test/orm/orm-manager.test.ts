@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppCore } from '../../src/core/app-core';
 import { OrmManager } from '../../src/orm/orm';
 import { Model } from '../../src/model/index';
+import type { ModelIR } from '../../src/ir/index';
 import f from '../../src/model/fields';
 import { makeMockAdapter } from './helpers';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
@@ -55,6 +56,56 @@ describe('OrmManager — adapter routing', () => {
 
     expect(overrideAdapter.execute).toHaveBeenCalledTimes(1);
     expect(globalAdapter.execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('OrmManager — shared IR cache (A20)', () => {
+  let app: AppCore;
+  let orm: OrmManager;
+
+  beforeEach(() => {
+    Model.clear();
+    app = new AppCore();
+    app.register([User]);
+    app.sqlAdapter = makeMockAdapter() as unknown as SqlAdapter;
+    orm = new OrmManager(app);
+  });
+
+  afterEach(() => Model.clear());
+
+  interface ManagerInternals {
+    _irCache: Map<string, ModelIR | undefined>;
+    _irLookup: (name: string) => ModelIR | undefined;
+  }
+
+  it('single() and _irLookup() share a single cached ModelIR instance', () => {
+    orm.single(User);
+
+    const internals = orm as unknown as ManagerInternals;
+    const viaCache = internals._irCache.get('User');
+    const viaLookup = internals._irLookup('User');
+
+    expect(viaLookup).toBe(viaCache);
+    expect(viaLookup).toBe(app.ir('User'));
+    expect(internals._irCache.has('User')).toBe(true);
+  });
+
+  it('_irLookup() writes its fallback-compiled IR into the shared cache', () => {
+    class Post extends Model {
+      title = f.string;
+      ['~shape']!: Record<string, unknown>;
+      ['~rel']!: Record<string, unknown>;
+      ['~relInfo']!: Record<string, unknown>;
+    }
+    Model.register(Post);
+
+    const internals = orm as unknown as ManagerInternals;
+    const viaLookup = internals._irLookup('Post');
+    const viaCache = internals._irCache.get('Post');
+
+    expect(viaLookup).toBeDefined();
+    expect(internals._irCache.has('Post')).toBe(true);
+    expect(viaCache).toBe(viaLookup);
   });
 });
 

@@ -8,9 +8,12 @@ import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
 /**
  * Строит irLookup из всех IR, зарегистрированных в AppCore.
+ * Кэш разделяется с OrmManager._irCache — единая точка хранения IR.
  */
-function buildIrLookup(app?: AppCore): (name: string) => ModelIR | undefined {
-  const cache = new Map<string, ModelIR | undefined>();
+function buildIrLookup(
+  app: AppCore | undefined,
+  cache: Map<string, ModelIR | undefined>,
+): (name: string) => ModelIR | undefined {
   return (name: string) => {
     const cached = cache.get(name);
     if (cached !== undefined || cache.has(name)) return cached;
@@ -45,7 +48,7 @@ function buildIrLookup(app?: AppCore): (name: string) => ModelIR | undefined {
  * повторной компиляции на каждый запрос.
  */
 export class OrmManager {
-  private _irCache = new Map<string, ModelIR>();
+  private _irCache = new Map<string, ModelIR | undefined>();
   private _irLookup: (name: string) => ModelIR | undefined;
 
   /** Сколько раз IR компилировался в горячем пути (не из кеша). */
@@ -55,7 +58,7 @@ export class OrmManager {
     private appCore: AppCore,
     private _txAdapter?: SqlAdapter,
   ) {
-    this._irLookup = buildIrLookup(this.appCore);
+    this._irLookup = buildIrLookup(this.appCore, this._irCache);
   }
 
   private get _adapter(): SqlAdapter | undefined {
