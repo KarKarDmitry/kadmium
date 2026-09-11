@@ -230,18 +230,14 @@ class TransactionalPgAdapter
   }
 
   async commit(): Promise<void> {
-    try {
-      await this.client.query('COMMIT');
-    } finally {
-      this._release();
-    }
+    await this.client.query('COMMIT');
   }
 
   async rollback(): Promise<void> {
     try {
       await this.client.query('ROLLBACK');
-    } finally {
-      this._release();
+    } catch {
+      // ROLLBACK may fail if connection is broken; swallow to preserve original error
     }
   }
 
@@ -382,7 +378,11 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       await client.query('COMMIT');
       return results;
     } catch (e) {
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // ROLLBACK may fail if connection is broken; swallow to preserve original error
+      }
       throw e;
     } finally {
       client.release();
