@@ -425,35 +425,87 @@ export abstract class SqlGenerator {
     values: unknown[],
     paramIndex: { p: number },
   ): string {
+    const mainTableAlias = this._mainTableAlias(sqb);
+
+    // SELECT clause: поля/агрегаты + INCLUDE laterals как доп. select-item-ы
+    let selectClause = this._buildSelectFields(sqb, mainTableAlias);
+    const includes = this._buildIncludesClauses(
+      sqb,
+      mainTableAlias,
+      values,
+      paramIndex,
+    );
+    if (includes.select) selectClause += `, ${includes.select}`;
+
+    // FROM: JOIN-острова + LATERAL joins включаемых отношений
+    const { from, extraConditions } = this._buildFromJoins(
+      sqb,
+      values,
+      paramIndex,
+    );
+    const fromClause = [from, includes.from].filter(Boolean).join(' ');
+
+    // Per-clause: WHERE (курсор + OR-группировка) / GROUP BY / HAVING / ORDER BY / LIMIT-OFFSET
+    const whereClause = this._buildSelectWhereClause(
+      sqb,
+      values,
+      paramIndex,
+      extraConditions,
+    );
+    const groupByClause = this._buildGroupByClause(sqb, mainTableAlias);
+    let havingClause = '';
+    const havingSql = this._buildHavingClause(sqb, values, paramIndex);
+    if (havingSql) havingClause = `HAVING ${havingSql}`;
+    const orderByClause = this._buildOrderByClause(sqb, mainTableAlias);
+    const paginationClause = this._buildPaginationClause(
+      sqb,
+      values,
+      paramIndex,
+    );
+
+    return `SELECT\n\t${selectClause}\nFROM ${fromClause}\n\t${whereClause}\n${groupByClause}\n${havingClause}\n${orderByClause}\n${paginationClause}`
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  /** Алиас главной таблицы из tableContext. */
+  private _mainTableAlias(sqb: ReadonlySqb): string {
     const mainTableAlias = [...sqb.tableContext.keys()][0];
     if (!mainTableAlias) throw new Error('No table context');
+    return mainTableAlias;
+  }
 
-    // SELECT clause
-    let selectClause;
-    if (sqb.selects && sqb.selects.length > 0) {
-      const isMultiTable = sqb.tableContext.size > 1;
-      selectClause = sqb.selects
-        .map((sel) => {
-          // AggregateField (count/sum/avg/min/max)
-          if (sel.kind === 'aggregate') {
-            return sel.toSql();
-          }
-          const col = sel.column ?? sel.fieldName;
-          const id = sel.tableAlias
-            ? `"${sel.tableAlias}"."${col}"`
-            : `"${col}"`;
-          if (sel.alias) return `${id} AS "${sel.alias}"`;
-          if (isMultiTable && sel.tableAlias)
-            return `${id} AS "${sel.tableAlias}.${sel.fieldName}"`;
-          return `${id} AS "${sel.fieldName}"`;
-        })
-        .join(', ');
-    } else {
-      selectClause = `"${mainTableAlias}".*`;
+  /** SELECT-лист: поля/агрегаты из sqb.selects, иначе `"alias".*`. */
+  private _buildSelectFields(sqb: ReadonlySqb, mainTableAlias: string): string {
+    if (!sqb.selects || sqb.selects.length === 0) {
+      return `"${mainTableAlias}".*`;
     }
+    const isMultiTable = sqb.tableContext.size > 1;
+    return sqb.selects
+      .map((sel) => {
+        // AggregateField (count/sum/avg/min/max)
+        if (sel.kind === 'aggregate') {
+          return sel.toSql();
+        }
+        const col = sel.column ?? sel.fieldName;
+        const id = sel.tableAlias ? `"${sel.tableAlias}"."${col}"` : `"${col}"`;
+        if (sel.alias) return `${id} AS "${sel.alias}"`;
+        if (isMultiTable && sel.tableAlias)
+          return `${id} AS "${sel.tableAlias}.${sel.fieldName}"`;
+        return `${id} AS "${sel.fieldName}"`;
+      })
+      .join(', ');
+  }
 
-    // INCLUDE subqueries (LEFT JOIN LATERAL)
-    const includeFroms: string[] = [];
+  /** INCLUDE subqueries (LEFT JOIN LATERAL): select-item + from-хвост. */
+  private _buildIncludesClauses(
+    sqb: ReadonlySqb,
+    mainTableAlias: string,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): { select: string; from: string } {
+    let select = '';
+    const froms: string[] = [];
     for (const inc of sqb.includes) {
       const includeParentAlias = inc.parentAlias || mainTableAlias;
       const cond: WhereCondition = {
@@ -468,11 +520,18 @@ export abstract class SqlGenerator {
         },
       };
       const lateral = this._buildInclude(inc, cond, values, paramIndex);
-      selectClause += `, ${lateral.select}`;
-      includeFroms.push(lateral.from);
+      select += `, ${lateral.select}`;
+      froms.push(lateral.from);
     }
+    return { select, from: froms.join(' ') };
+  }
 
-    // FROM + JOIN islands
+  /** FROM: LEFT/RIGHT/INNER JOIN-острова; возвращает доп. WHERE-условия для полностью-соединённых рёбер. */
+  private _buildFromJoins(
+    sqb: ReadonlySqb,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): { from: string; extraConditions: string[] } {
     const allAliases = [...sqb.tableContext.keys()];
     const joinGraph = this._buildJoinGraph(sqb.joins);
     const joinIslands = this._findJoinIslands(joinGraph, allAliases);
@@ -532,60 +591,70 @@ export abstract class SqlGenerator {
         fromClause = islandFromClause.substring(5); // remove 'FROM '
       else fromClause += `, ${islandFromClause.substring(5)}`;
     }
+    return { from: fromClause, extraConditions: extraWhereConditions };
+  }
 
-    // Append include LATERAL joins (reference the main/parent table aliases)
-    if (includeFroms.length > 0) {
-      fromClause += ` ${includeFroms.join(' ')}`;
-    }
-
-    // WHERE
-    // Курсор — отдельный AND-член, всегда в скобках; главная группа
-    // оборачивается, если содержит OR-шаги (иначе AND-курсор перехватит хвост).
-    let whereClause = '';
-    let cursorSql = '';
+  /**
+   * WHERE для SELECT: главная группа (OR-части оборачиваются в скобки),
+   * курсор — отдельный AND-член; + экстра-условия из JOIN-графа.
+   */
+  private _buildSelectWhereClause(
+    sqb: ReadonlySqb,
+    values: unknown[],
+    paramIndex: { p: number },
+    extraConditions: string[],
+  ): string {
     if (
-      sqb.wheres.elements.length > 0 ||
-      sqb.cursor.elements.length > 0 ||
-      extraWhereConditions.length > 0
+      sqb.wheres.elements.length === 0 &&
+      sqb.cursor.elements.length === 0 &&
+      extraConditions.length === 0
     ) {
-      const mainSql = this._buildWhereGroupSql(sqb.wheres, values, paramIndex);
-      const hasOr = sqb.wheres.elements.some((s) => s.join === 'OR');
-      const main = hasOr && mainSql !== '' ? `(${mainSql})` : mainSql;
-      if (sqb.cursor.elements.length > 0) {
-        const cursorInner = this._buildWhereGroupSql(
-          sqb.cursor,
-          values,
-          paramIndex,
-        );
-        cursorSql = cursorInner === '' ? '' : `(${cursorInner})`;
-      }
-      const all = [main, cursorSql, ...extraWhereConditions].filter(Boolean);
-      whereClause = `WHERE ${all.join(' AND ')}`;
+      return '';
     }
-
-    // GROUP BY
-    let groupByClause = '';
-    if (sqb.groupBy.length > 0) {
-      groupByClause = `GROUP BY ${sqb.groupBy.map((f) => `"${mainTableAlias}"."${f}"`).join(', ')}`;
+    const mainSql = this._buildWhereGroupSql(sqb.wheres, values, paramIndex);
+    const hasOr = sqb.wheres.elements.some((s) => s.join === 'OR');
+    const main = hasOr && mainSql !== '' ? `(${mainSql})` : mainSql;
+    let cursorSql = '';
+    if (sqb.cursor.elements.length > 0) {
+      const cursorInner = this._buildWhereGroupSql(
+        sqb.cursor,
+        values,
+        paramIndex,
+      );
+      cursorSql = cursorInner === '' ? '' : `(${cursorInner})`;
     }
+    const all = [main, cursorSql, ...extraConditions].filter(Boolean);
+    return `WHERE ${all.join(' AND ')}`;
+  }
 
-    // HAVING (после GROUP BY). Агрегатные алиасы резолвятся в полные выражения.
-    let havingClause = '';
-    const havingSql = this._buildHavingClause(sqb, values, paramIndex);
-    if (havingSql) havingClause = `HAVING ${havingSql}`;
+  private _buildGroupByClause(
+    sqb: ReadonlySqb,
+    mainTableAlias: string,
+  ): string {
+    if (sqb.groupBy.length === 0) return '';
+    return `GROUP BY ${sqb.groupBy
+      .map((f) => `"${mainTableAlias}"."${f}"`)
+      .join(', ')}`;
+  }
 
-    // ORDER BY
-    let orderByClause = '';
-    if (sqb.orders.length > 0) {
-      orderByClause = `ORDER BY ${sqb.orders
-        .map(
-          (o) =>
-            `"${mainTableAlias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
-        )
-        .join(', ')}`;
-    }
+  private _buildOrderByClause(
+    sqb: ReadonlySqb,
+    mainTableAlias: string,
+  ): string {
+    if (sqb.orders.length === 0) return '';
+    return `ORDER BY ${sqb.orders
+      .map(
+        (o) =>
+          `"${mainTableAlias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
+      )
+      .join(', ')}`;
+  }
 
-    // LIMIT / OFFSET
+  private _buildPaginationClause(
+    sqb: ReadonlySqb,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): string {
     let limitClause = '';
     if (sqb.limit !== null) {
       limitClause = `LIMIT $${paramIndex.p++}`;
@@ -594,13 +663,9 @@ export abstract class SqlGenerator {
     let offsetClause = '';
     if (sqb.offset !== null) {
       offsetClause = `OFFSET $${paramIndex.p++}`;
-
       values.push(sqb.offset);
     }
-
-    return `SELECT\n\t${selectClause}\nFROM ${fromClause}\n\t${whereClause}\n${groupByClause}\n${havingClause}\n${orderByClause}\n${limitClause}\n${offsetClause}`
-      .trim()
-      .replace(/\s+/g, ' ');
+    return `${limitClause} ${offsetClause}`.trim();
   }
 
   // ═══ UPDATE ═══
