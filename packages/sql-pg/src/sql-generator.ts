@@ -10,6 +10,7 @@ import type {
   SelectItem,
   IncludedRelation,
 } from '@karkardmitry/kadmium-sql-types';
+import { assertSqlIdentifier } from './ddl-validate';
 
 /** Ссылка на поле (для field-to-field сравнений) */
 interface SqlIdentifierRef {
@@ -688,6 +689,7 @@ export abstract class SqlGenerator {
 
     const setClause = Object.keys(data)
       .map((key) => {
+        assertSqlIdentifier(key, 'column name');
         values.push(data[key]);
         return `"${key}" = $${paramIndex.p++}`;
       })
@@ -728,6 +730,7 @@ export abstract class SqlGenerator {
       throw new Error('No data provided for UPSERT');
 
     const keys = Object.keys(data);
+    for (const k of keys) assertSqlIdentifier(k, 'column name');
     const columns = keys.map((k) => `"${k}"`).join(', ');
     const values: unknown[] = [];
     const paramIndex = { p: 1 };

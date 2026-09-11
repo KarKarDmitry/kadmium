@@ -25,3 +25,31 @@ describe('DML collection-name validation (S7)', () => {
     ).rejects.toThrow(/Invalid SQL identifier/);
   });
 });
+
+describe('DML column-name validation (S10)', () => {
+  const adapter = new PgAdapter({ host: 'localhost' });
+
+  it('rejects a malicious column name in create', async () => {
+    await expect(
+      adapter.create('users', { 'name"; DROP TABLE users; --': 'x' }),
+    ).rejects.toThrow(/Invalid SQL identifier/);
+  });
+
+  it('rejects a malicious column name in createMany (insert)', async () => {
+    await expect(
+      adapter.createMany('users', [
+        { 'name"; DROP TABLE users; --': 'x' },
+      ]),
+    ).rejects.toThrow(/Invalid SQL identifier/);
+  });
+
+  it('rejects a malicious column name in createMany (upsert)', async () => {
+    await expect(
+      adapter.createMany(
+        'users',
+        [{ 'name"; DROP TABLE users; --': 'x' }],
+        { conflictTarget: ['name'] },
+      ),
+    ).rejects.toThrow(/Invalid SQL identifier/);
+  });
+});

@@ -32,6 +32,7 @@ function buildInsertSql(
 ): { text: string; values: unknown[] } {
   assertSqlIdentifier(collectionName, 'collection name');
   const keys = Object.keys(data);
+  for (const k of keys) assertSqlIdentifier(k, 'column name');
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
   const values = keys.map((key) => data[key]);
@@ -60,6 +61,7 @@ function buildInsertManySql(
     throw new Error('createMany requires at least one row');
   assertSqlIdentifier(collectionName, 'collection name');
   const keys = Object.keys(rows[0]);
+  for (const k of keys) assertSqlIdentifier(k, 'column name');
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
   const valuePlaceholders = rows.map((row) => {
@@ -84,6 +86,7 @@ function buildUpsertManySql(
     throw new Error('createMany requires at least one row');
   assertSqlIdentifier(collectionName, 'collection name');
   const keys = Object.keys(rows[0]);
+  for (const k of keys) assertSqlIdentifier(k, 'column name');
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
   const valuePlaceholders = rows.map((row) => {
