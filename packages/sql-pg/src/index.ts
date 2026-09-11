@@ -184,6 +184,19 @@ function unpackIncludes(
   return rows;
 }
 
+function finalizeRows(
+  rows: Record<string, unknown>[],
+  sqb: ReadonlySqb,
+): Record<string, unknown>[] {
+  const unpacked = unpackIncludes(rows, sqb.includes);
+  if (sqb.operation !== 'select' || sqb.tableContext.size <= 1) return unpacked;
+  return ResultReshaper.reshape(
+    unpacked,
+    sqb.selects || [],
+    [...sqb.includes],
+  );
+}
+
 export interface PgAdapterConfig {
   host?: string;
   port?: number;
@@ -251,13 +264,7 @@ class TransactionalPgAdapter
     const { text, values } = this.toSql(sqb);
     this.logger?.(text, values);
     const result = await this.client.query(text, values);
-    if (sqb.operation !== 'select' || sqb.tableContext.size <= 1)
-      return unpackIncludes(result.rows, sqb.includes);
-    return ResultReshaper.reshape(
-      unpackIncludes(result.rows, sqb.includes),
-      sqb.selects || [],
-      [...sqb.includes],
-    );
+    return finalizeRows(result.rows, sqb);
   }
 
   async create(
@@ -328,13 +335,7 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     const { text, values } = this.toSql(sqb);
     this.logger?.(text, values);
     const result = await this.pool.query(text, values);
-    if (sqb.operation !== 'select' || sqb.tableContext.size <= 1)
-      return unpackIncludes(result.rows, sqb.includes);
-    return ResultReshaper.reshape(
-      unpackIncludes(result.rows, sqb.includes),
-      sqb.selects || [],
-      [...sqb.includes],
-    );
+    return finalizeRows(result.rows, sqb);
   }
 
   async create(
