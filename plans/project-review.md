@@ -125,9 +125,9 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
 | H1 | 🟢 | No root `README.md` | ⬜ Pending |
-| H2 | 🟢 | TypeScript version mismatch: core 6.0.3, test-project 5.4.0 | ⬜ Pending |
+| H2 | 🟢 | TypeScript version mismatch: core 6.0.3, test-project 5.4.0 | ✅ Fixed (`8345fa9`): aligned to ^6.0.3, test-project now workspace member. |
 | H3 | 🟢 | Comments in Russian | ✅ Acceptable |
-| H4 | 🟢 | Monorepo vs `file:` dependency inconsistency | ⬜ Pending |
+| H4 | 🟢 | Monorepo vs `file:` dependency inconsistency | ✅ Fixed (`8345fa9`): test-project added to workspaces, `file:` deps retained (npm doesn't support `workspace:*`). |
 | H5 | 🟢 | Dead example scripts removed; CLI reworked (see `plans/cli.md`) — `loadCodegenProject` public API, `kadmium check` added, `init` scaffolds working config+scripts, Windows path fix in ModelImporter | ✅ Resolved |
 
 ### 6️⃣ Testing
@@ -191,8 +191,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 - T4.1 ⬜ Add root `README.md`.
 - T4.2 ✅ — Root `.gitignore` present.
-- T4.3 ⬜ Align TypeScript versions.
-- T4.4 ⬜ Migrate `test-project` to workspace protocol.
+- T4.3 ✅ — Align TypeScript versions (H2).
+- T4.4 ✅ — Migrate `test-project` to workspace (H4).
 
 ### Phase 5 — New findings from re-review (2026-09-11)
 
