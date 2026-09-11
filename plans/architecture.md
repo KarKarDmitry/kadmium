@@ -241,9 +241,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A14: PgAdapter / TransactionalPgAdapter дублируют execute/create/raw
+## A14: PgAdapter / TransactionalPgAdapter дублируют execute/create/raw — ✅ Done (`e0fa072`)
 
 **Важность:** 🟡 High
+
+**Статус:** ✅ Done (`e0fa072` + `29126c1` style). Наиболее рискованная часть (reshape результатов `execute` — 7 строк × 2) вынесена в общий путь: почти вся работа уже шла через shared-хелперы (`createRow`, `rawQuery`, `createManyRows`). Добавлен только `finalizeRows(rows, sqb)`: `unpackIncludes` + условный `ResultReshaper.reshape` — оба класса делегируют в него. `create`/`raw`/`createMany` не трогались: однострочники уже на shared-хелперах, а multi-chunk транзакция в `PgAdapter.createMany` — легитимное отличие от `TransactionalPgAdapter`. 15 insertions / 14 deletions.
 
 **Краткое описание:** `PgAdapter.execute()` (lines 324-335) и `TransactionalPgAdapter.execute()` (lines 247-258) идентичны кроме `this.pool.query()` vs `this.client.query()`. То же для `create()` и `raw()`. Итого ~60 строк чистого дублирования.
 
@@ -294,9 +296,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A17: Default-select materialization продублирована 3 раза в single.ts
+## A17: Default-select materialization продублирована 3 раза в single.ts — ✅ Done (`fdc2f35`)
 
 **Важность:** 🟡 High
+
+**Статус:** ✅ Done (`fdc2f35`). Извлечён приватный `_buildAllSelects()` — единственное место, где строится "все поля из IR" (`SelectableField[]`). Все три ветки делегируют в него: bare `select()`, bare `first()` и `_materializeSelects` (+ `go()`/`exists()` через него). Guard `if (sqb.selects) return` оставлен только в `_materializeSelects` — bare `select()`/`first()` сохранили прежнюю семантику перезаписи. 10 insertions / 30 deletions, поведение не изменено (покрыто ORM-тестами).
 
 **Краткое описание:** Логика "взять все поля из IR, исключить sourceModel, создать SelectableField" повторяется в:
 - `single.ts:124-136` (ветка `select()` без аргумента)
@@ -328,9 +332,11 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A19: _pushWhere структурно идентичен в single.ts и multi.ts
+## A19: _pushWhere структурно идентичен в single.ts и multi.ts — ⚪ Won't fix
 
 **Важность:** 🟢 Medium
+
+**Статус:** ⚪ Won't fix. Пробовали — revert `e068b64` (из `50f6793`). Дедупликация не оправдана: приватные методы по 8 строк, отличающиеся только типом прокси, самодостаточны и не несут риска дивергенции. Общий хелпер с `TProxy` заменил два явных метода на `pushWhere(join, fn, sqb, () => this._createFilterProxy())` — добавил анонимные стрелочные функции на горячем пути, которые подавляют JIT-компиляцию. Выигрыш ~4 строк не стоит потери явности и перформанса.
 
 **Краткое описание:** `SingleQueryBuilder._pushWhere` (lines 100-108) и `MultiQueryBuilder._pushWhere` (lines 98-106) структурно идентичны. Отличается только тип прокси (`FilterProxy<TModel>` vs `MultiFilterProxy<T>`).
 
