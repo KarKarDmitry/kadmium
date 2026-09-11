@@ -172,18 +172,27 @@ function createKadmiumTypes() {
  * превращая `{"author.id":1,"author.name":"..."}` в `{id:1,name:"..."}`.
  * Рекурсивно обрабатывает вложенные include (по дереву includes).
  */
-function unpackIncludeValue(value: unknown, inc: IncludedRelation): unknown {
-  if (Array.isArray(value)) return value.map((v) => unpackIncludeValue(v, inc));
+function unpackIncludeValue(
+  value: unknown,
+  inc: IncludedRelation,
+  nestedMap: Map<string, IncludedRelation>,
+): unknown {
+  if (Array.isArray(value))
+    return value.map((v) => {
+      const childMap = new Map(
+        inc.internalSqb.includes.map((n) => [n.propertyName, n]),
+      );
+      return unpackIncludeValue(v, inc, childMap);
+    });
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
     const prefix = `${inc.propertyName}.`;
-    const nested = inc.internalSqb.includes;
-    // O(1) lookup вместо O(k) find на каждый ключ
-    const nestedMap = new Map(nested.map((n) => [n.propertyName, n]));
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       const clean = k.startsWith(prefix) ? k.slice(prefix.length) : k;
       const nestedInc = nestedMap.get(clean);
-      out[clean] = nestedInc ? unpackIncludeValue(v, nestedInc) : v;
+      out[clean] = nestedInc
+        ? unpackIncludeValue(v, nestedInc, nestedMap)
+        : v;
     }
     return out;
   }
@@ -197,7 +206,14 @@ function unpackIncludes(
   for (const row of rows) {
     for (const inc of includes) {
       if (row[inc.propertyName] !== undefined) {
-        row[inc.propertyName] = unpackIncludeValue(row[inc.propertyName], inc);
+        const nestedMap = new Map(
+          inc.internalSqb.includes.map((n) => [n.propertyName, n]),
+        );
+        row[inc.propertyName] = unpackIncludeValue(
+          row[inc.propertyName],
+          inc,
+          nestedMap,
+        );
       }
     }
   }
