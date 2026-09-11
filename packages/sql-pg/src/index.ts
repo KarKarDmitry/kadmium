@@ -190,11 +190,7 @@ function finalizeRows(
 ): Record<string, unknown>[] {
   const unpacked = unpackIncludes(rows, sqb.includes);
   if (sqb.operation !== 'select' || sqb.tableContext.size <= 1) return unpacked;
-  return ResultReshaper.reshape(
-    unpacked,
-    sqb.selects || [],
-    [...sqb.includes],
-  );
+  return ResultReshaper.reshape(unpacked, sqb.selects || [], [...sqb.includes]);
 }
 
 export interface PgAdapterConfig {
