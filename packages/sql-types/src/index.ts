@@ -212,3 +212,11 @@ export interface DbDdlAdapter {
   dropTable(tableName: string): Promise<void>;
   raw(sql: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
 }
+
+// ── Input types ──
+
+/** Input for create operations — keys must be subset of model fields, all optional. */
+export type CreateInput<T> = Partial<T>;
+
+/** Input for update operations — keys must be subset of model fields, all optional. */
+export type UpdateInput<T> = Partial<T>;
