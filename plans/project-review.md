@@ -12,6 +12,7 @@
 > Updated 2026-09-11 — decisions: C9 verified NOT a bug (include-FROM reads `targetIr.collection`, tableContext value is dead); C10 deferred to separate adapter-level validation module; TG11 decision `eq(null)` → `IS NULL` (listed in testing.md TG11). Verdict updated accordingly.
 > Updated 2026-09-11 — code landings: C9 done (`6a82a14`: relation.ts stores `collection` + tests incl. SQL regression); TG11+S5 done (`6572887`: `eq(null)`/`neq(null)` → IS NULL/IS NOT NULL + undefined throw, `_renderCondition` renders IS ops without right-hand side and rejects non-whitelisted ops). S6/S9-S11 are now moot — see security.md. Completed rows moved to 📦 Done.
 > Updated 2026-09-11 — code landings: S7 done (`aa29c92`): `assertSqlIdentifier` on DML collection names + DB-free tests; C11 done (`c98f947`): duplicate joins deduped in AST; S8 done (`ea589e2`): escaped quotes in DDL expression validation. Tests: core 315, sql-pg 215, project 115; lint baseline 87 (2 errors in includes.d.ts).
+> Updated 2026-09-11 — docs sync: A12-A20 rows & T2.5/T3.6/T3.9/TG6 refreshed to landings (A13-A21, help_source removed, built declarations shipped in `40c71a2`). Everything below is closed except C10 (deferred), H1/H2/H4 and features (F2/F8, G1). Architecture debt is fully closed.
 > Updated 2026-09-11 - code landings: P5 computeDiff done (`8e727d4`): batched introspection `inspectAll*` — 4 round-trips независимо от N (замер 10→4), O(1); TG9+TG10 done (`8c515df`): debug-логи убраны (5), count() самодастаточен; TG6 partial (`de01375`): CLI `init` покрыт unit-тестами; TG8 verdict — 35 white-box кастов (не ~100), аccepted; S7 won't fix (DEFAULT — SQL-выражение). Tests: core 323, sql-pg 251, project 117; lint baseline 87 (2 errors in includes.d.ts, untouched).
 
 ## Repository snapshot
@@ -19,11 +20,11 @@
 - **Monorepo** (npm workspaces): `packages/core` (ORM + CLI), `packages/sql-types` (interfaces), `packages/sql-pg` (PostgreSQL adapter).
 - **Git**: initialized (`fd28a9f`). Root `.gitignore` present; `test-project/.env` is **untracked**.
 - **Tests**: `test-project/test/` — integration harness against real Postgres (docker compose): `global-setup.ts` seeds via the ORM layer before vitest; 12 files / 69 tests pass. `npm run test:project` + `test-project` has `typecheck`.
-- **help_source/**: gitignored legacy scaffolding; clean it up eventually.
+- ~~**help_source/**: gitignored legacy scaffolding~~ → removed from the repo (A6).
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals); where-op rendering hardened (allowlist `VALID_OPS`, correct `IS NULL`/`IS NOT NULL`, `eq(null)`/`neq(null)`). **Still not production-ready**: `sql-generator.ts` at 692 lines, missing DML identifier validation, no transactional DDL, zero CLI tests, 85 lint warnings + 2 pre-existing errors.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals); where-op rendering hardened (allowlist `VALID_OPS`, correct `IS NULL`/`IS NOT NULL`, `eq(null)`/`neq(null)`). All five-axis findings closed (see table statuses) except: **C10** (create({}) validation → deferred adapter-level validation module) and hygiene **H1/H2/H4** (README, TS alignment, workspace protocol). Remaining roadmap is features: **F2** (`raw()` in ORM), **F8** (window functions), **G1** (interactive `init`). Lint baseline: 85 warnings + 2 pre-existing errors in `includes.d.ts`.
 
 ---
 
@@ -58,7 +59,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A1 | 🟠 | Dead SQL renderers `single.ts:469-513` (`_renderIncludes`/`_formatGroup`/`_isCondition`) | ✅ Resolved (already removed — stale finding) |
 | A2 | 🟠 | Two incompatible include mental models (`RelationBuilder` vs `IncludedRelation`) | ✅ Fixed: includes refactored to record-based API (`1cacf6a`). Single `Relation` class simplified (246→133 lines). `IRelationBuilder` deleted. |
 | A3 | 🟠 | `toSql()` requires a live adapter | ✅ By design — preview via `createDebugAdapter()` (no DB; execute/create throw) |
-| A4 | 🟡 | Type layer is ~60% of ORM code | 🟡 Partial: pure type files moved to `.d.ts` (`orm/types/*`, `model/types/*`). Real consumer compile-speed win still needs shipping built `.d.ts` (`main`/`types` → `dist`) — deferred. |
+| A4 | 🟡 | Type layer is ~60% of ORM code | 🟡 Partial: pure type files moved to `.d.ts` (`orm/types/*`, `model/types/*`). Built declarations shipped (`40c71a2`): `main`/`types`/`bin` → `dist`. Remaining win is shrinking the type surface itself — out of scope. |
 | A5 | 🟡 | IR not cached in hot path (`orm.single()`/`query()` recompile per call) | ✅ Fixed: `OrmManager` reuses the registry IR (compiled once at register); `compileCount` stays 0 in the hot path. |
 | A6 | 🟡 | `help_source/` confusing coexistence | ✅ Resolved: directory removed from the repo. |
 | A7 | 🔴 | **single.ts 419 lines, ~12 `any` casts** — breaks type-safety in query builders | ✅ Resolved (`c78c0e7` + `2ec3067` + `72e66fc`): single.ts → ~405 lines, 4 inherent `any` only (overload impl signatures, findById phantom PK, go() result, include callback). Update/delete finalizer extracted to `write-finalizer.ts`; include resolution deduped via `include-utils.ts` (`buildRelation` + `configureRelation`). Lint warnings 97→89. |
@@ -66,14 +67,14 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A9 | 🟡 | **BaseWhereBuilder (49 lines) — dead code** — not used by any builder | ✅ Resolved (`f3917da`): deleted, shared `addOrCondition()` in `where-helpers.ts` |
 | A10 | 🟡 | **_or() duplicated** in single.ts and multi.ts — ~25 lines of identical logic | ✅ Resolved (`f3917da`): shared `addOrCondition()` in `where-helpers.ts` |
 | A11 | 🟡 | **create()/execute() duplicated** in PgAdapter and TransactionalPgAdapter | ✅ Resolved (`9e45588`): shared `createRow()` and `rawQuery()` helpers |
-| A12 | 🟡 | **sql-generator.ts 692 lines** — `_buildSelectQueryText` 180 lines, monolithic SELECT builder | ⬜ Open — see architecture.md A13 |
-| A13 | 🟡 | **PgAdapter/TransactionalPgAdapter duplicate ~60 lines** — execute/create/raw identical except pool.query vs client.query | ⬜ Open — see architecture.md A14 |
-| A14 | 🟡 | **`_buildSql`/`_toSqlFrom` duplicated in 4 files** | ⬜ Open — see architecture.md A15 |
-| A15 | 🟡 | **`_mapRow` duplicated** in single.ts and upsert-helpers.ts | ⬜ Open — see architecture.md A16 |
-| A16 | 🟡 | **Default-select materialization duplicated 3x** in single.ts | ⬜ Open — see architecture.md A17 |
-| A17 | 🟡 | **diff/render.ts duplicates DDL SQL** from ddl-adapter.ts | ⬜ Open — see architecture.md A18 |
-| A18 | 🟢 | **`_pushWhere` structurally identical** in single.ts and multi.ts | ⬜ Open — see architecture.md A19 |
-| A19 | 🟢 | **Dual IR caches** in orm.ts | ⬜ Open — see architecture.md A20 |
+| A12 | 🟡 | **sql-generator.ts 692 lines** — `_buildSelectQueryText` 180 lines, monolithic SELECT builder | ✅ Resolved (`f3e2e4d`, see architecture.md A13) |
+| A13 | 🟡 | **PgAdapter/TransactionalPgAdapter duplicate ~60 lines** — execute/create/raw identical except pool.query vs client.query | ✅ Resolved (`e0fa072`, see architecture.md A14) |
+| A14 | 🟡 | **`_buildSql`/`_toSqlFrom` duplicated in 4 files** | ✅ Resolved (`6fb6711`, see architecture.md A15) |
+| A15 | 🟡 | **`_mapRow` duplicated** in single.ts and upsert-helpers.ts | ✅ Resolved (`6fb6711`, see architecture.md A16) |
+| A16 | 🟡 | **Default-select materialization duplicated 3x** in single.ts | ✅ Resolved (`fdc2f35`, see architecture.md A17) |
+| A17 | 🟡 | **diff/render.ts duplicates DDL SQL** from ddl-adapter.ts | ✅ Resolved (`5f21a41`, see architecture.md A18) |
+| A18 | 🟢 | **`_pushWhere` structurally identical** in single.ts and multi.ts | ⚪ Won't fix (tried `50f6793`, reverted `e068b64`; see architecture.md A19) |
+| A19 | 🟢 | **Dual IR caches** in orm.ts | ✅ Resolved (`3fae15d`, see architecture.md A20) |
 | A20 | 🟢 | **orm.ts imports Model** from model layer | ✅ Resolved (`8a051a9`, see architecture.md A21) |
 
 ### 3️⃣ Security
@@ -122,7 +123,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG3 | 🟡 | **Proxy system not tested in isolation** — FilterProxy, SelectProxy, RelationProxy | ✅ Fixed: covered in `query-proxies.test.ts` (included in TG1) |
 | TG4 | 🟢 | **pgType/diffToHealth/compile unit tests removed** — pure functions covered only indirectly | ✅ Fixed (`dec901e`): compileModel 30 cases + TG5 below |
 | TG5 | 🟡 | **No unit tests for Model DSL, field builders, codegen, DDL adapter, sql-generator** | ✅ Fixed (`dec901e`): 226 cases across 19 new test files |
-| TG6 | 🟡 | **Zero CLI tests** — db, generate, init, format, check commands | 🟡 Partial (`de01375`) — `init` покрыт unit-тестами (scope, temp dirs); generate/check/db/format открыты — see testing.md TG6 |
+| TG6 | 🟡 | **Zero CLI tests** — db, generate, init, format, check commands | ✅ Done — `init` (`de01375`), generate/check (`610b403`), db:* (`d700609`+`5a4d3e6`) — see testing.md TG6 |
 | TG7 | 🟡 | **No unit tests for diff/compute, diff/apply, diff/render** | ✅ Done (`e7a90d6`) — 30 тестов + MockDdl, вскрыт баг UNIQUE-strip, см. testing.md TG7 |
 | TG8 | 🟢 | **~100 `any` casts in unit tests** — masks proxy type regressions | ✅ Accepted (not a task): факт — **35** white-box кастов (12+7+10+12+0), не ~100; осознанные доступы к внутренностям proxy в тестах — see testing.md TG8 |
 | TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ✅ Done (`8c515df`): убраны все 5 (включая global-setup.ts:18) — see testing.md TG9 |
@@ -149,7 +150,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T2.2 ✅ — Unify include mental model: record-based API (`1cacf6a`), `IRelationBuilder` deleted.
 - T2.3 ✅ By design: `toSql()` requires an adapter — SQL generation lives in `SqlGenerator` (adapter layer) by contract. Adapter-free preview via `createDebugAdapter()` (`packages/sql-pg`): renders SQL without a DB, `execute()/create()/raw()` throw.
 - T2.4 ✅ — Add IR cache in hot path (reuse registry IR; `compileCount` test).
-- T2.5 ⬜ Clean `help_source/` — still open.
+- T2.5 ✅ — Clean `help_source/` — resolved (A6): directory removed from the repo.
 
 ### Phase 3 — Medium effort
 
@@ -158,10 +159,10 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T3.3 ✅ — Make `alias()` affect the DB column name (D7).
 - T3.4 ✅ — Decide bigint id typing (`number` vs `string`) (D8): adapter normalizes `int8` → `number`; use uuid/string PK for >2^53.
 - T3.5 ✅ — Multi `select().go()` should throw without adapter (C5) (`5f217a4`).
-- T3.6 🟡 Reduce type-layer complexity — type-only files extracted to `.d.ts`; shipping built declarations deferred.
+- T3.6 🟡 Reduce type-layer complexity — type-only files extracted to `.d.ts`; built declarations shipped in `40c71a2` (`main`/`types`/`bin` → `dist`). Further reduction of the type surface is out of scope.
 - T3.7 ✅ — Correlated-subquery → LEFT JOIN LATERAL.
 - T3.8 ✅ Security lint for DDL — resolved via S2: `ddl-validate.ts` (assertSqlIdentifier/assertSqlExpression/assertReferentialAction) in `8a93983`.
-- T3.9 ⬜ Ship built declarations: set `main`/`types` → `dist` (`.js` + `.d.ts`) so consumers load pre-compiled output instead of `.ts` source — deferred.
+- T3.9 ✅ — Ship built declarations: `main`/`types` → `dist` (`.js` + `.d.ts`) so consumers load pre-compiled output instead of `.ts` source — done in `40c71a2` (CLI rework, see cli.md). Consumers load `dist`; dev flow uses vitest src alias.
 
 ### Phase 4 — Hygiene
 
@@ -176,11 +177,11 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 - [x] `npm run check:type` (core) — pass.
 - [x] `test-project: npm run typecheck` — pass (`657db49` fixed the `foreignKey` cast in `model.test.ts`).
-- [x] `npm run lint` — 89 warnings (mostly `@typescript-eslint/no-explicit-any`), 2 pre-existing errors in `includes.d.ts` (`'S' unused`).
+- [x] `npm run lint` — baseline 87 problems (85 warnings, mostly `@typescript-eslint/no-explicit-any`, + 2 pre-existing errors in `includes.d.ts` — `'S' unused`).
 - [x] `npm run format:check` — prettier happy (core + sql-pg + sql-types).
-- [x] `npm run test:core` — 284 (22 files).
-- [x] `npm run test:sql-pg` — 194.
-- [x] `npm run test:project` — requires docker `db:up`; 98 tests.
+- [x] `packages/core: npx vitest run` — 337 (28 files).
+- [x] `packages/sql-pg: npx vitest run` — 252.
+- [x] `test-project: npx vitest run` — requires docker `db:up`; 117 tests.
 - [x] `npm run build` — succeeds.
 
 ## Rules for agents working here
