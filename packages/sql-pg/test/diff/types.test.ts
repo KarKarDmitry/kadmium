@@ -205,6 +205,14 @@ describe('renderDefault', () => {
   it('datetime with string', () => {
     expect(renderDefault({ type: 'datetime', nullable: false, unique: false, spec: { default: '2024-01-15' } })).toBe("'2024-01-15'");
   });
+
+  it('datetime with single quote escape', () => {
+    expect(renderDefault({ type: 'datetime', nullable: false, unique: false, spec: { default: "it's now" } })).toBe("'it''s now'");
+  });
+
+  it('date with single quote escape', () => {
+    expect(renderDefault({ type: 'date', nullable: false, unique: false, spec: { default: "it's today" } })).toBe("'it''s today'");
+  });
 });
 
 describe('irToColumns', () => {
