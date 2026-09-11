@@ -18,6 +18,7 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import type { AnySelectable } from '../types/includes';
+import { buildDebugSql } from './utils';
 import {
   buildRelation,
   configureRelation,
@@ -205,8 +206,7 @@ export class MultiQueryBuilder<
       throw new Error(
         'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
       );
-    const { text, values } = this.adapter.toSql(sqb);
-    return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
+    return buildDebugSql(sqb, this.adapter);
   }
 
   private _resolveIncludes(

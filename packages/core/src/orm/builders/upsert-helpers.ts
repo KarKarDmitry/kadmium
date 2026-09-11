@@ -4,6 +4,7 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { SelectableField } from '../ast/selectable';
 import type { SelectProxy } from '../types/proxy';
 import { createSelectProxy } from './query-proxies';
+import { buildDebugSql, mapRow } from './utils';
 
 // ── Types ──
 
@@ -33,18 +34,6 @@ export interface CreateManyOptions {
 
 // ── Helpers ──
 
-function mapRow(
-  ir: ModelIR,
-  row: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [prop, f] of Object.entries(ir.fields)) {
-    const col = f.alias ?? prop;
-    if (row[col] !== undefined) out[prop] = row[col];
-  }
-  return out;
-}
-
 function extractFieldNames(
   ir: ModelIR,
   fn: (t: SelectProxy<any>) => readonly SelectableField[],
@@ -52,11 +41,6 @@ function extractFieldNames(
   const proxy = createSelectProxy('__upsert', ir);
   const fields = fn(proxy);
   return fields.map((f) => ir.fields[f.fieldName]?.alias ?? f.fieldName);
-}
-
-function _buildSql(sqb: KadmiumSqb, adapter: SqlAdapter): string {
-  const { text, values } = adapter.toSql(sqb);
-  return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
 }
 
 // ── Single row create finalizer ──
@@ -84,7 +68,7 @@ export function buildCreateFinalizer<TModel extends Model>(
       if (!row[0]) return {} as TModel['~shape'];
       return mapRow(ir, row[0] as Record<string, unknown>) as TModel['~shape'];
     },
-    sql: () => _buildSql(sqb, adapter),
+    sql: () => buildDebugSql(sqb, adapter),
   });
 
   return _finalize();
@@ -126,7 +110,7 @@ export function buildCreateManyFinalizer<TModel extends Model>(
         ? [...baseSqb.conflictTarget]
         : null;
       sqb.doNothing = baseSqb.doNothing;
-      return _buildSql(sqb, adapter);
+      return buildDebugSql(sqb, adapter);
     },
   });
 

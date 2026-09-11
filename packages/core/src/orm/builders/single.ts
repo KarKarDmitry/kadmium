@@ -33,6 +33,7 @@ import {
 } from './upsert-helpers';
 import { buildWriteFinalizer } from './write-finalizer';
 import { buildRelation, configureRelation } from './include-utils';
+import { buildDebugSql, mapRow } from './utils';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -340,7 +341,7 @@ export class SingleQueryBuilder<
       this.adapter,
       () => this._createFilterProxy(),
       () => this._createSelectProxy(),
-      (row) => this._mapRow(row),
+      (row) => mapRow(this.ir, row),
     );
   }
 
@@ -352,7 +353,7 @@ export class SingleQueryBuilder<
       this.adapter,
       () => this._createFilterProxy(),
       () => this._createSelectProxy(),
-      (row) => this._mapRow(row),
+      (row) => mapRow(this.ir, row),
     );
   }
 
@@ -416,15 +417,6 @@ export class SingleQueryBuilder<
 
   // ── private ──
 
-  private _mapRow(row: Record<string, unknown>): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const [prop, f] of Object.entries(this.ir.fields)) {
-      const col = f.alias ?? prop;
-      if (row[col] !== undefined) out[prop] = row[col];
-    }
-    return out;
-  }
-
   /** Маппинг ключей данных на алиасы колонок */
   private _mapAliases(data: Record<string, unknown>): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
@@ -450,8 +442,7 @@ export class SingleQueryBuilder<
       throw new Error(
         'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
       );
-    const { text, values } = this.adapter.toSql(sqb);
-    return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
+    return buildDebugSql(sqb, this.adapter);
   }
 
   private _resolveIncludes(config: IncludeConfig<TModel>): void {

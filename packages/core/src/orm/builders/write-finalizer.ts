@@ -4,13 +4,9 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { FilterProxy, SelectProxy, UpdateFinalizer } from '../types/proxy';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
+import { buildDebugSql } from './utils';
 
 type Model = { ['~shape']: Record<string, unknown> };
-
-function _buildSql(sqb: KadmiumSqb, adapter: SqlAdapter): string {
-  const { text, values } = adapter.toSql(sqb);
-  return `SQL: ${text}\nVALUES: [${values.join(', ')}]`;
-}
 
 /**
  * Собрать UPDATE/DELETE финализатор поверх уже сконфигурированного sqb
@@ -42,7 +38,7 @@ export function buildWriteFinalizer<TModel extends Model>(
       throw new Error(
         'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
       );
-    return _buildSql(sqb, adapter);
+    return buildDebugSql(sqb, adapter);
   };
 
   const mapReturningRow = (
