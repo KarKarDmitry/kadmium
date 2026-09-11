@@ -156,3 +156,29 @@ for (const row of mappedRows) {
 
 **Связанные файлы:**
 - `packages/sql-pg/src/index.ts` (line 103)
+
+---
+
+## P8: unpackIncludeValue создаёт Map на каждую строку
+
+**Важность:** 🟢 Low
+
+**Краткое описание:** `unpackIncludeValue` (index.ts:155-171) для каждой строки результата создаёт `new Map(nested.map(...))` из `inc.internalSqb.includes`. При 10k строк с includes — 10k+ аллокаций Map. GC собирает, но лишняя нагрузка.
+
+**Решение:** ✅ Fixed (`41b8a5a`) — `nestedMap` предвычисляется один раз в `unpackIncludes` перед циклом строк и передаётся параметром. Рекурсивные вызовы строят own nestedMap один раз на элемент массива.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/index.ts` (unpackIncludeValue:155-171)
+
+---
+
+## P9: O(n²) join ordering в _buildFromJoins
+
+**Важность:** 🟢 Low
+
+**Краткое описание:** `_buildFromJoins` (sql-generator.ts:530-595) использует while-цикл с повторным полным сканированием `joinsForIsland` на каждом проходе. В худшем случае (цепочка из N join'ов) — O(n²). Для типичных ORM-запросов (2-5 joins) пренебрежимо.
+
+**Решение:** Proper topological sort или BFS с queue — O(n).
+
+**Связанные файлы:**
+- `packages/sql-pg/src/sql-generator.ts` (_buildFromJoins:530-595)

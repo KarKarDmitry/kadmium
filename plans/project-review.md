@@ -117,7 +117,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | P6 | 🟡 | **computeDiff 3N+1 queries** for N tables (inspectColumns + inspectIndexes + inspectForeignKeys per table) | ✅ Done (`8e727d4`) — batched `inspectAll*`, 4 round-trips независимо от N (замер: 10→4), см. performance.md P5 |
 | P7 | 🟡 | **applyDiff no transaction wrapping** — partial failure leaves DB in partially-migrated state | ✅ Done (`fee95eb`) — `applyDiffTransactional` + CLI fallback prompt, см. performance.md P6 |
 | P8 | 🟢 | **MAX_BATCH_ROWS hardcoded** without column count consideration | ✅ Done (`3ba5613`) — `maxBatchRows(columns)`, см. performance.md P7 |
-| P9 | 🟢 | **`unpackIncludeValue` создаёт Map на каждую строку.** Для 10k строк с includes — 10k+ Map аллокаций (GC собирает, но лишнее). | ⬜ Open — фикс: вынести предвычисление Map за цикл строк. |
+| P9 | 🟢 | **`unpackIncludeValue` создаёт Map на каждую строку.** Для 10k строк с includes — 10k+ Map аллокаций (GC собирает, но лишнее). | ✅ Fixed (`41b8a5a`): `nestedMap` предвычисляется в `unpackIncludes` и передаётся параметром. |
 | P10 | 🟢 | **O(n²) join ordering в `_buildFromJoins`.** While-цикл с повторным полным сканированием `joinsForIsland` на каждом проходе. Для типичных ORM-запросов (2-5 joins) пренебрежимо. | ⬜ Open — фикс: proper topological sort или BFS с queue. |
 
 ### 5️⃣ Readability / Hygiene
@@ -213,7 +213,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 **Low (backlog):**
 - T5.8 ⬜ — **A22: Move `compileModel` out of `ir/`** to resolve IR→Model direction violation.
 - T5.9 ⬜ — **A23: Extract CRUD helpers** from `sql-pg/index.ts` into `crud.ts`.
-- T5.10 ⬜ — **P9: Pre-compute Map** in `unpackIncludeValue` outside row loop.
+- T5.10 ✅ — **P9: Pre-compute Map** in `unpackIncludeValue` outside row loop.
 - T5.11 ⬜ — **P10: BFS instead of O(n²)** for join ordering in `_buildFromJoins`.
 - T5.12 ⬜ — **T6: Make `AggregateField.as()` immutable** (return new instance).
 
