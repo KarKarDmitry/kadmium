@@ -76,7 +76,7 @@ export abstract class SqlGenerator {
       if (w.value.length === 0) return '1=0';
       const vals = w.value.map(() => `$${paramIndex.p++}`).join(', ');
       values.push(...w.value);
-      return `IN (${vals})`;
+      return `(${vals})`;
     }
     // BETWEEN
     if (w.op === 'BETWEEN' && Array.isArray(w.value) && w.value.length === 2) {
@@ -520,7 +520,8 @@ export abstract class SqlGenerator {
         },
       };
       const lateral = this._buildInclude(inc, cond, values, paramIndex);
-      select += `, ${lateral.select}`;
+      if (select) select += ', ';
+      select += lateral.select;
       froms.push(lateral.from);
     }
     return { select, from: froms.join(' ') };

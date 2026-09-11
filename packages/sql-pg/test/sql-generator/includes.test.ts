@@ -188,4 +188,63 @@ describe('SqlGenerator — toSql: includes', () => {
     expect(text).toContain('LIMIT $1');
     expect(values).toEqual([5]);
   });
+
+  it('nested include: author → posts with custom select', () => {
+    const innerSqb = sqb({
+      tableContext: new Map([['pp', 'posts']]),
+      selects: [
+        {
+          kind: 'field',
+          tableAlias: 'pp',
+          fieldName: 'id',
+          alias: undefined,
+          column: 'id',
+          toSql: () => '"pp"."id" AS "id"',
+        },
+      ],
+    });
+
+    const authorSqb = sqb({
+      tableContext: new Map([['author', 'users']]),
+      includes: [
+        includedRelation({
+          propertyName: 'posts',
+          relationType: 'one-to-many',
+          parentAlias: 'author',
+          parentField: 'id',
+          childField: 'authorId',
+          internalSqb: innerSqb,
+          targetIr: {
+            name: 'Post',
+            collection: 'posts',
+            fields: { id: { alias: 'id' }, title: { alias: 'title' } },
+          },
+        }),
+      ],
+    });
+
+    const outerInc = includedRelation({
+      propertyName: 'author',
+      relationType: 'many-to-one',
+      parentAlias: 'p',
+      parentField: 'authorId',
+      childField: 'id',
+      internalSqb: authorSqb,
+      targetIr: {
+        name: 'User',
+        collection: 'users',
+        fields: { id: { alias: 'id' }, name: { alias: 'name' } },
+      },
+    });
+
+    const q = sqb({
+      tableContext: new Map([['p', 'posts']]),
+      includes: [outerInc],
+    });
+
+    const { text } = gen.toSql(q);
+    expect(text).toContain('LEFT JOIN LATERAL');
+    expect(text).toContain('row_to_json');
+    expect(text).not.toContain(', ,');
+  });
 });

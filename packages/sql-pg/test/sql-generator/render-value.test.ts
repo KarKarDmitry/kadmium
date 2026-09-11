@@ -49,7 +49,7 @@ describe('SqlGenerator — _renderValue', () => {
     const values: unknown[] = [];
     const p = { p: 1 };
     const result = gen['_renderValue'](w, values, p);
-    expect(result).toBe('IN ($1, $2, $3)');
+    expect(result).toBe('($1, $2, $3)');
     expect(values).toEqual([1, 2, 3]);
   });
 
@@ -89,5 +89,14 @@ describe('SqlGenerator — _renderValue', () => {
     const result = gen['_renderValue'](w, values, p);
     expect(result).toBe('"u"."id"');
     expect(values).toEqual([]);
+  });
+
+  it('IN: _renderCondition produces "col" IN ($1, $2) — not IN IN', () => {
+    const w = where('id', 'IN', [10, 20, 30], 'u', 'id');
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    const result = gen['_renderCondition']('"u"."id"', w, values, p);
+    expect(result).toBe('"u"."id" IN ($1, $2, $3)');
+    expect(values).toEqual([10, 20, 30]);
   });
 });
