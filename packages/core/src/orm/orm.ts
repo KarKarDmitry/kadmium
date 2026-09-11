@@ -1,7 +1,7 @@
 import { compileModel } from '../ir/compile';
+import type { CompilableModel } from '../ir/compile';
 import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/multi';
-import { Model } from '../model/index';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
@@ -28,13 +28,13 @@ function buildIrLookup(
       }
     }
 
-    // Fallback: найти класс в реестре Model и скомпилировать
-    const cls = Model.resolve(name);
+    // Fallback: найти класс в реестре AppCore/Model и скомпилировать
+    const cls = app?.resolveModelClass(name);
     if (!cls) {
       cache.set(name, undefined);
       return undefined;
     }
-    const ir = compileModel(new cls() as Model);
+    const ir = compileModel(new cls() as unknown as CompilableModel);
     cache.set(name, ir);
     return ir;
   };
@@ -80,7 +80,9 @@ export class OrmManager {
     }
 
     this.compileCount++;
-    const ir = compileModel(new (modelClass as unknown as { new (): Model })());
+    const ir = compileModel(
+      new (modelClass as unknown as new () => CompilableModel)(),
+    );
     this._irCache.set(name, ir);
     return ir;
   }

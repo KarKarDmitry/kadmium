@@ -39,6 +39,11 @@ export class ModelRegistry {
     return this.ir(modelClass.name);
   }
 
+  /** Найти класс модели по имени (делегирует в глобальный реестр Model). */
+  resolveModelClass(name: string): ModelClass | undefined {
+    return Model.resolve(name);
+  }
+
   /** Все IR */
   get allIrs(): ModelIR[] {
     return [...this.irs.values()];

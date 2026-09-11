@@ -107,6 +107,19 @@ describe('OrmManager — shared IR cache (A20)', () => {
     expect(internals._irCache.has('Post')).toBe(true);
     expect(viaCache).toBe(viaLookup);
   });
+
+  it('resolveModelClass() delegates to global Model registry', () => {
+    class Draft extends Model {
+      title = f.string;
+      ['~shape']!: Record<string, unknown>;
+      ['~rel']!: Record<string, unknown>;
+      ['~relInfo']!: Record<string, unknown>;
+    }
+    Model.register(Draft);
+
+    expect(app.resolveModelClass('Draft')).toBe(Draft);
+    expect(app.resolveModelClass('NonExistent')).toBeUndefined();
+  });
 });
 
 describe('OrmManager — batch upsert routing', () => {

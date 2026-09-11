@@ -57,6 +57,11 @@ export class AppCore {
     return this.registry.irOf(modelClass);
   }
 
+  /** Найти класс модели по имени (делегирует в глобальный реестр Model). */
+  resolveModelClass(name: string): ModelClass | undefined {
+    return this.registry.resolveModelClass(name);
+  }
+
   get allIrs(): ModelIR[] {
     return this.registry.allIrs;
   }
