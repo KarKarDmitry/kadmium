@@ -70,14 +70,15 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 
 ## S5: expression.op интерполируется в SQL без runtime-валидации
 
-**Важность:** 🟡 High
+**Важность:** 🟡 High — ✅ **Done** (`6572887`)
 
 **Краткое описание:** `sql-generator.ts:117` интерполирует `expression.op` напрямую в SQL (`${left} ${expression.op} ${right}`). Тип `op` ограничен на уровне TS, но runtime-валидации нет. Если тип будет расширен — вектор SQL-инъекции.
 
-**Решение:** Allowlist-проверка `VALID_OPS = new Set(['=', '!=', '>', '<', '>=', '<=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN', 'BETWEEN', 'IS', 'IS NOT'])` + runtime guard.
+**Решение:** Allowlist `export const VALID_OPS = new Set(['=', '!=', '>', '>=', '<', '<=', 'LIKE', 'ILIKE', 'IN', 'BETWEEN', 'IS NULL', 'IS NOT NULL'])`; **runtime guard** в `_renderCondition` (throw `Unsupported operator: ...`) — покрывает `_renderWhereExpression` и `_buildConditionSql` (все связанные операторы сравнения включены: `=, !=, >, >=, <, <=, BETWEEN, LIKE, ILIKE, IN, IS NULL, IS NOT NULL`). Note: this supersedes A1's `_or()` race fix mention — `op` теперь закрыт на уровне генератора.
 
 **Связанные файлы:**
-- `packages/sql-pg/src/sql-generator.ts` (lines 117, 153)
+- `packages/sql-pg/src/sql-generator.ts` (VALID_OPS, `_renderCondition`)
+- `packages/sql-pg/test/sql-generator/where-clause.test.ts` (throw-test)
 
 ---
 

@@ -10,6 +10,7 @@
 > Updated 2026-09-08 — project re-review: P6 (batch upsert N+1) added, D5 (standalone orm unusable) added, T5 (duplicated type helpers) added, A12 (global state/singleton) added, H5 (dead example scripts) added.
 > Updated 2026-09-10 — full five-axis re-review: A13-A21 (architecture duplication, sql-generator 692 lines), S6-S8 (DML validation, DDL edge cases), P6-P8 (computeDiff N+1, applyDiff no tx, batch sizing), TG6-TG11 (CLI tests, diff tests, any-casts in tests, console.log, inter-test deps, null filters), C9-C11 (relation.ts name/collection, empty data, duplicate joins).
 > Updated 2026-09-11 — decisions: C9 verified NOT a bug (include-FROM reads `targetIr.collection`, tableContext value is dead); C10 deferred to separate adapter-level validation module; TG11 decision `eq(null)` → `IS NULL` (listed in testing.md TG11). Verdict updated accordingly.
+> Updated 2026-09-11 — code landings: C9 done (`6a82a14`: relation.ts stores `collection` + tests incl. SQL regression); TG11+S5 done (`6572887`: `eq(null)`/`neq(null)` → IS NULL/IS NOT NULL + undefined throw, `_renderCondition` renders IS ops without right-hand side and rejects non-whitelisted ops). S6/S9-S11 are now moot — see security.md. Completed rows moved to 📦 Done.
 
 ## Repository snapshot
 
@@ -20,7 +21,7 @@
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals). **Still not production-ready**: `sql-generator.ts` at 692 lines, missing DML identifier validation, no transactional DDL, zero CLI tests, 89 lint warnings.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals); where-op rendering hardened (allowlist `VALID_OPS`, correct `IS NULL`/`IS NOT NULL`, `eq(null)`/`neq(null)`). **Still not production-ready**: `sql-generator.ts` at 692 lines, missing DML identifier validation, no transactional DDL, zero CLI tests, 85 lint warnings + 2 pre-existing errors.
 
 ---
 
@@ -44,7 +45,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ✅ Fixed (`78cff3b`): `renderDefault()` renders a strict per-type SQL literal; `IntegerFieldBuilder` rejects non-integer defaults. |
 | D7 | 🟡 | **`alias()` doesn't rename the DB column** — `irToColumns` uses the field name | ✅ Fixed: column/property split threaded through WHERE/SELECT/ORDER/GROUP BY/UPDATE/create + result mapping; `alias.test.ts` covers DDL, select, filter, update, order. |
 | D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ✅ Fixed: adapter parses `int8` → `number`. ⚠️ Precision limit 2^53 — use `f.pk.string`/`f.pk.uuid` for large ids. |
-| C9 | 🔴 | **relation.ts:57 uses `targetIr.name` instead of `targetIr.collection`** for table context — single.ts:63 and multi.ts:66 correctly use `ir.collection`. If adapter reads table context expecting collection names, includes generate `FROM "Post"` instead of `FROM "posts"`. | ✅ Verified — NOT a bug: include-FROM render reads `inc.targetIr.collection` (sql-generator.ts:254,267), not `internalSqb.tableContext`; the stored `targetIr.name` is dead/misleading. Cleanup: store `collection` + fix `relation.test.ts:55` assert. |
+| C9 | 🔴 | **relation.ts:57 uses `targetIr.name` instead of `targetIr.collection`** for table context — single.ts:63 and multi.ts:66 correctly use `ir.collection`. If adapter reads table context expecting collection names, includes generate `FROM "Post"` instead of `FROM "posts"`. | ✅ Done (`6a82a14`): verified NOT a bug (include-FROM reads `inc.targetIr.collection`, tableContext value is dead) → relation.ts now stores `collection`, `relation.test.ts:55` assert fixed + SQL regression test added |
 | C10 | 🟡 | **`create({})` (empty object) silently passes through `_mapAliases`** — no validation that data keys match model fields. Unknown keys silently ignored. | ⏸ Deferred — не в scope курсора/фильтров: валидация ключей → отдельный модуль валидации данных на уровне адаптера |
 | C11 | 🟡 | **`join()` on MultiQueryBuilder has no duplicate-join guard** — calling with same left/right alias silently adds duplicate JOINs. | ⬜ Open |
 
@@ -82,7 +83,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S3 | 🟢 | `.env` with `PGPASSWORD` committed / no `.gitignore` | ✅ Resolved (`.gitignore` present, `.env` untracked) |
 | S4 | 🟡 | **pgTypes global mutation** — conflicts with other pg users | ✅ Resolved (`04ee7e1`): per-pool `createKadmiumTypes()` |
 | S5 | 🟡 | **_or() race condition** when reusing builder in parallel async | ✅ Resolved via A1 (`b709ad1`): terminals work on `sqb.clone()` snapshots — see security.md |
-| S6 | 🟡 | **`expression.op` interpolated into SQL without runtime validation** | ⬜ Open — see security.md S5 |
+| S6 | 🟡 | **`expression.op` interpolated into SQL without runtime validation** | ✅ Resolved (`6572887`): `VALID_OPS` allowlist + runtime guard in `_renderCondition` — see security.md |
 | S7 | 🟡 | **No identifier validation on DML path** (buildInsertSql, buildUpsertManySql) | ⬜ Open — see security.md S6 |
 | S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | ⬜ Open — see security.md S7 |
 | S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ⬜ Open — see security.md S8 |
@@ -124,7 +125,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG8 | 🟡 | **~100 `any` casts in unit tests** — masks proxy type regressions | ⬜ Open — see testing.md TG8 |
 | TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ⬜ Open — see testing.md TG9 |
 | TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ⬜ Open — see testing.md TG10 |
-| TG11 | 🟢 | **No tests for null/undefined in filters** | 🎯 Decision: `eq(null)` → `IS NULL` (renders `"col" IS NULL`); unit + sql-pg tests — see testing.md TG11 |
+| TG11 | 🟢 | **No tests for null/undefined in filters** | ✅ Done (`6572887`): `eq(null)`/`neq(null)` → `IS NULL`/`IS NOT NULL` on all 4 filters, `undefined` throws; unit + sql-pg render tests + integration test (`where.test.ts`) — see testing.md TG11 |
 
 ---
 
