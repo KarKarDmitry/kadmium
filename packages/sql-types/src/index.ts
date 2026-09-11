@@ -186,9 +186,10 @@ export interface DbForeignKey {
 
 export interface DbDdlAdapter {
   inspectTables(): Promise<DbTable[]>;
-  inspectColumns(tableName: string): Promise<DbColumn[]>;
-  inspectIndexes(tableName: string): Promise<DbIndex[]>;
-  inspectForeignKeys(tableName: string): Promise<DbForeignKey[]>;
+  /** Batched introspection — one round trip for all requested tables (rows carry tableName). */
+  inspectAllColumns(tableNames: string[]): Promise<DbColumn[]>;
+  inspectAllIndexes(tableNames: string[]): Promise<DbIndex[]>;
+  inspectAllForeignKeys(tableNames: string[]): Promise<DbForeignKey[]>;
 
   createTable(tableName: string, columns: DbColumn[]): Promise<void>;
   addColumn(table: string, col: DbColumn): Promise<void>;

@@ -39,6 +39,24 @@ export async function computeDiff(
     dbTables.set(table.name, true);
   }
 
+  // Batched introspection: 3 round trips total, regardless of table count.
+  const existingModelTables = irs
+    .map((ir) => ir.collection)
+    .filter((name) => dbTables.has(name));
+
+  const [allColumns, allIndexes, allForeignKeys] =
+    existingModelTables.length > 0
+      ? await Promise.all([
+          ddl.inspectAllColumns(existingModelTables),
+          ddl.inspectAllIndexes(existingModelTables),
+          ddl.inspectAllForeignKeys(existingModelTables),
+        ])
+      : [[], [], []];
+
+  const columnsByTable = groupByTable(allColumns);
+  const indexesByTable = groupByTable(allIndexes);
+  const foreignKeysByTable = groupByTable(allForeignKeys);
+
   // ── Table-level diff: new tables ──
   const expectedTableNames = new Set(irs.map((ir) => ir.collection));
   for (const ir of irs) {
@@ -76,10 +94,10 @@ export async function computeDiff(
     const tableName = ir.collection;
     if (!dbTables.has(tableName)) continue; // new table handled above
 
-    const dbCols = await ddl.inspectColumns(tableName);
+    const dbCols = columnsByTable.get(tableName) ?? [];
     const dbColMap = new Map(dbCols.map((c) => [c.name, c]));
-    const dbIndexes = await ddl.inspectIndexes(tableName);
-    const dbFks = await ddl.inspectForeignKeys(tableName);
+    const dbIndexes = indexesByTable.get(tableName) ?? [];
+    const dbFks = foreignKeysByTable.get(tableName) ?? [];
 
     // Column diff
     for (const [name, f] of Object.entries(ir.fields)) {
@@ -199,4 +217,16 @@ export async function computeDiff(
     summary,
   };
   return result;
+}
+
+function groupByTable<T extends { tableName: string }>(
+  rows: T[],
+): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = map.get(row.tableName);
+    if (list) list.push(row);
+    else map.set(row.tableName, [row]);
+  }
+  return map;
 }

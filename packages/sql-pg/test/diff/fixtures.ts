@@ -146,19 +146,19 @@ export class MockDdl implements DbDdlAdapter {
     return this.tables;
   }
 
-  async inspectColumns(tableName: string): Promise<DbColumn[]> {
-    this.record('inspectColumns', [tableName]);
-    return this.columns.get(tableName) ?? [];
+  async inspectAllColumns(tableNames: string[]): Promise<DbColumn[]> {
+    this.record('inspectAllColumns', [tableNames]);
+    return tableNames.flatMap((t) => this.columns.get(t) ?? []);
   }
 
-  async inspectIndexes(tableName: string): Promise<DbIndex[]> {
-    this.record('inspectIndexes', [tableName]);
-    return this.indexes.get(tableName) ?? [];
+  async inspectAllIndexes(tableNames: string[]): Promise<DbIndex[]> {
+    this.record('inspectAllIndexes', [tableNames]);
+    return tableNames.flatMap((t) => this.indexes.get(t) ?? []);
   }
 
-  async inspectForeignKeys(tableName: string): Promise<DbForeignKey[]> {
-    this.record('inspectForeignKeys', [tableName]);
-    return this.foreignKeys.get(tableName) ?? [];
+  async inspectAllForeignKeys(tableNames: string[]): Promise<DbForeignKey[]> {
+    this.record('inspectAllForeignKeys', [tableNames]);
+    return tableNames.flatMap((t) => this.foreignKeys.get(t) ?? []);
   }
 
   async createTable(tableName: string, columns: DbColumn[]): Promise<void> {
@@ -173,7 +173,11 @@ export class MockDdl implements DbDdlAdapter {
     this.record('dropColumn', [table, colName]);
   }
 
-  async alterType(table: string, colName: string, newType: string): Promise<void> {
+  async alterType(
+    table: string,
+    colName: string,
+    newType: string,
+  ): Promise<void> {
     this.record('alterType', [table, colName, newType]);
   }
 
@@ -213,7 +217,10 @@ export class MockDdl implements DbDdlAdapter {
     this.record('dropTable', [tableName]);
   }
 
-  async raw(sql: string, params?: unknown[]): Promise<Record<string, unknown>[]> {
+  async raw(
+    sql: string,
+    params?: unknown[],
+  ): Promise<Record<string, unknown>[]> {
     this.record('raw', [sql, params]);
     return [];
   }

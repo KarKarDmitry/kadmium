@@ -33,11 +33,17 @@ describe('PgDdlAdapter', () => {
     });
   });
 
-  describe('inspectColumns', () => {
-    it('maps column rows to DbColumn', async () => {
+  describe('inspectAllColumns', () => {
+    it('returns empty array when no tables', async () => {
+      client.query.mockResolvedValue({ rows: [] });
+      expect(await ddl.inspectAllColumns(['users', 'posts'])).toEqual([]);
+    });
+
+    it('maps column rows to DbColumn using row table_name', async () => {
       client.query.mockResolvedValue({
         rows: [
           {
+            table_name: 'users',
             column_name: 'id',
             data_type: 'integer',
             is_nullable: 'NO',
@@ -48,7 +54,7 @@ describe('PgDdlAdapter', () => {
           },
         ],
       });
-      const result = await ddl.inspectColumns('users');
+      const result = await ddl.inspectAllColumns(['users', 'posts']);
       expect(result[0]).toEqual({
         name: 'id',
         tableName: 'users',
@@ -59,12 +65,14 @@ describe('PgDdlAdapter', () => {
         isUnique: true,
         autoIncrement: undefined,
       });
+      expect(client.query.mock.calls[0][1][0]).toEqual(['users', 'posts']);
     });
 
     it('detects autoIncrement via nextval', async () => {
       client.query.mockResolvedValue({
         rows: [
           {
+            table_name: 'users',
             column_name: 'id',
             data_type: 'integer',
             is_nullable: 'NO',
@@ -75,7 +83,7 @@ describe('PgDdlAdapter', () => {
           },
         ],
       });
-      const result = await ddl.inspectColumns('users');
+      const result = await ddl.inspectAllColumns(['users']);
       expect(result[0].autoIncrement).toBe(true);
     });
 
@@ -83,6 +91,7 @@ describe('PgDdlAdapter', () => {
       client.query.mockResolvedValue({
         rows: [
           {
+            table_name: 'users',
             column_name: 'id',
             data_type: 'bigint',
             is_nullable: 'NO',
@@ -93,47 +102,83 @@ describe('PgDdlAdapter', () => {
           },
         ],
       });
-      const result = await ddl.inspectColumns('users');
+      const result = await ddl.inspectAllColumns(['users']);
       expect(result[0].autoIncrement).toBe(false);
     });
   });
 
-  describe('inspectIndexes', () => {
+  describe('inspectAllIndexes', () => {
     it('returns empty when no indexes', async () => {
       client.query.mockResolvedValue({ rows: [] });
-      expect(await ddl.inspectIndexes('users')).toEqual([]);
+      expect(await ddl.inspectAllIndexes(['users'])).toEqual([]);
     });
 
-    it('groups multi-column index', async () => {
-      client.query.mockResolvedValue({
-        rows: [
-          { index_name: 'idx_name', column_name: 'name', is_unique: false },
-          { index_name: 'idx_name', column_name: 'email', is_unique: false },
-        ],
-      });
-      const result = await ddl.inspectIndexes('users');
-      expect(result).toEqual([
-        {
-          name: 'idx_name',
-          tableName: 'users',
-          columns: ['name', 'email'],
-          isUnique: false,
-        },
-      ]);
-    });
-  });
-
-  describe('inspectForeignKeys', () => {
-    it('returns empty when no FKs', async () => {
-      client.query.mockResolvedValue({ rows: [] });
-      expect(await ddl.inspectForeignKeys('posts')).toEqual([]);
-    });
-
-    it('groups composite FK', async () => {
+    it('groups indexes across tables from one query', async () => {
       client.query.mockResolvedValue({
         rows: [
           {
-            fk_name: 'fk复合',
+            table_name: 'users',
+            index_name: 'idx_users_email',
+            column_name: 'email',
+            is_unique: true,
+          },
+          {
+            table_name: 'posts',
+            index_name: 'idx_posts_author',
+            column_name: 'author',
+            is_unique: false,
+          },
+          {
+            table_name: 'users',
+            index_name: 'idx_users_name',
+            column_name: 'name',
+            is_unique: false,
+          },
+          {
+            table_name: 'users',
+            index_name: 'idx_users_name',
+            column_name: 'surname',
+            is_unique: false,
+          },
+        ],
+      });
+      const result = await ddl.inspectAllIndexes(['users', 'posts']);
+      expect(result).toEqual([
+        {
+          name: 'idx_users_email',
+          tableName: 'users',
+          columns: ['email'],
+          isUnique: true,
+        },
+        {
+          name: 'idx_posts_author',
+          tableName: 'posts',
+          columns: ['author'],
+          isUnique: false,
+        },
+        {
+          name: 'idx_users_name',
+          tableName: 'users',
+          columns: ['name', 'surname'],
+          isUnique: false,
+        },
+      ]);
+      expect(client.query.mock.calls[0][1][0]).toEqual(['users', 'posts']);
+    });
+  });
+
+  describe('inspectAllForeignKeys', () => {
+    it('returns empty when no FKs', async () => {
+      client.query.mockResolvedValue({ rows: [] });
+      expect(await ddl.inspectAllForeignKeys(['posts'])).toEqual([]);
+    });
+
+    it('groups composite FK from one query', async () => {
+      client.query.mockResolvedValue({
+        rows: [
+          {
+            table_name: 'posts',
+            fk_name: 'fk_posts_author',
             column_name: 'a',
             ref_table: 't1',
             ref_column: 'x',
@@ -141,7 +186,8 @@ describe('PgDdlAdapter', () => {
             on_update: 'NO ACTION',
           },
           {
-            fk_name: 'fk复合',
+            table_name: 'posts',
+            fk_name: 'fk_posts_author',
             column_name: 'b',
             ref_table: 't1',
             ref_column: 'y',
@@ -150,9 +196,12 @@ describe('PgDdlAdapter', () => {
           },
         ],
       });
-      const result = await ddl.inspectForeignKeys('posts');
+      const result = await ddl.inspectAllForeignKeys(['posts']);
+      expect(result).toHaveLength(1);
+      expect(result[0].tableName).toBe('posts');
       expect(result[0].columns).toEqual(['a', 'b']);
       expect(result[0].refColumns).toEqual(['x', 'y']);
+      expect(client.query.mock.calls[0][1][0]).toEqual(['posts']);
     });
   });
 

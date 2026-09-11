@@ -17,6 +17,7 @@ import {
 } from './ddl-validate';
 
 interface ColumnRow {
+  table_name: string;
   column_name: string;
   data_type: string;
   is_nullable: string;
@@ -27,12 +28,14 @@ interface ColumnRow {
 }
 
 interface IndexRow {
+  table_name: string;
   index_name: string;
   column_name: string;
   is_unique: boolean;
 }
 
 interface FkRow {
+  table_name: string;
   fk_name: string;
   column_name: string;
   ref_table: string;
@@ -51,9 +54,10 @@ export class PgDdlAdapter {
     return result.rows.map((r) => ({ name: r.table_name }));
   }
 
-  async inspectColumns(tableName: string): Promise<DbColumn[]> {
+  async inspectAllColumns(tableNames: string[]): Promise<DbColumn[]> {
     const result = await this.client.query<ColumnRow>(
       `SELECT
+        c.table_name,
         c.column_name,
         c.data_type,
         c.is_nullable,
@@ -66,22 +70,22 @@ export class PgDdlAdapter {
         SELECT ku.column_name, true AS is_primary
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage ku ON tc.constraint_name = ku.constraint_name
-        WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = $1
+        WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = ANY($1::text[])
       ) pk ON c.column_name = pk.column_name
       LEFT JOIN (
         SELECT ku.column_name, true AS is_unique
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage ku ON tc.constraint_name = ku.constraint_name
-        WHERE tc.constraint_type = 'UNIQUE' AND tc.table_name = $1
+        WHERE tc.constraint_type = 'UNIQUE' AND tc.table_name = ANY($1::text[])
       ) uc ON c.column_name = uc.column_name
-      WHERE c.table_schema = 'public' AND c.table_name = $1
-      ORDER BY c.ordinal_position`,
-      [tableName],
+      WHERE c.table_schema = 'public' AND c.table_name = ANY($1::text[])
+      ORDER BY c.table_name, c.ordinal_position`,
+      [tableNames],
     );
 
     return result.rows.map((r) => ({
       name: r.column_name,
-      tableName,
+      tableName: r.table_name,
       dataType: r.data_type,
       isNullable: r.is_nullable === 'YES',
       defaultValue: r.column_default,
@@ -92,37 +96,43 @@ export class PgDdlAdapter {
     }));
   }
 
-  async inspectIndexes(tableName: string): Promise<DbIndex[]> {
+  async inspectAllIndexes(tableNames: string[]): Promise<DbIndex[]> {
     const result = await this.client.query<IndexRow>(
-      `SELECT ic.relname AS index_name, a.attname AS column_name, i.indisunique AS is_unique
+      `SELECT tc.relname AS table_name, ic.relname AS index_name, a.attname AS column_name, i.indisunique AS is_unique
       FROM pg_index i
       JOIN pg_class ic ON i.indexrelid = ic.oid
       JOIN pg_class tc ON i.indrelid = tc.oid
       JOIN pg_namespace n ON tc.relnamespace = n.oid
       JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = ANY(i.indkey)
-      WHERE n.nspname = 'public' AND tc.relname = $1 AND NOT i.indisprimary
-      ORDER BY ic.relname, a.attnum`,
-      [tableName],
+      WHERE n.nspname = 'public' AND tc.relname = ANY($1::text[]) AND NOT i.indisprimary
+      ORDER BY tc.relname, ic.relname, a.attnum`,
+      [tableNames],
     );
 
-    const map = new Map<string, { columns: string[]; isUnique: boolean }>();
+    const map = new Map<
+      string,
+      { tableName: string; columns: string[]; isUnique: boolean }
+    >();
     for (const r of result.rows) {
-      if (!map.has(r.index_name)) {
-        map.set(r.index_name, { columns: [], isUnique: r.is_unique });
+      let entry = map.get(r.index_name);
+      if (!entry) {
+        entry = { tableName: r.table_name, columns: [], isUnique: r.is_unique };
+        map.set(r.index_name, entry);
       }
-      map.get(r.index_name)!.columns.push(r.column_name);
+      entry.columns.push(r.column_name);
     }
     return [...map.entries()].map(([name, data]) => ({
       name,
-      tableName,
+      tableName: data.tableName,
       columns: data.columns,
       isUnique: data.isUnique,
     }));
   }
 
-  async inspectForeignKeys(tableName: string): Promise<DbForeignKey[]> {
+  async inspectAllForeignKeys(tableNames: string[]): Promise<DbForeignKey[]> {
     const result = await this.client.query<FkRow>(
       `SELECT
+        tc.table_name,
         tc.constraint_name AS fk_name,
         kcu.column_name,
         ccu.table_name AS ref_table,
@@ -133,14 +143,16 @@ export class PgDdlAdapter {
       JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
       JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
       JOIN information_schema.referential_constraints rc ON tc.constraint_name = rc.constraint_name
-      WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = $1
-      ORDER BY tc.constraint_name, kcu.ordinal_position`,
-      [tableName],
+      WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = ANY($1::text[])
+      ORDER BY tc.table_name, tc.constraint_name, kcu.ordinal_position`,
+      [tableNames],
     );
 
     const map = new Map<
       string,
       {
+        fkName: string;
+        tableName: string;
         columns: string[];
         refTable: string;
         refColumns: string[];
@@ -149,21 +161,26 @@ export class PgDdlAdapter {
       }
     >();
     for (const r of result.rows) {
-      if (!map.has(r.fk_name)) {
-        map.set(r.fk_name, {
+      const key = `${r.table_name}\u0000${r.fk_name}`;
+      let entry = map.get(key);
+      if (!entry) {
+        entry = {
+          fkName: r.fk_name,
+          tableName: r.table_name,
           columns: [],
           refTable: r.ref_table,
           refColumns: [],
           onDelete: r.on_delete,
           onUpdate: r.on_update,
-        });
+        };
+        map.set(key, entry);
       }
-      map.get(r.fk_name)!.columns.push(r.column_name);
-      map.get(r.fk_name)!.refColumns.push(r.ref_column);
+      entry.columns.push(r.column_name);
+      entry.refColumns.push(r.ref_column);
     }
-    return [...map.entries()].map(([name, data]) => ({
-      name,
-      tableName,
+    return [...map.values()].map((data) => ({
+      name: data.fkName,
+      tableName: data.tableName,
       columns: data.columns,
       refTable: data.refTable,
       refColumns: data.refColumns,

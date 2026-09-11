@@ -99,8 +99,8 @@ describe('IntegerFieldBuilder validates integer defaults', () => {
 
 describe('defaults reach DDL and apply on insert (integration)', () => {
   it('int/bool/string defaults are present on the created columns', async () => {
-    const postCols = await h.adapter.ddl.inspectColumns('post');
-    const commentCols = await h.adapter.ddl.inspectColumns('comment');
+    const postCols = await h.adapter.ddl.inspectAllColumns(['post']);
+    const commentCols = await h.adapter.ddl.inspectAllColumns(['comment']);
     expect(postCols.find((c) => c.name === 'views')!.defaultValue).toContain(
       '0',
     );

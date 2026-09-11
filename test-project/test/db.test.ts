@@ -140,7 +140,7 @@ describe('db: applyDiffTransactional', () => {
       const tables = await h.adapter.ddl.inspectTables();
       expect(tables.map((t) => t.name)).toContain('tx_verify_a');
 
-      const fks = await h.adapter.ddl.inspectForeignKeys('tx_verify_a');
+      const fks = await h.adapter.ddl.inspectAllForeignKeys(['tx_verify_a']);
       expect(fks.some((f) => f.name === 'fk_tx_verify_a_user')).toBe(true);
     } finally {
       await h.adapter.ddl.raw('DROP TABLE IF EXISTS "tx_verify_a" CASCADE');

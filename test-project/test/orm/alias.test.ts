@@ -16,7 +16,7 @@ afterAll(async () => {
 
 describe('alias(): property name vs DB column name', () => {
   it('DDL names the column after the alias (is_flagged), not the property', async () => {
-    const cols = await h.adapter.ddl.inspectColumns('comment');
+    const cols = await h.adapter.ddl.inspectAllColumns(['comment']);
     expect(cols.find((c) => c.name === 'is_flagged')).toBeDefined();
     expect(cols.find((c) => c.name === 'flagged')).toBeUndefined();
   });

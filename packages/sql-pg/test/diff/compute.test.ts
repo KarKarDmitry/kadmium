@@ -1,25 +1,31 @@
 import { describe, it, expect } from 'vitest';
 import { computeDiff } from '../../src/diff/compute';
-import type { DbForeignKey, DbIndex, DbTable } from '@karkardmitry/kadmium-sql-types';
-import {
-  irs,
-  postColumns,
-  userColumns,
-  MockDdl,
-} from './fixtures';
+import type {
+  DbForeignKey,
+  DbIndex,
+  DbTable,
+} from '@karkardmitry/kadmium-sql-types';
+import { irs, postColumns, userColumns, MockDdl } from './fixtures';
 
 function syncedDdl(): MockDdl {
   const ddl = new MockDdl();
-  const tables: DbTable[] = [
-    { name: 'users' },
-    { name: 'posts' },
-  ];
+  const tables: DbTable[] = [{ name: 'users' }, { name: 'posts' }];
   const indexes: Record<string, DbIndex[]> = {
     users: [
-      { name: 'idx_users_email', tableName: 'users', columns: ['email'], isUnique: true },
+      {
+        name: 'idx_users_email',
+        tableName: 'users',
+        columns: ['email'],
+        isUnique: true,
+      },
     ],
     posts: [
-      { name: 'idx_posts_author', tableName: 'posts', columns: ['author'], isUnique: false },
+      {
+        name: 'idx_posts_author',
+        tableName: 'posts',
+        columns: ['author'],
+        isUnique: false,
+      },
     ],
   };
   const fks: Record<string, DbForeignKey[]> = {
@@ -35,7 +41,12 @@ function syncedDdl(): MockDdl {
       },
     ],
   };
-  ddl.setSchema(tables, { users: userColumns, posts: postColumns }, indexes, fks);
+  ddl.setSchema(
+    tables,
+    { users: userColumns, posts: postColumns },
+    indexes,
+    fks,
+  );
   return ddl;
 }
 
@@ -85,7 +96,11 @@ describe('computeDiff', () => {
     const addPostAuthor = diff.operations.find(
       (o) => o.type === 'add-foreign-key',
     );
-    expect(addPostAuthor && addPostAuthor.type === 'add-foreign-key' ? addPostAuthor.fk : null).toMatchObject({
+    expect(
+      addPostAuthor && addPostAuthor.type === 'add-foreign-key'
+        ? addPostAuthor.fk
+        : null,
+    ).toMatchObject({
       name: 'fk_posts_author',
       tableName: 'posts',
       columns: ['author'],
@@ -144,7 +159,9 @@ describe('computeDiff', () => {
 
     expect(diff.summary.droppedColumns).toBe(1);
     expect(
-      diff.operations.find((o) => o.type === 'drop-column' && o.columnName === 'legacy'),
+      diff.operations.find(
+        (o) => o.type === 'drop-column' && o.columnName === 'legacy',
+      ),
     ).toBeDefined();
   });
 
@@ -195,7 +212,9 @@ describe('computeDiff', () => {
 
     expect(diff.summary.addedIndexes).toBe(1);
     expect(
-      diff.operations.find((o) => o.type === 'add-index' && o.index.name === 'idx_users_email'),
+      diff.operations.find(
+        (o) => o.type === 'add-index' && o.index.name === 'idx_users_email',
+      ),
     ).toMatchObject({
       type: 'add-index',
       index: { name: 'idx_users_email', isUnique: true, columns: ['email'] },
@@ -206,13 +225,20 @@ describe('computeDiff', () => {
     const ddl = syncedDdl();
     ddl.indexes.set('posts', [
       ...(ddl.indexes.get('posts') ?? []),
-      { name: 'idx_posts_legacy', tableName: 'posts', columns: ['legacy'], isUnique: false },
+      {
+        name: 'idx_posts_legacy',
+        tableName: 'posts',
+        columns: ['legacy'],
+        isUnique: false,
+      },
     ]);
     const diff = await computeDiff(irs, ddl);
 
     expect(diff.summary.droppedIndexes).toBe(1);
     expect(
-      diff.operations.find((o) => o.type === 'drop-index' && o.indexName === 'idx_posts_legacy'),
+      diff.operations.find(
+        (o) => o.type === 'drop-index' && o.indexName === 'idx_posts_legacy',
+      ),
     ).toMatchObject({
       type: 'drop-index',
       indexName: 'idx_posts_legacy',
@@ -223,8 +249,18 @@ describe('computeDiff', () => {
   it('ignores system auto-created indexes (_pkey, _key)', async () => {
     const ddl = syncedDdl();
     ddl.indexes.set('users', [
-      { name: 'users_pkey', tableName: 'users', columns: ['id'], isUnique: true },
-      { name: 'users_email_key', tableName: 'users', columns: ['email'], isUnique: true },
+      {
+        name: 'users_pkey',
+        tableName: 'users',
+        columns: ['id'],
+        isUnique: true,
+      },
+      {
+        name: 'users_email_key',
+        tableName: 'users',
+        columns: ['email'],
+        isUnique: true,
+      },
     ]);
     const diff = await computeDiff(irs, ddl);
 
@@ -276,9 +312,7 @@ describe('computeDiff', () => {
     ddl.tables.push({ name: 'logs' });
     const diff = await computeDiff(irs, ddl);
 
-    expect(
-      diff.operations.some((o) => o.type === 'drop-table'),
-    ).toBe(false);
+    expect(diff.operations.some((o) => o.type === 'drop-table')).toBe(false);
     expect(diff.summary.droppedTables).toBe(0);
   });
 
@@ -288,7 +322,12 @@ describe('computeDiff', () => {
       collection: 'tags',
       fields: {
         id: { type: 'primary', nullable: false, unique: true, isPrimary: true },
-        display_name: { type: 'string', nullable: false, unique: true, alias: 'display_name' },
+        display_name: {
+          type: 'string',
+          nullable: false,
+          unique: true,
+          alias: 'display_name',
+        },
       },
     };
     const ddl = new MockDdl();
@@ -296,9 +335,11 @@ describe('computeDiff', () => {
     const diff = await computeDiff([ir], ddl);
 
     const create = diff.operations.find((o) => o.type === 'create-table');
-    expect(create && create.type === 'create-table' ? create.columns.map((c) => c.name) : []).toEqual(
-      ['id', 'display_name'],
-    );
+    expect(
+      create && create.type === 'create-table'
+        ? create.columns.map((c) => c.name)
+        : [],
+    ).toEqual(['id', 'display_name']);
     const idx = diff.operations.find((o) => o.type === 'add-index');
     expect(idx && idx.type === 'add-index' ? idx.index.name : '').toBe(
       'idx_tags_display_name',
@@ -311,7 +352,13 @@ describe('computeDiff', () => {
       collection: 'users',
       fields: {
         id: { type: 'primary', nullable: false, unique: true, isPrimary: true },
-        posts: { type: 'ref', ref: 'Post', nullable: false, unique: false, sourceModel: 'Post' },
+        posts: {
+          type: 'ref',
+          ref: 'Post',
+          nullable: false,
+          unique: false,
+          sourceModel: 'Post',
+        },
       },
     };
     const ddl = new MockDdl();
@@ -319,8 +366,29 @@ describe('computeDiff', () => {
     const diff = await computeDiff([ir], ddl);
 
     const create = diff.operations.find((o) => o.type === 'create-table');
-    expect(create && create.type === 'create-table' ? create.columns.map((c) => c.name) : []).toEqual(
-      ['id'],
+    expect(
+      create && create.type === 'create-table'
+        ? create.columns.map((c) => c.name)
+        : [],
+    ).toEqual(['id']);
+  });
+
+  it('introspects via 4 batched calls regardless of table count', async () => {
+    const ddl = syncedDdl();
+    await computeDiff(irs, ddl);
+
+    const inspectCalls = ddl.calls.filter((c) =>
+      c.method.startsWith('inspect'),
     );
+    expect(inspectCalls.map((c) => c.method)).toEqual([
+      'inspectTables',
+      'inspectAllColumns',
+      'inspectAllIndexes',
+      'inspectAllForeignKeys',
+    ]);
+    const expectedTables = ['users', 'posts'];
+    for (const call of inspectCalls.slice(1)) {
+      expect(call.args[0]).toEqual(expectedTables);
+    }
   });
 });
