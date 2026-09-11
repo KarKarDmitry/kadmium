@@ -14,6 +14,7 @@
 > Updated 2026-09-11 — code landings: S7 done (`aa29c92`): `assertSqlIdentifier` on DML collection names + DB-free tests; C11 done (`c98f947`): duplicate joins deduped in AST; S8 done (`ea589e2`): escaped quotes in DDL expression validation. Tests: core 315, sql-pg 215, project 115; lint baseline 87 (2 errors in includes.d.ts).
 > Updated 2026-09-11 — docs sync: A12-A20 rows & T2.5/T3.6/T3.9/TG6 refreshed to landings (A13-A21, help_source removed, built declarations shipped in `40c71a2`). Everything below is closed except C10 (deferred), H1/H2/H4 and features (F2/F8, G1). Architecture debt is fully closed.
 > Updated 2026-09-11 - code landings: P5 computeDiff done (`8e727d4`): batched introspection `inspectAll*` — 4 round-trips независимо от N (замер 10→4), O(1); TG9+TG10 done (`8c515df`): debug-логи убраны (5), count() самодастаточен; TG6 partial (`de01375`): CLI `init` покрыт unit-тестами; TG8 verdict — 35 white-box кастов (не ~100), аccepted; S7 won't fix (DEFAULT — SQL-выражение). Tests: core 323, sql-pg 251, project 117; lint baseline 87 (2 errors in includes.d.ts, untouched).
+> Updated 2026-09-11 — five-axis re-review: C12-C19 (transaction error masking, IN IN bug, clone shallow includes, row key inconsistency, BETWEEN validation, datetime default escaping, limit/offset validation, KadmiumApp no end()), S10-S11 (column name injection DML, global Model.registry), A22-A23 (IR→Model direction, sql-pg/index.ts SRP), P9-P10 (unpackIncludeValue Map/row, O(n²) join ordering), T6 (AggregateField.as mutates in-place).
 
 ## Repository snapshot
 
@@ -25,6 +26,8 @@
 ## Verdict
 
 Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals); where-op rendering hardened (allowlist `VALID_OPS`, correct `IS NULL`/`IS NOT NULL`, `eq(null)`/`neq(null)`). All five-axis findings closed (see table statuses) except: **C10** (create({}) validation → deferred adapter-level validation module) and hygiene **H1/H2/H4** (README, TS alignment, workspace protocol). Remaining roadmap is features: **F2** (`raw()` in ORM), **F8** (window functions), **G1** (interactive `init`). Lint baseline: 85 warnings + 2 pre-existing errors in `includes.d.ts`.
+
+**New findings (2026-09-11 re-review):** **C12** `.in()` renders as `IN IN` (🔴 Critical — blocking), **C13** transaction error masking (🟠), **C14-C17** correctness edge cases (🟡/🟢), **S10** column name injection in DML (🟡), **A22** IR→Model direction (🟡), **P9-P10** performance low (🟢), **T6** AggregateField.as asymmetry (🟢). Priority: fix C12 + C13 first.
 
 ---
 
@@ -51,6 +54,13 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | C9 | 🔴 | **relation.ts:57 uses `targetIr.name` instead of `targetIr.collection`** for table context — single.ts:63 and multi.ts:66 correctly use `ir.collection`. If adapter reads table context expecting collection names, includes generate `FROM "Post"` instead of `FROM "posts"`. | ✅ Done (`6a82a14`): verified NOT a bug (include-FROM reads `inc.targetIr.collection`, tableContext value is dead) → relation.ts now stores `collection`, `relation.test.ts:55` assert fixed + SQL regression test added |
 | C10 | 🟡 | **`create({})` (empty object) silently passes through `_mapAliases`** — no validation that data keys match model fields. Unknown keys silently ignored. | ⏸ Deferred — не в scope курсора/фильтров: валидация ключей → отдельный модуль валидации данных на уровне адаптера |
 | C11 | 🟡 | **`join()` on MultiQueryBuilder has no duplicate-join guard** — calling with same left/right alias silently adds duplicate JOINs. | ✅ Resolved (`c98f947`): дубликат пары (left, right, direction) в АСТ не добавляется — see project-review |
+| C12 | 🔴 | **`.in()` рендерится как `"col" IN IN ($1, $2)`** — `_renderValue` для `IN` возвращает `IN ($1, $2)` (включая ключевое слово), а `_renderCondition` также добавляет `${w.op}` → двойной `IN`. Корневая причина: `_renderValue` для `IN` возвращает полное выражение, а для `BETWEEN` — только правую часть. | ✅ Fixed (`45f7b89`): `_renderValue` для `IN` теперь возвращает `($1, $2)` без `IN`, unit-тест на `_renderCondition` + `includes.test.ts` regression test на nested includes. |
+| C18 | 🔴 | **`_buildIncludesClauses` генерирует двойную запятую в SELECT.** Include select items добавляют `, ` перед каждым `lateral.select`, а `_buildSelectQueryText` тоже добавляет `, ` → `SELECT "p".*, , "..."`. Ломает все nested include запросы. | ✅ Fixed: `sql-generator.ts:522-524` — include select items джойнятся без ведущей запятой. |
+| C13 | 🟠 | **Transaction commit fail → rollback на released client маскирует оригинальную ошибку.** `TransactionalPgAdapter.commit()` вызывает `_release()` в `finally`, затем `OrmManager.transaction()` catch пытается `rollback()` на уже освобождённом клиенте → `"Cannot use a client after it has been released"` вместо реальной ошибки. | ⬜ Open — фикс: убрать `_release()` из `commit()`/`rollback()`, оставить только в `end()`. |
+| C14 | 🟡 | **Multi-row INSERT с неоднородными ключами → тихая потеря данных.** `buildInsertManySql` использует `Object.keys(rows[0])` для определения колонок; строки с другими ключами получают `NULL` без предупреждения. | ⬜ Open — фикс: валидировать единообразие ключей или нормализовать через union всех ключей. |
+| C15 | 🟡 | **`clone()` shallow-copies includes — `internalSqb` shared.** `sqb.includes` копируется как `[...this.includes]`, но `IncludedRelation` объекты содержат `internalSqb`. Мутации Relation в clone повлияют на оригинал. | ⬜ Open — фикс: deep-clone includes или задокументировать shallow-shared семантику. |
+| C16 | 🟡 | **`BETWEEN` с массивом длины ≠ 2 молча падает в generic path.** Если `w.op === 'BETWEEN'` и `w.value.length !== 2`, код попадает в generic `values.push(w.value); return $N` — PostgreSQL получит невалидный запрос. | ⬜ Open — фикс: `throw new Error('BETWEEN requires exactly two values')`. |
+| C17 | 🟢 | **`renderDefault` для datetime не экранирует одинарные кавычки.** `{ default: "it's now" }` → `'it's now'` — syntax error. Не эксплойтится (assertSqlExpression отrejectит), но ломает DDL. | ⬜ Open — фикс: добавить `.replace(/'/g, "''")` как для string/uuid. |
 
 ### 2️⃣ Architecture
 
@@ -76,6 +86,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A18 | 🟢 | **`_pushWhere` structurally identical** in single.ts and multi.ts | ⚪ Won't fix (tried `50f6793`, reverted `e068b64`; see architecture.md A19) |
 | A19 | 🟢 | **Dual IR caches** in orm.ts | ✅ Resolved (`3fae15d`, see architecture.md A20) |
 | A20 | 🟢 | **orm.ts imports Model** from model layer | ✅ Resolved (`8a051a9`, see architecture.md A21) |
+| A22 | 🟡 | **IR/compile.ts imports Model — direction violation.** Контрактный слой IR зависит от конкретного класса `Model` (walk prototype chain). Зависимость должна быть `Model → IR`, не `IR → Model`. | ⬜ Open — фикс: вынести `compileModel` из `ir/` в `model/` или `core/`, где можно зависеть от Model. Или расширить `CompilableModel` для walk prototype. |
+| A23 | 🟢 | **sql-pg/index.ts (461 строк) смешивает адаптеры и хелперы.** `PgAdapter`, `TransactionalPgAdapter`, `DebugSqlGenerator`, `buildInsertSql`, `unpackIncludes`, `finalizeRows` — всё в одном файле. | ⬜ Open — фикс: вынести `buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `createRow`, `createManyRows`, `rawQuery`, `unpackIncludes`, `finalizeRows` в `crud.ts`. |
 
 ### 3️⃣ Security
 
@@ -90,6 +102,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S7 | 🟡 | **No identifier validation on DML path** (buildInsertSql, buildUpsertManySql) | ✅ Resolved (`aa29c92`): `assertSqlIdentifier(collectionName)` в начале всех build-хелперов + DB-free тесты — see security.md S6 |
 | S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | 💤 Won't fix (акцептировано) — DEFAULT — SQL-выражение, корректная валидация требует SQL-парсера; пересмотреть при недоверенном вводе в DDL |
 | S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ✅ Resolved (`ea589e2`): `''` больше не «несбалансированный» + регресс-тесты — see security.md S8 |
+| S10 | 🟡 | **SQL injection через имена колонок в DML.** `buildInsertSql` / `buildInsertManySql` / `_buildUpdateQuery` интерполируют `Object.keys(data)` как `"${k}"` без `assertSqlIdentifier()`. Ключ `"col"); DROP TABLE users; --` сломает кавычки. Collection name валиден, column names — нет. | ⬜ Open — фикс: `assertSqlIdentifier(k, 'column name')` для каждого ключа из `Object.keys(data)`. |
+| S11 | 🟢 | **Static `Model.registry` — shared global mutable state.** В multi-tenant сценарии или тестах с разными наборами моделей глобальный реестр может вызвать интерференцию. | ⬜ Open — документировать глобальную природу реестра; для multi-tenant — per-process изоляция или scoped registry. |
 
 ### 4️⃣ Performance
 
@@ -103,6 +117,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | P6 | 🟡 | **computeDiff 3N+1 queries** for N tables (inspectColumns + inspectIndexes + inspectForeignKeys per table) | ✅ Done (`8e727d4`) — batched `inspectAll*`, 4 round-trips независимо от N (замер: 10→4), см. performance.md P5 |
 | P7 | 🟡 | **applyDiff no transaction wrapping** — partial failure leaves DB in partially-migrated state | ✅ Done (`fee95eb`) — `applyDiffTransactional` + CLI fallback prompt, см. performance.md P6 |
 | P8 | 🟢 | **MAX_BATCH_ROWS hardcoded** without column count consideration | ✅ Done (`3ba5613`) — `maxBatchRows(columns)`, см. performance.md P7 |
+| P9 | 🟢 | **`unpackIncludeValue` создаёт Map на каждую строку.** Для 10k строк с includes — 10k+ Map аллокаций (GC собирает, но лишнее). | ⬜ Open — фикс: вынести предвычисление Map за цикл строк. |
+| P10 | 🟢 | **O(n²) join ordering в `_buildFromJoins`.** While-цикл с повторным полным сканированием `joinsForIsland` на каждом проходе. Для типичных ORM-запросов (2-5 joins) пренебрежимо. | ⬜ Open — фикс: proper topological sort или BFS с queue. |
 
 ### 5️⃣ Readability / Hygiene
 
@@ -129,6 +145,12 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ✅ Done (`8c515df`): убраны все 5 (включая global-setup.ts:18) — see testing.md TG9 |
 | TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ✅ Done (`8c515df`): count() самодастаточен через маркерные строки — see testing.md TG10 |
 | TG11 | 🟢 | **No tests for null/undefined in filters** | ✅ Done (`6572887`): `eq(null)`/`neq(null)` → `IS NULL`/`IS NOT NULL` on all 4 filters, `undefined` throws; unit + sql-pg render tests + integration test (`where.test.ts`) — see testing.md TG11 |
+
+### 7️⃣ Typing
+
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| T6 | 🟢 | **`AggregateField.as()` мутирует in-place, `SelectableField.as()` возвращает новый инстанс.** Асимметрия: `sqb.clone()` должен deep-copy только агрегаты. Любой новый код, шарящий selects без clone, может сломаться если предполагает immutable для всех select items. | ⬜ Open — фикс: сделать `AggregateField.as()` возвращающим новый инстанс (consistency) или задокументировать асимметрию. |
 
 ---
 
@@ -171,10 +193,34 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T4.3 ⬜ Align TypeScript versions.
 - T4.4 ⬜ Migrate `test-project` to workspace protocol.
 
+### Phase 5 — New findings from re-review (2026-09-11)
+
+**Critical/High (fix immediately):**
+- T5.1 ⬜ — **C12: Fix `.in()` renders as `IN IN`.** `_renderValue` для `IN` возвращает `IN ($1, $2)` — убрать `IN `, вернуть `($1, $2)`. Плюс unit-тест на `_renderCondition` с `IN` + integration-тест через query builder.
+- T5.2 ⬜ — **C13: Fix transaction error masking.** Убрать `_release()` из `commit()`/`rollback()` в `TransactionalPgAdapter`, оставить только в `end()`.
+- T5.3 ⬜ — **S10: Validate column names in DML.** `assertSqlIdentifier(k)` для каждого ключа из `Object.keys(data)` в `buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `_buildUpdateQuery`.
+
+**Fixed (just now):**
+- ✅ — **C18: `_buildIncludesClauses` double comma in SELECT.** `_buildIncludesClauses` добавлял `, ` перед каждым `lateral.select`, а `_buildSelectQueryText` тоже добавлял `, ` → `SELECT "p".*, , "..."`. Фикс: `sql-generator.ts:522-524` — include select items джойнятся без ведущей запятой.
+
+**Medium (next PR):**
+- T5.4 ⬜ — **C14: Validate heterogeneous row keys** in `buildInsertManySql`/`buildUpsertManySql`.
+- T5.5 ⬜ — **C15: Deep-clone includes** in `KadmiumSqb.clone()`.
+- T5.6 ⬜ — **C16: Validate BETWEEN array length** — throw if ≠ 2.
+- T5.7 ⬜ — **C17: Escape quotes in datetime defaults** — add `.replace(/'/g, "''")` in `renderDefault`.
+
+**Low (backlog):**
+- T5.8 ⬜ — **A22: Move `compileModel` out of `ir/`** to resolve IR→Model direction violation.
+- T5.9 ⬜ — **A23: Extract CRUD helpers** from `sql-pg/index.ts` into `crud.ts`.
+- T5.10 ⬜ — **P9: Pre-compute Map** in `unpackIncludeValue` outside row loop.
+- T5.11 ⬜ — **P10: BFS instead of O(n²)** for join ordering in `_buildFromJoins`.
+- T5.12 ⬜ — **T6: Make `AggregateField.as()` immutable** (return new instance).
+
 ---
 
 ## Verification checklist
 
+**Pre-fix baseline (2026-09-11):**
 - [x] `npm run check:type` (core) — pass.
 - [x] `test-project: npm run typecheck` — pass (`657db49` fixed the `foreignKey` cast in `model.test.ts`).
 - [x] `npm run lint` — baseline 87 problems (85 warnings, mostly `@typescript-eslint/no-explicit-any`, + 2 pre-existing errors in `includes.d.ts` — `'S' unused`).
@@ -183,6 +229,16 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [x] `packages/sql-pg: npx vitest run` — 252.
 - [x] `test-project: npx vitest run` — requires docker `db:up`; 117 tests.
 - [x] `npm run build` — succeeds.
+
+**Post-fix checklist (after Phase 5):**
+- [ ] `npm run check:type` — pass
+- [ ] `npm run lint` — no regressions
+- [ ] `npm run test` — all packages pass
+- [ ] `npm run test:project` — integration tests pass (C12 regression test)
+- [ ] `npm run build` — succeeds
+- [ ] C12: `.in()` renders as `"col" IN ($1, $2)` (not `IN IN`)
+- [ ] C13: Transaction commit error propagates correctly (not masked by release error)
+- [ ] S10: Hostile column names throw in DML build helpers
 
 ## Rules for agents working here
 
