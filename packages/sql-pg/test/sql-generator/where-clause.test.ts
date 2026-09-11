@@ -144,6 +144,35 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     );
   });
 
+  it('renders IS NULL without right-hand value (TG11)', () => {
+    const g = group([step('AND', where('name', 'IS NULL', null, 'u'))]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
+      '"u"."name" IS NULL',
+    );
+    expect(values).toEqual([]);
+  });
+
+  it('renders IS NOT NULL without right-hand value (TG11)', () => {
+    const g = group([step('AND', where('age', 'IS NOT NULL', null, 'u'))]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
+      '"u"."age" IS NOT NULL',
+    );
+expect(values).toEqual([]);
+  });
+
+  it('throws on non-whitelisted operator (S5)', () => {
+    const g = group([step('AND', where('name', 'DROP TABLE', 'x', 'u'))]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(() => gen['_buildWhereGroupSql'](g, values, p)).toThrow(
+      /Unsupported operator: DROP TABLE/,
+    );
+  });
+
   it('uses column over field when column is set', () => {
     const g = group([
       step('AND', where('name', '=', 'Alice', 'u', 'display_name')),

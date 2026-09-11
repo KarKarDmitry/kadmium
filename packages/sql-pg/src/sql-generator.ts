@@ -36,6 +36,22 @@ export function renderConflictClause(
     : ` ON CONFLICT (${target}) DO NOTHING`;
 }
 
+/** Whitelist операторов сравнения, интерполируемых в SQL (S5: runtime guard против SQL-инъекций). */
+export const VALID_OPS = new Set<string>([
+  '=',
+  '!=',
+  '>',
+  '>=',
+  '<',
+  '<=',
+  'LIKE',
+  'ILIKE',
+  'IN',
+  'BETWEEN',
+  'IS NULL',
+  'IS NOT NULL',
+]);
+
 export abstract class SqlGenerator {
   /** Преобразует значение WhereCondition в SQL-строку + параметры */
   protected _renderValue(
@@ -94,6 +110,23 @@ export abstract class SqlGenerator {
     return parts.join(' ');
   }
 
+  /** Собирает "левая_часть оператор правая_часть" с allowlist-валидацией (S5); IS-операторы — без правой части (TG11). */
+  protected _renderCondition(
+    left: string,
+    w: WhereCondition,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): string {
+    if (!VALID_OPS.has(w.op)) {
+      throw new Error(`Unsupported operator: ${w.op}`);
+    }
+    if (w.op === 'IS NULL' || w.op === 'IS NOT NULL') {
+      return `${left} ${w.op}`;
+    }
+    const right = this._renderValue(w, values, paramIndex);
+    return `${left} ${w.op} ${right}`;
+  }
+
   /**
    * Рендер одного выражения-условия. Минимальные скобки: группа выводится
    * в скобках только если её uniform-join не совпадает с join текущего шага
@@ -113,8 +146,7 @@ export abstract class SqlGenerator {
       const left = expression.alias
         ? `"${expression.alias}"."${col}"`
         : (resolveBare?.(col) ?? `"${col}"`);
-      const right = this._renderValue(expression, values, paramIndex);
-      return `${left} ${expression.op} ${right}`;
+      return this._renderCondition(left, expression, values, paramIndex);
     }
     const inner = this._buildWhereGroupSql(
       expression,
@@ -149,8 +181,7 @@ export abstract class SqlGenerator {
   ): string {
     const col = w.column ?? w.field;
     const left = w.alias ? `"${w.alias}"."${col}"` : `"${col}"`;
-    const right = this._renderValue(w, values, paramIndex);
-    return `${left} ${w.op} ${right}`;
+    return this._renderCondition(left, w, values, paramIndex);
   }
 
   /**

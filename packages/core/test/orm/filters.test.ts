@@ -21,6 +21,22 @@ describe('StringFilter', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
     expect(f.neq('Bob')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '!=', value: 'Bob' });
   });
+  it('eq(null) returns IS NULL', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.eq(null as unknown as string)).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'IS NULL', value: null });
+  });
+  it('neq(null) returns IS NOT NULL', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.neq(null as unknown as string)).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'IS NOT NULL', value: null });
+  });
+  it('eq(undefined) throws', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(() => f.eq(undefined as unknown as string)).toThrow(/undefined/);
+  });
+  it('neq(undefined) throws', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(() => f.neq(undefined as unknown as string)).toThrow(/undefined/);
+  });
   it('gt', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
     expect(f.gt('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '>', value: 'Carol' });
@@ -75,6 +91,10 @@ describe('NumberFilter', () => {
   it('eq', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
     expect(f.eq(25)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '=', value: 25 });
+  });
+  it('eq(null) returns IS NULL (cross-filter)', () => {
+    const f = new NumberFilter(sqb(), 'age', 'u');
+    expect(f.eq(null as unknown as number)).toEqual({ alias: 'u', field: 'age', column: undefined, op: 'IS NULL', value: null });
   });
   it('neq', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
