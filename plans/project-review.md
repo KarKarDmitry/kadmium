@@ -9,6 +9,7 @@
 > Updated 2026-09-08 — plan sync: A6/help_source gone, S5 resolved via A1, T2.3 resolved by design via `createDebugAdapter()`, T3.8 covered by S2 (`ddl-validate`), verification checklist refreshed (typecheck pass, 284/194/98, lint 89w+2e).
 > Updated 2026-09-08 — project re-review: P6 (batch upsert N+1) added, D5 (standalone orm unusable) added, T5 (duplicated type helpers) added, A12 (global state/singleton) added, H5 (dead example scripts) added.
 > Updated 2026-09-10 — full five-axis re-review: A13-A21 (architecture duplication, sql-generator 692 lines), S6-S8 (DML validation, DDL edge cases), P6-P8 (computeDiff N+1, applyDiff no tx, batch sizing), TG6-TG11 (CLI tests, diff tests, any-casts in tests, console.log, inter-test deps, null filters), C9-C11 (relation.ts name/collection, empty data, duplicate joins).
+> Updated 2026-09-11 — decisions: C9 verified NOT a bug (include-FROM reads `targetIr.collection`, tableContext value is dead); C10 deferred to separate adapter-level validation module; TG11 decision `eq(null)` → `IS NULL` (listed in testing.md TG11). Verdict updated accordingly.
 
 ## Repository snapshot
 
@@ -19,7 +20,7 @@
 
 ## Verdict
 
-Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals). **Still not production-ready**: potential bug in `relation.ts:57` (name vs collection), `sql-generator.ts` at 692 lines, missing DML identifier validation, no transactional DDL, zero CLI tests, 89 lint warnings.
+Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (schema DDL + core query path) verified against a live DB; includes refactored to record-based API (−117 lines net); builders hardened for safe reuse (`.clone()` + snapshot terminals). **Still not production-ready**: `sql-generator.ts` at 692 lines, missing DML identifier validation, no transactional DDL, zero CLI tests, 89 lint warnings.
 
 ---
 
@@ -43,8 +44,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | D6 | 🟠 | **`.default()` silently ignored in DDL** — builders write `spec.default`, `irToColumns` hardcodes `defaultValue: null` | ✅ Fixed (`78cff3b`): `renderDefault()` renders a strict per-type SQL literal; `IntegerFieldBuilder` rejects non-integer defaults. |
 | D7 | 🟡 | **`alias()` doesn't rename the DB column** — `irToColumns` uses the field name | ✅ Fixed: column/property split threaded through WHERE/SELECT/ORDER/GROUP BY/UPDATE/create + result mapping; `alias.test.ts` covers DDL, select, filter, update, order. |
 | D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ✅ Fixed: adapter parses `int8` → `number`. ⚠️ Precision limit 2^53 — use `f.pk.string`/`f.pk.uuid` for large ids. |
-| C9 | 🔴 | **relation.ts:57 uses `targetIr.name` instead of `targetIr.collection`** for table context — single.ts:63 and multi.ts:66 correctly use `ir.collection`. If adapter reads table context expecting collection names, includes generate `FROM "Post"` instead of `FROM "posts"`. | ⬜ Needs verification — may work if adapter resolves independently |
-| C10 | 🟡 | **`create({})` (empty object) silently passes through `_mapAliases`** — no validation that data keys match model fields. Unknown keys silently ignored. | ⬜ Open |
+| C9 | 🔴 | **relation.ts:57 uses `targetIr.name` instead of `targetIr.collection`** for table context — single.ts:63 and multi.ts:66 correctly use `ir.collection`. If adapter reads table context expecting collection names, includes generate `FROM "Post"` instead of `FROM "posts"`. | ✅ Verified — NOT a bug: include-FROM render reads `inc.targetIr.collection` (sql-generator.ts:254,267), not `internalSqb.tableContext`; the stored `targetIr.name` is dead/misleading. Cleanup: store `collection` + fix `relation.test.ts:55` assert. |
+| C10 | 🟡 | **`create({})` (empty object) silently passes through `_mapAliases`** — no validation that data keys match model fields. Unknown keys silently ignored. | ⏸ Deferred — не в scope курсора/фильтров: валидация ключей → отдельный модуль валидации данных на уровне адаптера |
 | C11 | 🟡 | **`join()` on MultiQueryBuilder has no duplicate-join guard** — calling with same left/right alias silently adds duplicate JOINs. | ⬜ Open |
 
 ### 2️⃣ Architecture
@@ -123,7 +124,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG8 | 🟡 | **~100 `any` casts in unit tests** — masks proxy type regressions | ⬜ Open — see testing.md TG8 |
 | TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ⬜ Open — see testing.md TG9 |
 | TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ⬜ Open — see testing.md TG10 |
-| TG11 | 🟢 | **No tests for null/undefined in filters** | ⬜ Open — see testing.md TG11 |
+| TG11 | 🟢 | **No tests for null/undefined in filters** | 🎯 Decision: `eq(null)` → `IS NULL` (renders `"col" IS NULL`); unit + sql-pg tests — see testing.md TG11 |
 
 ---
 

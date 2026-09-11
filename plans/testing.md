@@ -186,8 +186,14 @@
 
 **Важность:** 🟢 Medium
 
-**Краткое описание:** Фильтры не тестируются с `null`/`undefined`. `f.eq(null)` должен → `IS NULL`.
+**Краткое описание:** Фильтры не тестируются с `null`/`undefined`.
+
+**Решение (принято):** `eq(null)` → `IS NULL` — `f.eq(null)` рендерит `"col" IS NULL` (как value-null в `_renderValue`), а не `= $1` с NULL (SQL 3VL → всегда false). Действия:
+1. `filters.test.ts` — `eq(null)`/`neq(null)` на каждом фильтре (string/number/bool/date) возвращают правильный `op`/`value`.
+2. `sql-pg/test/sql-generator/where-clause.test.ts` — `WHERE "u"."name" IS NULL` / `IS NOT NULL` рендер.
+3. `undefined` в операнде — исключить явной ошибкой по `eq`/`neq` (не мапить в IS NULL).
 
 **Связанные файлы:**
+- `packages/core/src/orm/field-builders/filters.ts` (eq/neq: null → IS NULL / IS NOT NULL)
 - `packages/core/test/orm/filters.test.ts`
 - `packages/sql-pg/test/sql-generator/where-clause.test.ts`
