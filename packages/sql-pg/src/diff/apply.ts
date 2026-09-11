@@ -59,6 +59,8 @@ export async function applyDiffTransactional(
       // rollback failure must not mask the original error
     }
     throw err;
+  } finally {
+    await tx.end();
   }
 }
 

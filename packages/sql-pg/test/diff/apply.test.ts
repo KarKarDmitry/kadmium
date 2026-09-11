@@ -43,6 +43,7 @@ function txAdapter(opts: {
       state.rollbacks++;
       if (opts.failRollback) throw new Error('rollback boom');
     },
+    async end(): Promise<void> {},
   } as unknown as TransactionalAdapter;
   const alias = {
     ddl,
