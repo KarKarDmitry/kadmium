@@ -15,7 +15,6 @@ export default async function setup(): Promise<void> {
     await dropAllTables(h.adapter);
     await syncSchema(h);
     await seed(h);
-    console.log('[global-setup] schema created + seeded via ORM layer');
   } finally {
     await h.adapter.end();
   }

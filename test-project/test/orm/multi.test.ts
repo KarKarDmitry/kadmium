@@ -49,7 +49,6 @@ describe('multi: joins, groupBy, aggregates', () => {
       .groupBy((t) => [t.u.name])
       .select((t, { count }) => [t.u.name, count(t.p.id).as('postCount')])
       .go();
-    console.log('[multi groupBy+count] rows =', JSON.stringify(rows));
     expect(rows.length).toBe(2);
   });
 

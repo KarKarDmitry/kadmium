@@ -67,7 +67,22 @@ describe('single: select / update / delete', () => {
   });
 
   it('count() and aggregates work', async () => {
-    const n = await h.orm.single(PostModel).count().go();
-    expect(n).toBe(2); // после удаления Draft Post в прошлом тесте
+    const [author] = await h.orm.single(UserModel).select((u) => [u.id]).go();
+    await h.orm.single(PostModel).createMany([
+      { title: 'Stateless Count', content: 'a', views: 1, author: author.id },
+      { title: 'Stateless Count', content: 'b', views: 1, author: author.id },
+    ]).go();
+    const n = await h.orm
+      .single(PostModel)
+      .where((p) => p.title.eq('Stateless Count'))
+      .count()
+      .go();
+    expect(n).toBe(2); // только свои записи, независимо от соседних тестов
+
+    await h.orm
+      .single(PostModel)
+      .delete()
+      .where((p) => p.title.eq('Stateless Count'))
+      .go();
   });
 });

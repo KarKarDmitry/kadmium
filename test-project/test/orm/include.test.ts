@@ -22,7 +22,6 @@ describe('include: to-one / to-many / nested', () => {
       .include({ author: true })
       .first()
       .go();
-    console.log('[include to-one] row =', JSON.stringify(post, null, 2));
     expect(post).toBeTruthy();
     expect(typeof post!.author).toBe('object');
     expect(post!.author).not.toBeNull();
@@ -38,7 +37,6 @@ describe('include: to-one / to-many / nested', () => {
       })
       .first((u) => [u.email])
       .go();
-    console.log('[include to-many] row =', JSON.stringify(alice, null, 2));
     expect(alice).toBeTruthy();
     expect(Array.isArray(alice!.posts)).toBe(true);
     expect(alice!.posts.length).toBe(2);
@@ -56,7 +54,6 @@ describe('include: to-one / to-many / nested', () => {
       .include({ a: { posts: true } })
       .select((t) => [t.p.title])
       .go();
-    console.log('[include multi] rows =', JSON.stringify(rows, null, 2));
     expect(rows.length).toBe(1);
     expect(rows[0].p.title).toBe('Hello Postgres');
   });
