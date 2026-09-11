@@ -131,4 +131,56 @@ describe('KadmiumSqb', () => {
 
     expect(cloned.updateData!.name).toBe('Alice');
   });
+
+  it('clone deep-copies includes (independent internalSqb)', () => {
+    const sqb = new KadmiumSqb();
+    const innerSqb = new KadmiumSqb();
+    innerSqb.wheres.elements.push({
+      join: 'AND',
+      condition: { field: 'published', op: '=', value: true },
+    });
+    sqb.includes.push({
+      parentAlias: 'u',
+      propertyName: 'posts',
+      relationType: 'one-to-many',
+      targetIr: {
+        name: 'Post',
+        collection: 'post',
+        fields: {},
+      },
+      parentField: 'id',
+      childField: 'userId',
+      internalSqb: innerSqb,
+    });
+
+    const cloned = sqb.clone();
+
+    // Mutate original's include internalSqb
+    sqb.includes[0].internalSqb.wheres.elements.push({
+      join: 'AND',
+      condition: { field: 'title', op: 'LIKE', value: '%test%' },
+    });
+
+    // Clone should be independent
+    expect(cloned.includes[0].internalSqb.wheres.elements).toHaveLength(1);
+    expect(
+      cloned.includes[0].internalSqb.wheres.elements[0].condition,
+    ).toEqual({ field: 'published', op: '=', value: true });
+
+    // Array itself is independent
+    cloned.includes.push({
+      parentAlias: 'u',
+      propertyName: 'comments',
+      relationType: 'one-to-many',
+      targetIr: {
+        name: 'Comment',
+        collection: 'comment',
+        fields: {},
+      },
+      parentField: 'id',
+      childField: 'postId',
+      internalSqb: new KadmiumSqb(),
+    });
+    expect(sqb.includes).toHaveLength(1);
+  });
 });

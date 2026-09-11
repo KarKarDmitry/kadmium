@@ -72,7 +72,7 @@ export class KadmiumSqb {
     c.cursor = this._cloneWhereGroup(this.cursor);
     c.selects = this.selects ? this._cloneSelects(this.selects) : null;
     c.joins = [...this.joins];
-    c.includes = [...this.includes];
+    c.includes = this._cloneIncludes();
     c.orders = [...this.orders];
     c.limit = this.limit;
     c.offset = this.offset;
@@ -107,5 +107,24 @@ export class KadmiumSqb {
       agg.alias = s.alias;
       return agg;
     });
+  }
+
+  /**
+   * Deep-copy includes: each IncludedRelation.internalSqb is cloned
+   * independently so that mutations on the clone don't affect the original.
+   *
+   * We construct plain IncludedRelation objects (not spread from Relation)
+   * because Relation's `propertyName` is a getter — spread would lose it.
+   */
+  private _cloneIncludes(): IncludedRelation[] {
+    return this.includes.map((inc) => ({
+      parentAlias: inc.parentAlias,
+      propertyName: inc.propertyName,
+      relationType: inc.relationType,
+      targetIr: inc.targetIr,
+      parentField: inc.parentField,
+      childField: inc.childField,
+      internalSqb: inc.internalSqb.clone(),
+    }));
   }
 }
