@@ -84,14 +84,15 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 
 ## S6: Нет валидации идентификаторов в DML-пути
 
-**Важность:** 🟡 High
+**Важность:** 🟡 High — ✅ **Done** (`aa29c92`)
 
 **Краткое описание:** DDL-путь использует `assertSqlIdentifier()`. DML-путь (`buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`) интерполирует `collectionName` и имена колонок с кавычками, но без проверки. Маловероятно (collectionName из IR), но нарушает defense-in-depth.
 
-**Решение:** `assertSqlIdentifier(collectionName)` в начало каждого build-хелпера.
+**Решение:** `assertSqlIdentifier(collectionName, 'collection name')` в начало каждого build-хелпера. Тесты (`build-helpers.test.ts`): hostile collection name кидает `/Invalid SQL identifier/` на insert / insert-many / upsert путях — **без БД** (throw до query, Pool ленивый).
 
 **Связанные файлы:**
-- `packages/sql-pg/src/index.ts` (lines 27, 52, 73)
+- `packages/sql-pg/src/index.ts`
+- `packages/sql-pg/test/build-helpers.test.ts` (создан)
 
 ---
 
@@ -99,18 +100,19 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 
 **Важность:** 🟢 Low
 
-**Краткое описание:** `assertSqlExpression` разрешает буквы и скобки → `pg_sleep(10)` проходит валидацию. DoS через DEFAULT теоретически возможен, маловероятен (только DDL,trusted source).
+**Краткое описание:** `assertSqlExpression` разрешает буквы и скобки → `pg_sleep(10)` проходит валидацию. DoS через DEFAULT теоретически возможен, маловероятен (только DDL, trusted source).
 
 **Связанные файлы:**
 - `packages/sql-pg/src/ddl-validate.ts` (line 17)
 
 ---
 
-## S8: False positive на экранированные кавычки в ddl-validate
+## S8: False positive на экранированные кавычки в ddl-validate — ✅ **Done** (`ea589e2`)
 
-**Важность:** 🟢 Low
+**Краткое описание:** Балансировка кавычек не обрабатывала `''` (escaped quotes). Валидный SQL `'it''s'` давал «несбалансированный синтаксис`.
 
-**Краткое описание:** Балансировка кавычек (lines 58-62) не обрабатывает `''` (escaped quotes). Валидный SQL `'it''s'` вызовет «несбалансированный синтаксис».
+**Решение:** в `assertSqlExpression` при `ch === quote` и `expr[i+1] === quote` — пара `''` не закрывает строку (skip обе). Регресс-тесты: `'it''s'`, `"a""b"`, `'it''s' AND 'x''y'` валидны; несбалансированные по-прежнему кидают.
 
 **Связанные файлы:**
-- `packages/sql-pg/src/ddl-validate.ts` (lines 58-62)
+- `packages/sql-pg/src/ddl-validate.ts`
+- `packages/sql-pg/test/ddl-validate.test.ts`

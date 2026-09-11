@@ -11,6 +11,7 @@
 > Updated 2026-09-10 — full five-axis re-review: A13-A21 (architecture duplication, sql-generator 692 lines), S6-S8 (DML validation, DDL edge cases), P6-P8 (computeDiff N+1, applyDiff no tx, batch sizing), TG6-TG11 (CLI tests, diff tests, any-casts in tests, console.log, inter-test deps, null filters), C9-C11 (relation.ts name/collection, empty data, duplicate joins).
 > Updated 2026-09-11 — decisions: C9 verified NOT a bug (include-FROM reads `targetIr.collection`, tableContext value is dead); C10 deferred to separate adapter-level validation module; TG11 decision `eq(null)` → `IS NULL` (listed in testing.md TG11). Verdict updated accordingly.
 > Updated 2026-09-11 — code landings: C9 done (`6a82a14`: relation.ts stores `collection` + tests incl. SQL regression); TG11+S5 done (`6572887`: `eq(null)`/`neq(null)` → IS NULL/IS NOT NULL + undefined throw, `_renderCondition` renders IS ops without right-hand side and rejects non-whitelisted ops). S6/S9-S11 are now moot — see security.md. Completed rows moved to 📦 Done.
+> Updated 2026-09-11 — code landings: S7 done (`aa29c92`): `assertSqlIdentifier` on DML collection names + DB-free tests; C11 done (`c98f947`): duplicate joins deduped in AST; S8 done (`ea589e2`): escaped quotes in DDL expression validation. Tests: core 315, sql-pg 215, project 115; lint baseline 87 (2 errors in includes.d.ts).
 
 ## Repository snapshot
 
@@ -47,7 +48,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | D8 | 🟡 | **bigint id: type `number` vs runtime `string`** (node-pg) | ✅ Fixed: adapter parses `int8` → `number`. ⚠️ Precision limit 2^53 — use `f.pk.string`/`f.pk.uuid` for large ids. |
 | C9 | 🔴 | **relation.ts:57 uses `targetIr.name` instead of `targetIr.collection`** for table context — single.ts:63 and multi.ts:66 correctly use `ir.collection`. If adapter reads table context expecting collection names, includes generate `FROM "Post"` instead of `FROM "posts"`. | ✅ Done (`6a82a14`): verified NOT a bug (include-FROM reads `inc.targetIr.collection`, tableContext value is dead) → relation.ts now stores `collection`, `relation.test.ts:55` assert fixed + SQL regression test added |
 | C10 | 🟡 | **`create({})` (empty object) silently passes through `_mapAliases`** — no validation that data keys match model fields. Unknown keys silently ignored. | ⏸ Deferred — не в scope курсора/фильтров: валидация ключей → отдельный модуль валидации данных на уровне адаптера |
-| C11 | 🟡 | **`join()` on MultiQueryBuilder has no duplicate-join guard** — calling with same left/right alias silently adds duplicate JOINs. | ⬜ Open |
+| C11 | 🟡 | **`join()` on MultiQueryBuilder has no duplicate-join guard** — calling with same left/right alias silently adds duplicate JOINs. | ✅ Resolved (`c98f947`): дубликат пары (left, right, direction) в АСТ не добавляется — see project-review |
 
 ### 2️⃣ Architecture
 
@@ -84,9 +85,9 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S4 | 🟡 | **pgTypes global mutation** — conflicts with other pg users | ✅ Resolved (`04ee7e1`): per-pool `createKadmiumTypes()` |
 | S5 | 🟡 | **_or() race condition** when reusing builder in parallel async | ✅ Resolved via A1 (`b709ad1`): terminals work on `sqb.clone()` snapshots — see security.md |
 | S6 | 🟡 | **`expression.op` interpolated into SQL without runtime validation** | ✅ Resolved (`6572887`): `VALID_OPS` allowlist + runtime guard in `_renderCondition` — see security.md |
-| S7 | 🟡 | **No identifier validation on DML path** (buildInsertSql, buildUpsertManySql) | ⬜ Open — see security.md S6 |
+| S7 | 🟡 | **No identifier validation on DML path** (buildInsertSql, buildUpsertManySql) | ✅ Resolved (`aa29c92`): `assertSqlIdentifier(collectionName)` в начале всех build-хелперов + DB-free тесты — see security.md S6 |
 | S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | ⬜ Open — see security.md S7 |
-| S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ⬜ Open — see security.md S8 |
+| S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ✅ Resolved (`ea589e2`): `''` больше не «несбалансированный» + регресс-тесты — see security.md S8 |
 
 ### 4️⃣ Performance
 
