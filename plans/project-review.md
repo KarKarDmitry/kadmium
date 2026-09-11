@@ -12,7 +12,7 @@
 > Updated 2026-09-11 — decisions: C9 verified NOT a bug (include-FROM reads `targetIr.collection`, tableContext value is dead); C10 deferred to separate adapter-level validation module; TG11 decision `eq(null)` → `IS NULL` (listed in testing.md TG11). Verdict updated accordingly.
 > Updated 2026-09-11 — code landings: C9 done (`6a82a14`: relation.ts stores `collection` + tests incl. SQL regression); TG11+S5 done (`6572887`: `eq(null)`/`neq(null)` → IS NULL/IS NOT NULL + undefined throw, `_renderCondition` renders IS ops without right-hand side and rejects non-whitelisted ops). S6/S9-S11 are now moot — see security.md. Completed rows moved to 📦 Done.
 > Updated 2026-09-11 — code landings: S7 done (`aa29c92`): `assertSqlIdentifier` on DML collection names + DB-free tests; C11 done (`c98f947`): duplicate joins deduped in AST; S8 done (`ea589e2`): escaped quotes in DDL expression validation. Tests: core 315, sql-pg 215, project 115; lint baseline 87 (2 errors in includes.d.ts).
-> Updated 2026-09-11 - code landings: P8 done (`3ba5613`): `maxBatchRows(columns)` dynamic batching; TG7 done (`e7a90d6`): diff unit tests (MockDdl) + fix for inverted UNIQUE strip in applyDiff; P7 done (`fee95eb`): `applyDiffTransactional` + CLI fallback prompt + CLI loads project `.env` (`process.loadEnvFile`). Tests: core 319, sql-pg 249, project 117; lint baseline 87 (2 errors in includes.d.ts, untouched).
+> Updated 2026-09-11 - code landings: P5 computeDiff done (`8e727d4`): batched introspection `inspectAll*` — 4 round-trips независимо от N (замер 10→4), O(1); TG9+TG10 done (`8c515df`): debug-логи убраны (5), count() самодастаточен; TG6 partial (`de01375`): CLI `init` покрыт unit-тестами; TG8 verdict — 35 white-box кастов (не ~100), аccepted; S7 won't fix (DEFAULT — SQL-выражение). Tests: core 323, sql-pg 251, project 117; lint baseline 87 (2 errors in includes.d.ts, untouched).
 
 ## Repository snapshot
 
@@ -87,7 +87,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S5 | 🟡 | **_or() race condition** when reusing builder in parallel async | ✅ Resolved via A1 (`b709ad1`): terminals work on `sqb.clone()` snapshots — see security.md |
 | S6 | 🟡 | **`expression.op` interpolated into SQL without runtime validation** | ✅ Resolved (`6572887`): `VALID_OPS` allowlist + runtime guard in `_renderCondition` — see security.md |
 | S7 | 🟡 | **No identifier validation on DML path** (buildInsertSql, buildUpsertManySql) | ✅ Resolved (`aa29c92`): `assertSqlIdentifier(collectionName)` в начале всех build-хелперов + DB-free тесты — see security.md S6 |
-| S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | ⬜ Open — see security.md S7 |
+| S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | 💤 Won't fix (акцептировано) — DEFAULT — SQL-выражение, корректная валидация требует SQL-парсера; пересмотреть при недоверенном вводе в DDL |
 | S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ✅ Resolved (`ea589e2`): `''` больше не «несбалансированный» + регресс-тесты — see security.md S8 |
 
 ### 4️⃣ Performance
@@ -99,7 +99,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | P3 | 🟢 | Schema inspection sequential per table | ✅ Acceptable |
 | P4 | 🟢 | **ResultReshaper O(n × m)** — quadratic reshaping | ✅ Verified optimal for typical cases (pre-computation overhead offsets benefit) |
 | P5 | 🟢 | **unpackIncludes recursive** — O(n × k) per-row traversal | ✅ Optimized: `Map.get()` O(1) instead of `find()` O(k) |
-| P6 | 🟡 | **computeDiff 3N+1 queries** for N tables (inspectColumns + inspectIndexes + inspectForeignKeys per table) | ⬜ Open — see performance.md P5 |
+| P6 | 🟡 | **computeDiff 3N+1 queries** for N tables (inspectColumns + inspectIndexes + inspectForeignKeys per table) | ✅ Done (`8e727d4`) — batched `inspectAll*`, 4 round-trips независимо от N (замер: 10→4), см. performance.md P5 |
 | P7 | 🟡 | **applyDiff no transaction wrapping** — partial failure leaves DB in partially-migrated state | ✅ Done (`fee95eb`) — `applyDiffTransactional` + CLI fallback prompt, см. performance.md P6 |
 | P8 | 🟢 | **MAX_BATCH_ROWS hardcoded** without column count consideration | ✅ Done (`3ba5613`) — `maxBatchRows(columns)`, см. performance.md P7 |
 
@@ -122,11 +122,11 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG3 | 🟡 | **Proxy system not tested in isolation** — FilterProxy, SelectProxy, RelationProxy | ✅ Fixed: covered in `query-proxies.test.ts` (included in TG1) |
 | TG4 | 🟢 | **pgType/diffToHealth/compile unit tests removed** — pure functions covered only indirectly | ✅ Fixed (`dec901e`): compileModel 30 cases + TG5 below |
 | TG5 | 🟡 | **No unit tests for Model DSL, field builders, codegen, DDL adapter, sql-generator** | ✅ Fixed (`dec901e`): 226 cases across 19 new test files |
-| TG6 | 🟡 | **Zero CLI tests** — db, generate, init, format, check commands | ⬜ Open — see testing.md TG6 |
+| TG6 | 🟡 | **Zero CLI tests** — db, generate, init, format, check commands | 🟡 Partial (`de01375`) — `init` покрыт unit-тестами (scope, temp dirs); generate/check/db/format открыты — see testing.md TG6 |
 | TG7 | 🟡 | **No unit tests for diff/compute, diff/apply, diff/render** | ✅ Done (`e7a90d6`) — 30 тестов + MockDdl, вскрыт баг UNIQUE-strip, см. testing.md TG7 |
-| TG8 | 🟡 | **~100 `any` casts in unit tests** — masks proxy type regressions | ⬜ Open — see testing.md TG8 |
-| TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ⬜ Open — see testing.md TG9 |
-| TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ⬜ Open — see testing.md TG10 |
+| TG8 | 🟢 | **~100 `any` casts in unit tests** — masks proxy type regressions | ✅ Accepted (not a task): факт — **35** white-box кастов (12+7+10+12+0), не ~100; осознанные доступы к внутренностям proxy в тестах — see testing.md TG8 |
+| TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ✅ Done (`8c515df`): убраны все 5 (включая global-setup.ts:18) — see testing.md TG9 |
+| TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ✅ Done (`8c515df`): count() самодастаточен через маркерные строки — see testing.md TG10 |
 | TG11 | 🟢 | **No tests for null/undefined in filters** | ✅ Done (`6572887`): `eq(null)`/`neq(null)` → `IS NULL`/`IS NOT NULL` on all 4 filters, `undefined` throws; unit + sql-pg render tests + integration test (`where.test.ts`) — see testing.md TG11 |
 
 ---

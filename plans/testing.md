@@ -3,6 +3,7 @@
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — all TG items resolved. 22 unit test files in core, 12 in sql-pg, 14 integration tests.
+> Updated 2026-09-11 — TG8 verdict (35 white-box casts, accepted); TG9/TG10 done (`8c515df`); TG6 partial (`de01375`, init); P5 done (`8e727d4`) — DDL-adapter coverage bullet refreshed (40 cases).
 
 ---
 
@@ -98,7 +99,7 @@
 - Model base class ($build, $relations, $refs, registry, inheritance, MODEL_MARKER) — `model.test.ts` (16 cases)
 - Field builders: string, number, boolean, datetime, primary, ref, index, model (invertRelation) — `fields/*.test.ts` (65 cases)
 - Codegen: generateModel (13 cases), runner/generateAll/generateToFile/checkSync (9 cases) — `codegen/*.test.ts`
-- DDL adapter: inspectTables, inspectColumns, inspectIndexes, inspectForeignKeys, createTable, addColumn, alterType, alterNullable, alterDefault, addIndex, addForeignKey, drop*, raw — `ddl-adapter.test.ts` (32 cases)
+- DDL adapter: inspectTables, inspectAllColumns/Indexes/ForeignKeys (batched по tableNames — 3N+1 → O(1) round-trips), createTable, addColumn, alterType, alterNullable, alterDefault, addIndex, addForeignKey, drop*, raw — `ddl-adapter.test.ts` (40 cases)
 - SqlGenerator split: render-value (8), where-clause (9), select (18), update (5), upsert (7), delete (4), includes (6), join-islands (4) — `sql-generator/*.test.ts` (61 cases)
 - ESLint: все ошибки и warnings исправлены в test файлах
 
@@ -116,16 +117,19 @@
 
 ---
 
-## TG6: Ноль тестов CLI
+## TG6: Ноль тестов CLI 🟡 Частично (`de01375`)
 
 **Важность:** 🟡 High
 
 **Краткое описание:** Команды `db`, `generate`, `init`, `format`, `check` не покрыты тестами. Ни одного unit/integration теста. CLI — публичный API, регрессии не отслеживаются.
 
-**Решение:** Минимум: `init`, `generate`, `check` с замоканной ФС. `db` — с мок-адаптером.
+**Сделано:** ✅ `init` покрыт unit-тестами (`test/cli/init.test.ts`, 4 кейса на temp-директориях): шаблоны создаются, package.json merge сохраняет существующие scripts, повторный запуск не перезаписывает, вложенные пути.
+
+**Остаток:** `generate`/`check` (нужен мок ModelImporter/FS для template-файлов), `db` (мок-адаптер), `format` (обёртка prettier).
 
 **Связанные файлы:**
 - `packages/core/src/cli/*.ts`
+- `packages/core/test/cli/init.test.ts`
 
 ---
 
@@ -144,13 +148,13 @@
 
 ---
 
-## TG8: ~100 any-кастов в unit-тестах
+## TG8: any-касты в unit-тестах — факт 35, осознанные white-box касты
 
-**Важность:** 🟡 High
+**Важность:** 🟢 Medium
 
-**Краткое описание:** Касты к `any` с `eslint-disable` в `single-builder.test.ts`, `multi-builder.test.ts`, `query-proxies.test.ts`. Маскируют регрессии в proxy-типах.
+**Краткое описание:** Корректный подсчёт: `as any` в `packages/core/test/orm` — **35** вхождений (не ~100 как было заявлено): `single-builder.test.ts` (12), `query-proxies.test.ts` (7), `where-expression.test.ts` (10), `sqb.test.ts` (12), `multi-builder.test.ts` (0) и др. Это белые ящики — доступ к внутренностям proxy/SQB для ассертов, не обход типов в публичном API.
 
-**Решение:** Типизированные тестовые хелперы для proxy-объектов.
+**Решение (принято):** Не задача. Риск низкий (защитные касты в тестах публичного поверхностного API не маскируют регрессии типов). Оставляем как есть; при рефакторинге SQB-структур демонтировать точечно.
 
 **Связанные файлы:**
 - `packages/core/test/orm/single-builder.test.ts`
@@ -159,11 +163,13 @@
 
 ---
 
-## TG9: console.log осталось в include.test.ts и multi.test.ts
+## TG9: console.log осталось в include.test.ts и multi.test.ts ✅ Done (`8c515df`)
 
 **Важность:** 🟢 Medium
 
 **Краткое описание:** 4 `console.log` в интеграционных тестах: `include.test.ts` (3), `multi.test.ts` (1).
+
+**Решение:** ✅ Убраны все 5 debug-логов: `include.test.ts:25/41/59`, `multi.test.ts:52` и незамеченный 5-й в `global-setup.ts:18`. Console-вывод остался только в bench/ и demo (легитимно).
 
 **Связанные файлы:**
 - `test-project/test/orm/include.test.ts`
@@ -171,11 +177,13 @@
 
 ---
 
-## TG10: Межтестовая зависимость состояния в single.test.ts
+## TG10: Межтестовая зависимость состояния в single.test.ts ✅ Done (`8c515df`)
 
 **Важность:** 🟢 Medium
 
-**Краткое описание:** Assertions `count()` зависят от `delete()` из предыдущего теста. Fragile при переупорядочивании.
+**Краткое описание:** Assertions `count()` зависели от `delete()` из предыдущего теста. Fragile при переупорядочивании.
+
+**Решение:** ✅ `count()` самодастаточен: создаёт 2 своих записи с маркерным title, считает через `where(...).count()` и удаляет их. Не зависит от порядка тестов и FK-состояния (delete с фильтром по своим title безопасен).
 
 **Связанные файлы:**
 - `test-project/test/orm/single.test.ts`

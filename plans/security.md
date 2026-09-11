@@ -1,6 +1,7 @@
 # Проблемы безопасности
 
 > Generated 2026-09-04 from `packages/core/src/orm/` review.
+> Updated 2026-09-11 — S7 verdict: won't fix (DEFAULT — SQL-выражение, требуется SQL-парсер; пересмотреть при недоверенном вводе в DDL).
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — S1 resolved (`04ee7e1`), S2 resolved, S3 reframed as part of A1.
 > Updated 2026-09-08 — S3 resolved via A1 (B+C, `b709ad1`).
@@ -101,6 +102,8 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 **Важность:** 🟢 Low
 
 **Краткое описание:** `assertSqlExpression` разрешает буквы и скобки → `pg_sleep(10)` проходит валидацию. DoS через DEFAULT теоретически возможен, маловероятен (только DDL, trusted source).
+
+**Решение (акцептировано, won't fix):** DEFAULT — это SQL-выражение, а не просто строка; корректная валидация требует SQL-парсера. Соотношение затрат/риска не оправдывает зависимость от парсера (только DDL, trusted source). Зафиксировано как осознанный trade-off; пересмотреть при появлении недоверенного входа в DDL.
 
 **Связанные файлы:**
 - `packages/sql-pg/src/ddl-validate.ts` (line 17)

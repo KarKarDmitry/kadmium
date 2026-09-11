@@ -4,6 +4,7 @@
 > Updated 2026-09-05 — added importance fields.
 > Updated 2026-09-07 — verified P1 optimal, P2 optimized.
 > Updated 2026-09-08 — added P6 (batch upsert N+1), from project review.
+> Updated 2026-09-11 — P5 done (`8e727d4`): batched introspection — 4 round-trips независимо от N (замер 10→4).
 
 ---
 
@@ -115,16 +116,18 @@ for (const row of mappedRows) {
 
 ---
 
-## P5: computeDiff делает 3N+1 запросов для N таблиц
+## P5: computeDiff делает 3N+1 запросов для N таблиц ✅ Done (`8e727d4`)
 
 **Важность:** 🟡 High
 
-**Краткое описание:** `computeDiff` (diff/compute.ts:79-82) для каждой таблицы выполняет 3 отдельных запроса (`inspectColumns`, `inspectIndexes`, `inspectForeignKeys`). Для схемы с N таблицами — 3N+1 запросов. Для 50+ таблиц это существенный round-trip overhead.
+**Краткое описание:** `computeDiff` (diff/compute.ts) для каждой существующей таблицы раньше выполнял 3 отдельных последовательных запроса (`inspectColumns`, `inspectIndexes`, `inspectForeignKeys`) + 1 на `inspectTables`. Для схемы с N таблицами — 1+3N round-trips.
 
-**Решение:** Один batched-запрос к `information_schema`/`pg_catalog`, возвращающий метаданные всех таблиц за один round-trip.
+**Решение:** ✅ Интерфейс `DbDdlAdapter` переведён на batched-интроспекцию: `inspectAllColumns/Indexes/ForeignKeys(tableNames[])` — один запрос на тип метаданных с `WHERE = ANY($1::text[])`, независимо от числа таблиц. `computeDiff` теперь делает ровно **4 round-trip'а** (1 + 3 параллельных batched) — O(1) по round-trips, данные O(N). Замер на живом PG (3 таблицы): **10 → 4 запроса**; на пустой БД — 1. Регрессионный тест в compute.test.ts asserts ровно 4 inspect-вызова.
 
 **Связанные файлы:**
-- `packages/sql-pg/src/diff/compute.ts` (lines 79-82)
+- `packages/sql-pg/src/diff/compute.ts`
+- `packages/sql-pg/src/ddl-adapter.ts`
+- `packages/sql-types/src/index.ts` (`DbDdlAdapter`)
 
 ---
 
