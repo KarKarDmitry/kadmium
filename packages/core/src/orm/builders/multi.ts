@@ -113,13 +113,21 @@ export class MultiQueryBuilder<
     direction?: 'inner' | 'left' | 'right' | 'outer';
     on: (tables: MultiFilterProxy<T>) => WhereCondition;
   }): this {
-    const onCondition = options.on(this._createFilterProxy());
-    this.sqb.joins.push({
-      left: options.left,
-      right: options.right,
-      direction: options.direction ?? 'inner',
-      on: onCondition,
-    });
+    const direction = options.direction ?? 'inner';
+    // Дубликат пары (left, right, direction) в АСТ не добавляем (C11)
+    const dupe = (j: (typeof this.sqb.joins)[number]) =>
+      j.left === options.left &&
+      j.right === options.right &&
+      j.direction === direction;
+    if (!this.sqb.joins.some(dupe)) {
+      const onCondition = options.on(this._createFilterProxy());
+      this.sqb.joins.push({
+        left: options.left,
+        right: options.right,
+        direction,
+        on: onCondition,
+      });
+    }
     return this;
   }
 

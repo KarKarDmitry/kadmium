@@ -55,6 +55,25 @@ describe('MultiQueryBuilder — join', () => {
     b.join({ left: 'u', right: 'p', direction: 'left', on: (t: any) => t.u.id.eq(t.p.author) });
     expect(b.sqb.joins[0].direction).toBe('left');
   });
+
+  it('skips a duplicate join of the same pair and direction (C11)', () => {
+    const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.join({ left: 'u', right: 'p', on: (t: any) => t.u.name.eq(t.p.title) });
+    expect(b.sqb.joins.length).toBe(1);
+    expect(b.sqb.joins[0].on).toMatchObject({ field: 'id' });
+  });
+
+  it('allows the same pair with a different direction (C11)', () => {
+    const b = multiBuilder();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.join({ left: 'u', right: 'p', direction: 'left', on: (t: any) => t.u.id.eq(t.p.author) });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
+    expect(b.sqb.joins.length).toBe(2);
+  });
 });
 
 describe('MultiQueryBuilder — select', () => {
