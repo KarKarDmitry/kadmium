@@ -57,7 +57,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | C12 | 🔴 | **`.in()` рендерится как `"col" IN IN ($1, $2)`** — `_renderValue` для `IN` возвращает `IN ($1, $2)` (включая ключевое слово), а `_renderCondition` также добавляет `${w.op}` → двойной `IN`. Корневая причина: `_renderValue` для `IN` возвращает полное выражение, а для `BETWEEN` — только правую часть. | ✅ Fixed (`45f7b89`): `_renderValue` для `IN` теперь возвращает `($1, $2)` без `IN`, unit-тест на `_renderCondition` + `includes.test.ts` regression test на nested includes. |
 | C18 | 🔴 | **`_buildIncludesClauses` генерирует двойную запятую в SELECT.** Include select items добавляют `, ` перед каждым `lateral.select`, а `_buildSelectQueryText` тоже добавляет `, ` → `SELECT "p".*, , "..."`. Ломает все nested include запросы. | ✅ Fixed: `sql-generator.ts:522-524` — include select items джойнятся без ведущей запятой. |
 | C13 | 🟠 | **Transaction commit fail → rollback на released client маскирует оригинальную ошибку.** `TransactionalPgAdapter.commit()` вызывает `_release()` в `finally`, затем `OrmManager.transaction()` catch пытается `rollback()` на уже освобождённом клиенте → `"Cannot use a client after it has been released"` вместо реальной ошибки. | ✅ Fixed (`8b9c455`): `commit()`/`rollback()` больше не вызывают `_release()`; `end()` в `finally` блоке `transaction()` — единственный точка cleanup. ROLLBACK в `createMany` multi-chunk обёрнут в try/catch. |
-| C14 | 🟡 | **Multi-row INSERT с неоднородными ключами → тихая потеря данных.** `buildInsertManySql` использует `Object.keys(rows[0])` для определения колонок; строки с другими ключами получают `NULL` без предупреждения. | ⬜ Open — фикс: валидировать единообразие ключей или нормализовать через union всех ключей. |
+| C14 | 🟡 | **Multi-row INSERT с неоднородными ключами → тихая потеря данных.** `buildInsertManySql` использует `Object.keys(rows[0])` для определения колонок; строки с другими ключами получают `NULL` без предупреждения. | ✅ Fixed (`5972a56`): `unionKeys()` вычисляет объединение ключей всех строк, исключая `id`. Missing ключи → undefined → PG DEFAULT/NULL. `CreateInput<T>` тип добавлен. |
 | C15 | 🟡 | **`clone()` shallow-copies includes — `internalSqb` shared.** `sqb.includes` копируется как `[...this.includes]`, но `IncludedRelation` объекты содержат `internalSqb`. Мутации Relation в clone повлияют на оригинал. | ⬜ Open — фикс: deep-clone includes или задокументировать shallow-shared семантику. |
 | C16 | 🟡 | **`BETWEEN` с массивом длины ≠ 2 молча падает в generic path.** Если `w.op === 'BETWEEN'` и `w.value.length !== 2`, код попадает в generic `values.push(w.value); return $N` — PostgreSQL получит невалидный запрос. | ✅ Fixed (`c77d82b`): throw `'BETWEEN requires exactly two values'` + unit-тест. |
 | C17 | 🟢 | **`renderDefault` для datetime не экранирует одинарные кавычки.** `{ default: "it's now" }` → `'it's now'` — syntax error. Не эксплойтится (assertSqlExpression отrejectит), но ломает DDL. | ✅ Fixed (`98d3977`): `.replace(/'/g, "''")` + `.replace(/\\\\/g, '\\\\\\\\')` для datetime/date/time + unit-тесты. |
@@ -204,7 +204,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - ✅ — **C18: `_buildIncludesClauses` double comma in SELECT.** `_buildIncludesClauses` добавлял `, ` перед каждым `lateral.select`, а `_buildSelectQueryText` тоже добавлял `, ` → `SELECT "p".*, , "..."`. Фикс: `sql-generator.ts:522-524` — include select items джойнятся без ведущей запятой.
 
 **Medium (next PR):**
-- T5.4 ⬜ — **C14: Validate heterogeneous row keys** in `buildInsertManySql`/`buildUpsertManySql`.
+- T5.4 ✅ — **C14: Validate heterogeneous row keys** in `buildInsertManySql`/`buildUpsertManySql`.
 - T5.5 ⬜ — **C15: Deep-clone includes** in `KadmiumSqb.clone()`.
 - T5.6 ⬜ — **C16: Validate BETWEEN array length** — throw if ≠ 2.
 - T5.7 ⬜ — **C17: Escape quotes in datetime defaults** — add `.replace(/'/g, "''")` in `renderDefault`.
@@ -239,6 +239,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [ ] C12: `.in()` renders as `"col" IN ($1, $2)` (not `IN IN`)
 - [ ] C13: Transaction commit error propagates correctly (not masked by release error)
 - [x] S10: Hostile column names throw in DML build helpers
+- [x] C14: Heterogeneous row keys → union of keys, id stripped
 
 ## Rules for agents working here
 
