@@ -151,7 +151,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| T6 | 🟢 | **`AggregateField.as()` мутирует in-place, `SelectableField.as()` возвращает новый инстанс.** Асимметрия: `sqb.clone()` должен deep-copy только агрегаты. Любой новый код, шарящий selects без clone, может сломаться если предполагает immutable для всех select items. | ⬜ Open — фикс: сделать `AggregateField.as()` возвращающим новый инстанс (consistency) или задокументировать асимметрию. |
+| T6 | 🟢 | **`AggregateField.as()` мутирует in-place, `SelectableField.as()` возвращает новый инстанс.** Асимметрия: `sqb.clone()` должен deep-copy только агрегаты. Любой новый код, шарящий selects без clone, может сломаться если предполагает immutable для всех select items. | ✅ Fixed (`5cedc64`): `as()` возвращает новый AggregateField, `_cloneSelects` упрощён до `[...selects]`. |
 
 ---
 
@@ -215,7 +215,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T5.9 ✅ — **A23: Extract CRUD helpers** from `sql-pg/index.ts` into `helpers.ts`.
 - T5.10 ✅ — **P9: Pre-compute Map** in `unpackIncludeValue` outside row loop.
 - T5.11 ⬜ — **P10: BFS instead of O(n²)** for join ordering in `_buildFromJoins`.
-- T5.12 ⬜ — **T6: Make `AggregateField.as()` immutable** (return new instance).
+- T5.12 ✅ — **T6: Make `AggregateField.as()` immutable** (return new instance).
 
 ---
 
