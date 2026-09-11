@@ -19,6 +19,7 @@ import { SqlGenerator, renderConflictClause } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { PgDdlAdapter } from './ddl-adapter';
 import { assertSqlIdentifier } from './ddl-validate';
+import { maxBatchRows } from './batch';
 
 type QueryFn = (
   text: string,
@@ -103,9 +104,6 @@ type ManyRowsSqlBuilder = (
   rows: Record<string, unknown>[],
 ) => { text: string; values: unknown[] };
 
-/** Max rows per single INSERT to stay under PostgreSQL's 65535 parameter limit. */
-const MAX_BATCH_ROWS = 1000;
-
 async function createManyRows(
   queryFn: QueryFn,
   collectionName: string,
@@ -113,9 +111,10 @@ async function createManyRows(
   builder: ManyRowsSqlBuilder = buildInsertManySql,
 ): Promise<Record<string, unknown>[]> {
   if (rows.length === 0) return [];
+  const batchSize = maxBatchRows(Object.keys(rows[0]).length);
   const results: Record<string, unknown>[] = [];
-  for (let i = 0; i < rows.length; i += MAX_BATCH_ROWS) {
-    const batch = rows.slice(i, i + MAX_BATCH_ROWS);
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
     const { text, values } = builder(collectionName, batch);
     const result = await queryFn(text, values);
     results.push(...(result.rows as Record<string, unknown>[]));
@@ -355,8 +354,9 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     },
   ): Promise<Record<string, unknown>[]> {
     if (rows.length === 0) return [];
+    const batchSize = maxBatchRows(Object.keys(rows[0]).length);
     const needsTransaction =
-      options?.transaction !== false && rows.length > MAX_BATCH_ROWS;
+      options?.transaction !== false && rows.length > batchSize;
     const conflictTarget = options?.conflictTarget ?? [];
     const builder = conflictTarget.length
       ? (name: string, batch: Record<string, unknown>[]) =>
@@ -375,8 +375,8 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     try {
       await client.query('BEGIN');
       const results: Record<string, unknown>[] = [];
-      for (let i = 0; i < rows.length; i += MAX_BATCH_ROWS) {
-        const batch = rows.slice(i, i + MAX_BATCH_ROWS);
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
         const { text, values } = builder(collectionName, batch);
         this.logger?.(text, values);
         const result = await client.query(text, values);
