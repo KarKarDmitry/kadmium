@@ -118,6 +118,12 @@ export class MockDdl implements DbDdlAdapter {
   foreignKeys = new Map<string, DbForeignKey[]>();
   calls: DdlCall[] = [];
 
+  /**
+   * @param failOn — when it returns true for a method name, that
+   * method throws, simulating a PostgreSQL error mid-apply.
+   */
+  constructor(private failOn: (method: string) => boolean = () => false) {}
+
   setSchema(
     tables: DbTable[],
     columns?: Record<string, DbColumn[]>,
@@ -132,6 +138,7 @@ export class MockDdl implements DbDdlAdapter {
 
   private record(method: string, args: unknown[]): void {
     this.calls.push({ method, args });
+    if (this.failOn(method)) throw new Error(`boom: ${method}`);
   }
 
   async inspectTables(): Promise<DbTable[]> {

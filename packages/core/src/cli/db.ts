@@ -1,9 +1,11 @@
 import { readdirSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
+import { createInterface } from 'readline';
 import { KadmiumApp } from '../core/kadmium-app';
 import {
   computeDiff,
   applyDiff,
+  applyDiffTransactional,
   renderSql,
   checkHealth,
 } from '@karkardmitry/kadmium-sql-pg';
@@ -13,6 +15,23 @@ function getDdl(app: KadmiumApp) {
   const adapter = app.modules.sql.get();
   if (!adapter) throw new Error('No SQL adapter configured');
   return adapter.ddl;
+}
+
+/** Ask a yes/no question on the terminal. Defaults to "no" when not a TTY. */
+async function promptYesNo(question: string): Promise<boolean> {
+  if (!process.stdin.isTTY) return false;
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    const answer: string = await new Promise((resolveAnswer) => {
+      rl.question(question, resolveAnswer);
+    });
+    return /^(y|yes)$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
 }
 
 async function exec<T>(app: KadmiumApp, fn: () => Promise<T>): Promise<T> {
@@ -62,7 +81,9 @@ export async function dbCheck(app: KadmiumApp): Promise<void> {
 
 export async function dbPush(app: KadmiumApp): Promise<void> {
   await exec(app, async () => {
-    const ddl = getDdl(app);
+    const adapter = app.modules.sql.get();
+    if (!adapter) throw new Error('No SQL adapter configured');
+    const ddl = adapter.ddl;
     const diff = await computeDiff(app.appCore.allIrs, ddl);
 
     if (!diff.hasChanges) {
@@ -104,7 +125,23 @@ export async function dbPush(app: KadmiumApp): Promise<void> {
     console.log('');
     console.log(`  Applying ${diff.operations.length} change(s)...`);
 
-    const applied = await applyDiff(diff, ddl);
+    let applied: string[];
+    try {
+      applied = await applyDiffTransactional(diff, adapter);
+    } catch (err) {
+      console.log('');
+      for (const line of box(`  ${WARN}  Transactional apply failed`)) {
+        console.log(`  ${line}`);
+      }
+      console.log('');
+      console.log(`  ${(err as Error).message}`);
+      console.log('');
+      const retry = await promptYesNo(
+        `  ${WARN}  Retry without transaction? [y/N]: `,
+      );
+      if (!retry) throw err;
+      applied = await applyDiff(diff, ddl);
+    }
 
     for (const desc of applied) {
       console.log(`    ${CHECK} ${desc}`);

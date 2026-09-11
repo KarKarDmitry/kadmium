@@ -2,7 +2,7 @@
  * applyDiff — apply structured diff operations to DB.
  */
 
-import type { DbDdlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type { DbDdlAdapter, SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { DiffOp, DiffResult, AddIndexOp } from './types';
 
 /** Render a single DiffOp as a human-readable description */
@@ -32,6 +32,37 @@ function opToString(op: DiffOp): string {
 }
 
 export async function applyDiff(
+  diff: DiffResult,
+  ddl: DbDdlAdapter,
+): Promise<string[]> {
+  return applyDiffOps(diff, ddl);
+}
+
+/**
+ * Two-phase apply: Phase 1 creates every table, Phase 2 applies indexes, FKs
+ * and column changes. Running all operations inside a single transaction
+ * keeps the schema consistent even when a later operation fails.
+ */
+export async function applyDiffTransactional(
+  diff: DiffResult,
+  adapter: SqlAdapter,
+): Promise<string[]> {
+  const tx = await adapter.beginTransaction();
+  try {
+    const applied = await applyDiffOps(diff, tx.ddl);
+    await tx.commit();
+    return applied;
+  } catch (err) {
+    try {
+      await tx.rollback();
+    } catch {
+      // rollback failure must not mask the original error
+    }
+    throw err;
+  }
+}
+
+async function applyDiffOps(
   diff: DiffResult,
   ddl: DbDdlAdapter,
 ): Promise<string[]> {

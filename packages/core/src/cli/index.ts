@@ -4,11 +4,13 @@ import { generateCommand } from './generate';
 import { checkCommand } from './check';
 import { KadmiumApp } from '../core/kadmium-app';
 import { dbCheck, dbPush, dbSql, dbClear } from './db';
+import { loadEnv } from './env';
 
 async function withApp(
   configPath: string,
   fn: (app: KadmiumApp) => Promise<void>,
 ): Promise<void> {
+  loadEnv(configPath);
   const app = new KadmiumApp();
   await app.init(configPath);
   if (!app.modules.sql.get()) {

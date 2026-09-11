@@ -36,7 +36,7 @@ export {
 } from './types';
 
 export { computeDiff } from './compute';
-export { applyDiff } from './apply';
+export { applyDiff, applyDiffTransactional } from './apply';
 export { renderSql } from './render';
 
 /* ════════════════════════════════════════

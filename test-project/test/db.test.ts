@@ -62,3 +62,145 @@ describe('db: schema diff + health', () => {
     await h.adapter.ddl.raw('DROP TABLE IF EXISTS "unmanaged_extra"');
   });
 });
+
+describe('db: applyDiffTransactional', () => {
+  const summary = {
+    addedTables: 0,
+    droppedTables: 0,
+    addedColumns: 0,
+    droppedColumns: 0,
+    alteredColumns: 0,
+    addedIndexes: 0,
+    droppedIndexes: 0,
+    addedForeignKeys: 0,
+    droppedForeignKeys: 0,
+  };
+
+  it('applies a multi-phase diff inside a transaction and commits', async () => {
+    const { applyDiffTransactional } =
+      await import('@karkardmitry/kadmium-sql-pg');
+
+    const diff = {
+      hasChanges: true,
+      summary,
+      operations: [
+        {
+          type: 'create-table',
+          table: 'tx_verify_a',
+          columns: [
+            {
+              name: 'id',
+              tableName: 'tx_verify_a',
+              dataType: 'integer',
+              isNullable: false,
+              defaultValue: null,
+              isPrimary: true,
+              isUnique: true,
+              autoIncrement: true,
+            },
+            {
+              name: 'user_id',
+              tableName: 'tx_verify_a',
+              dataType: 'integer',
+              isNullable: false,
+              defaultValue: null,
+              isPrimary: false,
+              isUnique: false,
+            },
+          ],
+        },
+        {
+          type: 'add-index',
+          index: {
+            name: 'idx_tx_verify_a_user_id',
+            tableName: 'tx_verify_a',
+            columns: ['user_id'],
+            isUnique: false,
+          },
+        },
+        {
+          type: 'add-foreign-key',
+          fk: {
+            name: 'fk_tx_verify_a_user',
+            tableName: 'tx_verify_a',
+            columns: ['user_id'],
+            refTable: 'user',
+            refColumns: ['id'],
+            onDelete: 'NO ACTION',
+            onUpdate: 'NO ACTION',
+          },
+        },
+      ],
+    } as never;
+
+    try {
+      const applied = await applyDiffTransactional(diff, h.adapter);
+      expect(applied).toHaveLength(3);
+
+      const tables = await h.adapter.ddl.inspectTables();
+      expect(tables.map((t) => t.name)).toContain('tx_verify_a');
+
+      const fks = await h.adapter.ddl.inspectForeignKeys('tx_verify_a');
+      expect(fks.some((f) => f.name === 'fk_tx_verify_a_user')).toBe(true);
+    } finally {
+      await h.adapter.ddl.raw('DROP TABLE IF EXISTS "tx_verify_a" CASCADE');
+    }
+  });
+
+  it('rolls back the entire diff when an op fails mid-transaction', async () => {
+    const { applyDiffTransactional } =
+      await import('@karkardmitry/kadmium-sql-pg');
+
+    const diff = {
+      hasChanges: true,
+      summary,
+      operations: [
+        {
+          type: 'create-table',
+          table: 'tx_verify_b',
+          columns: [
+            {
+              name: 'id',
+              tableName: 'tx_verify_b',
+              dataType: 'integer',
+              isNullable: false,
+              defaultValue: null,
+              isPrimary: true,
+              isUnique: true,
+              autoIncrement: true,
+            },
+            {
+              name: 'target_id',
+              tableName: 'tx_verify_b',
+              dataType: 'integer',
+              isNullable: false,
+              defaultValue: null,
+              isPrimary: false,
+              isUnique: false,
+            },
+          ],
+        },
+        {
+          type: 'add-foreign-key',
+          fk: {
+            name: 'fk_tx_verify_b_target',
+            tableName: 'tx_verify_b',
+            columns: ['target_id'],
+            refTable: 'missing_ref_target',
+            refColumns: ['id'],
+            onDelete: 'NO ACTION',
+            onUpdate: 'NO ACTION',
+          },
+        },
+      ],
+    } as never;
+
+    // FK to a nonexistent table fails in phase 2 — phase 1 must be undone.
+    await expect(applyDiffTransactional(diff, h.adapter)).rejects.toThrow(
+      /missing_ref_target/,
+    );
+
+    const tables = await h.adapter.ddl.inspectTables();
+    expect(tables.map((t) => t.name)).not.toContain('tx_verify_b');
+  });
+});

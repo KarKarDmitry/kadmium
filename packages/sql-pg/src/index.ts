@@ -451,6 +451,7 @@ export function createDebugAdapter(): SqlAdapter {
 export {
   computeDiff,
   applyDiff,
+  applyDiffTransactional,
   renderSql,
   checkHealth,
   pgType,
