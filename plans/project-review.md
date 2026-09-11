@@ -102,7 +102,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S7 | 🟡 | **No identifier validation on DML path** (buildInsertSql, buildUpsertManySql) | ✅ Resolved (`aa29c92`): `assertSqlIdentifier(collectionName)` в начале всех build-хелперов + DB-free тесты — see security.md S6 |
 | S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | 💤 Won't fix (акцептировано) — DEFAULT — SQL-выражение, корректная валидация требует SQL-парсера; пересмотреть при недоверенном вводе в DDL |
 | S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ✅ Resolved (`ea589e2`): `''` больше не «несбалансированный» + регресс-тесты — see security.md S8 |
-| S10 | 🟡 | **SQL injection через имена колонок в DML.** `buildInsertSql` / `buildInsertManySql` / `_buildUpdateQuery` интерполируют `Object.keys(data)` как `"${k}"` без `assertSqlIdentifier()`. Ключ `"col"); DROP TABLE users; --` сломает кавычки. Collection name валиден, column names — нет. | ⬜ Open — фикс: `assertSqlIdentifier(k, 'column name')` для каждого ключа из `Object.keys(data)`. |
+| S10 | 🟡 | **SQL injection через имена колонок в DML.** `buildInsertSql` / `buildInsertManySql` / `_buildUpdateQuery` интерполируют `Object.keys(data)` как `"${k}"` без `assertSqlIdentifier()`. Ключ `"col"); DROP TABLE users; --` сломает кавычки. Collection name валиден, column names — нет. | ✅ Fixed (`adc3a0d`): `assertSqlIdentifier(k, 'column name')` для каждого ключа в 5 DML-путях + DB-free тесты. |
 | S11 | 🟢 | **Static `Model.registry` — shared global mutable state.** В multi-tenant сценарии или тестах с разными наборами моделей глобальный реестр может вызвать интерференцию. | ⬜ Open — документировать глобальную природу реестра; для multi-tenant — per-process изоляция или scoped registry. |
 
 ### 4️⃣ Performance
@@ -198,7 +198,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 **Critical/High (fix immediately):**
 - T5.1 ⬜ — **C12: Fix `.in()` renders as `IN IN`.** `_renderValue` для `IN` возвращает `IN ($1, $2)` — убрать `IN `, вернуть `($1, $2)`. Плюс unit-тест на `_renderCondition` с `IN` + integration-тест через query builder.
 - T5.2 ⬜ — **C13: Fix transaction error masking.** Убрать `_release()` из `commit()`/`rollback()` в `TransactionalPgAdapter`, оставить только в `end()`.
-- T5.3 ⬜ — **S10: Validate column names in DML.** `assertSqlIdentifier(k)` для каждого ключа из `Object.keys(data)` в `buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `_buildUpdateQuery`.
+- T5.3 ✅ — **S10: Validate column names in DML.** `assertSqlIdentifier(k)` для каждого ключа из `Object.keys(data)` в `buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `_buildUpdateQuery`.
 
 **Fixed (just now):**
 - ✅ — **C18: `_buildIncludesClauses` double comma in SELECT.** `_buildIncludesClauses` добавлял `, ` перед каждым `lateral.select`, а `_buildSelectQueryText` тоже добавлял `, ` → `SELECT "p".*, , "..."`. Фикс: `sql-generator.ts:522-524` — include select items джойнятся без ведущей запятой.
@@ -238,7 +238,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - [ ] `npm run build` — succeeds
 - [ ] C12: `.in()` renders as `"col" IN ($1, $2)` (not `IN IN`)
 - [ ] C13: Transaction commit error propagates correctly (not masked by release error)
-- [ ] S10: Hostile column names throw in DML build helpers
+- [x] S10: Hostile column names throw in DML build helpers
 
 ## Rules for agents working here
 
