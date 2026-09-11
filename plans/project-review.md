@@ -145,6 +145,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | TG9 | 🟢 | **console.log leftovers** in include.test.ts (3) and multi.test.ts (1) | ✅ Done (`8c515df`): убраны все 5 (включая global-setup.ts:18) — see testing.md TG9 |
 | TG10 | 🟢 | **Inter-test state dependency** in single.test.ts | ✅ Done (`8c515df`): count() самодастаточен через маркерные строки — see testing.md TG10 |
 | TG11 | 🟢 | **No tests for null/undefined in filters** | ✅ Done (`6572887`): `eq(null)`/`neq(null)` → `IS NULL`/`IS NOT NULL` on all 4 filters, `undefined` throws; unit + sql-pg render tests + integration test (`where.test.ts`) — see testing.md TG11 |
+| TG12 | 🟡 | **`applyDiffTransactional` leaks PoolClient** — calls `beginTransaction()` but never `tx.end()`, so `pool.end()` hangs forever. Caused pre-existing `db.test.ts` afterAll hook timeout (30s). | ✅ Fixed (`a435b4d`): `finally { await tx.end(); }` + mock updated. |
 
 ### 7️⃣ Typing
 
