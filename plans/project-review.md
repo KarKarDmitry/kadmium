@@ -74,7 +74,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A17 | 🟡 | **diff/render.ts duplicates DDL SQL** from ddl-adapter.ts | ⬜ Open — see architecture.md A18 |
 | A18 | 🟢 | **`_pushWhere` structurally identical** in single.ts and multi.ts | ⬜ Open — see architecture.md A19 |
 | A19 | 🟢 | **Dual IR caches** in orm.ts | ⬜ Open — see architecture.md A20 |
-| A20 | 🟢 | **orm.ts imports Model** from model layer | ⬜ Open — see architecture.md A21 |
+| A20 | 🟢 | **orm.ts imports Model** from model layer | ✅ Resolved (`8a051a9`, see architecture.md A21) |
 
 ### 3️⃣ Security
 

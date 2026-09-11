@@ -9,6 +9,7 @@
 > Updated 2026-09-08 — A3 resolved (`c78c0e7` + `2ec3067` + `72e66fc`): any-casts 12→4 inherent, update/delete → write-finalizer.ts, includes dedup → include-utils.ts.
 > Updated 2026-09-08 — added A12 (global state/singleton), from project review.
 > Updated 2026-09-11 — A15/A16 done (`6fb6711`): shared `buildDebugSql` + `mapRow` in `builders/utils.ts`. A18 done (`5f21a41`): DDL SQL in a single source of truth (`ddl-sql.ts`), preview and adapter delegate to it.
+> Updated 2026-09-11 — A13/A14/A17 done, A19 won't fix (hashes in section headers). A20 done (`3fae15d`). A21 done (`8a051a9`): orm layer no longer imports Model; `CompilableModel` structural contract + `AppCore.resolveModelClass`. A2 closed as won't fix.
 
 ---
 
@@ -63,16 +64,16 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A2: Relation — два ответственных в одном классе
+## A2: Relation — два ответственных в одном классе — ⚪ Won't fix
 
 **Важность:** 🟢 Medium
 
-**Краткое описание:** `Relation` (133 строки, было 240) одновременно:
+**Краткое описание:** `Relation` (126 строк, было 240) одновременно:
 1. DSL-билдер для include (`.where()`, `.order()`, `.select()`, `.include()`)
 2. Рантайм-структура `IncludedRelation` для SQL-генератора
 3. Phantom-типы для type-level инференса
 
-**Статус:** ⬜ Открыто, но значительно упрощено в `1cacf6a` (246 → 133 строки). Record-based include API убрал нужду в `IRelationBuilder`. Разделение на `RelationBuilder` + `IncludedRelation` всё ещё может улучшить читаемость, но уже не критично.
+**Статус:** ⚪ Won't fix (решение по ревью 2026-09-11). Разделение на `RelationBuilder` + `IncludedRelation` потребовало бы draft→final конвертера без функционального выигрыша: DSL-методы пишут в тот же `internalSqb`, который генератор читает как данные; генератор никогда не вызывает builder-методы. Phantom-типы уже живут в `proxy.d.ts`, не в generic'ах класса. 126 строк управляемо, план сам констатировал «уже не критично».
 
 **Связанные файлы:**
 - `packages/core/src/orm/field-builders/relation.ts`
@@ -363,11 +364,15 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A21: orm.ts импортирует Model из model-слоя
+## A21: orm.ts импортирует Model из model-слоя — ✅ Done (`8a051a9`)
 
 **Важность:** 🟢 Medium
+
+**Статус:** ✅ Done (`8a051a9`). Каскадно: `compileModel` принимает структурный контракт `CompilableModel { $build(): ModelSchema; $refs(): ModelRelation[] }` (экспортирован из `ir/compile.ts`). Добавлены `ModelRegistry.resolveModelClass(name)` и `AppCore.resolveModelClass(name)`, делегирующие в глобальный реестр `Model.resolve`. `orm.ts` больше не импортирует `Model` из model-слоя: `buildIrLookup` fallback идёт через `app?.resolveModelClass(name)`, касты в `compileModel` — через `CompilableModel`. Единственная оставшаяся завязка на конкретный класс `Model` — в `ir/compile.ts` (walk по prototype-цепочке для наследования inverse refs требует `ParentCtor !== Model`), это законная граница. Тесты: +1 в `orm-manager.test.ts` (delegation `resolveModelClass` → global registry). core 337.
 
 **Краткое описание:** `orm.ts:4` импортирует `Model` из `../model/index`. AGENTS.md: «IR — контракт, не импортируй билдеры моделей из ORM.» `Model` — базовый класс, не билдер полей, серая зона — но создаёт зависимость ORM→Model. Используется в `buildIrLookup` и `_irFor` как fallback для компиляции IR из незарегистрированных моделей.
 
 **Связанные файлы:**
 - `packages/core/src/orm/orm.ts` (line 4)
+- `packages/core/src/ir/compile.ts` (CompilableModel)
+- `packages/core/src/core/app-core.ts`, `packages/core/src/core/model-registry.ts` (resolveModelClass)
