@@ -18,6 +18,7 @@ import type {
 import { SqlGenerator, renderConflictClause } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { PgDdlAdapter } from './ddl-adapter';
+import { assertSqlIdentifier } from './ddl-validate';
 
 type QueryFn = (
   text: string,
@@ -28,6 +29,7 @@ function buildInsertSql(
   collectionName: string,
   data: Record<string, unknown>,
 ): { text: string; values: unknown[] } {
+  assertSqlIdentifier(collectionName, 'collection name');
   const keys = Object.keys(data);
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
@@ -55,6 +57,7 @@ function buildInsertManySql(
 ): { text: string; values: unknown[] } {
   if (rows.length === 0)
     throw new Error('createMany requires at least one row');
+  assertSqlIdentifier(collectionName, 'collection name');
   const keys = Object.keys(rows[0]);
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
@@ -78,6 +81,7 @@ function buildUpsertManySql(
 ): { text: string; values: unknown[] } {
   if (rows.length === 0)
     throw new Error('createMany requires at least one row');
+  assertSqlIdentifier(collectionName, 'collection name');
   const keys = Object.keys(rows[0]);
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
