@@ -53,7 +53,7 @@ export async function applyDiff(
     );
     const cols = op.columns.map((c) => ({
       ...c,
-      isUnique: c.isUnique && !idxFieldNames.has(c.name) ? false : c.isUnique,
+      isUnique: idxFieldNames.has(c.name) ? false : c.isUnique,
     }));
     await ddl.createTable(op.table, cols);
     applied.push(opToString(op));
