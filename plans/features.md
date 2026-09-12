@@ -4,6 +4,7 @@
 > Updated 2026-09-05 — F1 resolved, F6 updated.
 > Updated 2026-09-07 — verified F1, F6 still resolved. F7 updated. F8 added.
 > Updated 2026-09-08 — F7 resolved via A1 (`b709ad1`).
+> Updated 2026-09-12 — F8 plan re-locked: variant B `{ agg, wf }`, base `FuncField`, Option A (adapter owns rendering).
 
 ---
 
@@ -13,43 +14,59 @@
 
 **Краткое описание:** Нет поддержки `OVER ()` — партиционирование, порядок, нумерация строк (`ROW_NUMBER`, `RANK`, `LAG`, `NTILE`...) и агрегатов по окну (`SUM(col) OVER (...)`).
 
-**Статус:** ⬜ Открыто. Агрегаты реализованы, но без `over()`. API выбрано (вариант A), реализация отложена.
+**Статус:** ⬜ Открыто. Агрегаты реализованы, но без `over()`. План зафиксирован, реализация в процессе.
 
-**Выбранный API (вариант A — третий параметр `wf`):**
+**Выбранный API (вариант B — деструктуризация `{ agg, wf }`):**
 ```typescript
-select((u, aggs, wf) => [
+select((u, { agg, wf }) => [
   u.id,
-  aggs.count().as('total'),                                    // COUNT(*)
-  aggs.sum(u.amount).over(w => w.orderBy(u.createdAt)).as('runningTotal'), // SUM(amount) OVER (ORDER BY ...)
+  agg.count().as('total'),                                     // COUNT(*)
+  agg.sum(u.amount).over(w => w.orderBy(u.createdAt)).as('runningTotal'), // SUM(amount) OVER (ORDER BY ...)
   wf.rowNumber().as('rn'),                                     // ROW_NUMBER() OVER ()
-  wf.rowNumber().over(w => w.partitionBy(u.deptId).orderBy(u.createdAt, 'desc')).as('rn'),
+  wf.rowNumber().over(w => w.partitionBy(u.deptId).orderBy(u.createdAt.desc)).as('rn'),
   wf.rank().as('rank'),
   wf.lag(u.price, 1).as('prevPrice'),
   wf.ntile(4).as('quartile'),
 ])
+// оконные функции и агрегаты дают ОДНО скалярное значение на строку результата
 ```
 
-**Обоснование варианта A:** не ломает существующий код `(t, aggs)` — новый параметр добавляется третьим. Вариант B (`{ aggs, wf }`) отклонён: breaking change. Вариант C (всё в `aggs`) отклонён: смешивает агрегаты и оконные функции.
+**Обоснование варианта B:** lib 0.1.0 (pre-1.0), миграция = 6 строк теста (`test-project/test/orm/having.test.ts`). Единый объект тулзов оставляет место для будущих расширений (операторы, json...), без затычек вроде `(t, _aggs, wf)`. Оконные в `returning()` **не добавляются** — Postgres запрещает оконные функции в `RETURNING` (`returning` получает только `{ agg }`).
 
 **Диапазон функций:**
-- Нумерация/ранг: `row_number()`, `rank()`, `dense_rank()`, `ntile(n)`
-- Смещение: `lag(col, n)`, `lead(col, n)`
-- Значение: `first_value(col)`, `last_value(col)`
-- Агрегат с окном: `aggs.sum(col).over(w => ...)`, `aggs.count().over(w => ...)`
+- Ранжирование: `row_number()`, `rank()`, `dense_rank()`, `percent_rank()`, `cume_dist()`
+- Бакеты: `ntile(n)` (`$N` — параметр)
+- Смещение: `lag(col [, offset [, default]])`, `lead(col [, offset [, default]])` — offset/default — параметры
+- Значение: `first_value(col)`, `last_value(col)`, `nth_value(col, n)` (`n` — параметр)
+- Агрегат с окном: `agg.sum(col).over(w => ...)`, `agg.count().over(w => ...)` + avg/min/max
+- Типы результата: ранги → `number`; доступ к строкам → `T | null`; оконные агрегаты → как сейчас (`number | null` и т.п.)
+- Фрейм v1: только `ROWS` (`rowsBetween(start, end)`, `FrameBound = number | 'unbounded' | 'current'`); `RANGE`/`GROUPS` — вне скоупа
 
-**Изменения:**
-- AST: новый класс `WindowField` с `toSql()` → рендер `FUNC(...) OVER (PARTITION BY ... ORDER BY ...)`
-- `WindowSpec` builder: `.partitionBy(...)`, `.orderBy(...)`, `.rowsBetween(...)`
-- Типы: `WindowFunctions` в сигнатуре `select()`/`first()`/`.returning()` как третий параметр
-- **Рендер через `sel.toSql()`** — чтобы новый AST-узел рендерился без правок SqlGenerator (линкается с решением для `.returning()`)
+**Архитектура (Option A — рендером занимается адаптер):**
+- Core AST — **только данные**, по аналогии `WhereCondition { op, value }`: базовый `FuncField` (kind, func, field, argValues?, over?, alias); `AggregateField`/`WindowField` наследуют
+- `sql-pg` — единственный рендерер: `FUNC(inner[, $N…]) OVER (PARTITION BY … ORDER BY … ROWS BETWEEN …) AS "alias"`, `argValues` → `values.push` (параметризация)
+- `toSql()` **убирается из sql-types-контракта** (`SelectableField`/`AggregateSelectable`) — прецедент: адаптер уже рендерит поля из структуры, `SelectableField.toSql()` мёртв
+- Разный диалект СУБД (квотинг, `$N`/`?`/`@p1`, `NULLS`, фреймы `GROUPS`) живёт в адаптере; окно сам по себе — SQL:2003, портируем
+- **Не** используем `sql\`\`Fragment (F2) — deferred; фрагментный примитив (если появится) — в sql-types, не core
+- `GetFieldType<FuncField<infer T>> → T` — как с `avg`; `GetFieldName` → alias; HAVING-прокси остаётся на `AggregateField`
+
+**Изменения (коммиты):**
+- C1: рендер агрегатов → адаптер (227/492/710/785), `toSql` из контракта, зелёный бейзлайн
+- C2: базовый `FuncField` + entry-point `(t, { agg, wf })` (select/first/multi.select; returning — `{ agg }`), миграция having.test.ts, обобщение `GetFieldType`/`GetFieldName`/`AnySelectable`/`FinalResult`. **Важный фикс:** `GetFieldType` переписан на phantom indexed access `S['~result']` вместо `FuncField<infer T>` — на intersection `AggregateField<number> & {alias:'cnt'}`TS объединяет кандидатов infer'а в `number | unknown = unknown`, indexed access надёжен.
+- C3: AST окон — `WindowFunctions`, `WindowSpec` (`partitionBy/orderBy/rowsBetween`; валидации: rank-семейство требует ORDER BY, гвард границ), `AggregateField.over()`
+- C4: рендер окон в sql-pg (492/227) с OVER и парам-аргументами; HAVING-гвард исключает оконные из aggAliases
+- C5: unit-тесты core + sql-pg (рендер с `$N`, фреймы)
+- C6: интеграция (docker PG) + доки (typing.md, AGENTS, README)
 
 **Связанные файлы:**
 - `packages/core/src/orm/field-builders/aggregates.ts`
-- `packages/core/src/orm/ast/aggregate.ts` (переиспользование паттерна)
-- `packages/core/src/orm/types/proxy.d.ts` (сигнатура select/first)
-- `packages/sql-pg/src/sql-generator.ts` (рендер, вероятно не потребуется если `toSql()`)
+- `packages/core/src/orm/ast/aggregate.ts` → базовый `FuncField` (новый `ast/func-field.ts`), `ast/window-field.ts`, `ast/window-spec.ts`
+- `packages/core/src/orm/types/proxy.d.ts` (сигнатура select/first/GetFieldType/GetFieldName)
+- `packages/core/src/orm/builders/single.ts`/`multi.ts`/`write-finalizer.ts` (сигнатуры)
+- `packages/sql-types/src/index.ts` (`SelectItem`, `AggregateSelectable`, оконный вариант)
+- `packages/sql-pg/src/sql-generator.ts` (рендер select-листа)
 
-**Коммит:**
+**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс).
 
 ---
 
