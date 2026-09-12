@@ -140,11 +140,36 @@ orm.single(User)
 
 ## План 3: `sql()` / `sql` ``-фрагменты + `slot()`-параметры (raw-выражения)
 
-**Статус:** ⬜ Запланирован. Разблокирует отложенное из Плана 1: «`sql()` (raw-фрагменты, как в Drizzle) — отдельный этап, в этот срез не входит». Высокоуровневый дизайн исполнения (QuerySlots, `.compiled()`, `.fill()`, `orm.raw()`) — в `plans/compiled-queries.md`; здесь только примитивы выражения.
+**Статус:** ⬜ Запланирован (отложен до отдельного этапа; оценка сложности — в `plans/compiled-queries.md`). Разблокирует отложенное из Плана 1: «`sql()` (raw-фрагменты, как в Drizzle) — отдельный этап, в этот срез не входит».
+
+**Что такое `sql` (позиционирование, снимает смешение «компилятор vs SQL»):**
+```
+Модель-путь:  Model → builder → AST → adapter.toSql → {text, values}   ┐
+Raw-путь:     sql`...` (тег) → SqlFragment                              ┘→ .compile() → CompiledQuery → .fill({...}) → orm.raw(...)
+                                     единый компилятор, оба пути сходятся
+```
+- **`sql`** — *фабрика raw-фрагментов*: тег возвращает `SqlFragment` — «сырое выражение», которое модель-путь не умеет. Это **не компилятор и не исполняемый SQL**, а композируемая часть.
+- **`.compile()`** — *компилятор* (действие, глагол): общий терминал фрагмента и билдера → `CompiledQuery` (порядок плейсхолдеров зафиксирован).
+- **`.fill()`** — подстановка значений по слотам; **`orm.raw(...)`** — исполнение. Оба пути сходятся в `CompiledQuery`.
 
 **Суть:** два примитива:
 - **`slot(name)`** — маркер «параметр по имени» в значении `WhereCondition` или в интерполяции тега. Позиция запоминается на компиляции, значение подаётся позже по ключу.
 - **`sql` ``** — композитор SQL-фрагментов (как Drizzle): значения, слоты, вложенные фрагменты/билдеры; автоперенумерация `$N` и dedup слотов по имени.
+
+**Справочник всех позиций применения (закреплено по итогам обсуждения):**
+
+| # | Использование | Пример | Статус |
+|---|---|---|---|
+| A — исполнение | 1. Полный raw-запрос | `orm.raw(sql`SELECT ... WHERE active`).go()` | ✅ v1 |
+| | 2. + слоты → горячий цикл | `sql`...${S.slot('tenantId')}`.compile(S).fill({...})` | ✅ v1 |
+| B — композиция | 3. Фрагмент во фрагменте (перенумерация $N) | `sql`SELECT ${inner} + ${tax} ...`` | ✅ v1 |
+| | 4. Билдер во фрагменте (CTE/EXISTS-подзапрос) | `sql`WITH s AS (${scoped}) ...`` | ✅ v1 |
+| C — проекция | 5. Функции/выражения как колонки | `select(t => [t.id, sql<number>`EXTRACT(YEAR FROM ${t.createdAt})`.as('year')])` | ✅ v1 (гарантировано) |
+| D — порядок | 6. ORDER/GROUP BY по выражению | `.order(t => [sql`similarity(...)`.desc, t.createdAt.asc])` | ✅ v1 |
+| E — предикаты | 7. `where(sql`...`)` / raw-условия | — | ⛔ сознательно НЕ вводим (рвёт композицию Плана 1; чинится топ-уровнем + слотами) |
+| F — DML | 8. `set({ col: sql`views + 1` })`, `create({ at: sql`now()` })`, onConflict SET | — | 🔵 отдельным этапом |
+| G — идентификаторы | 9. Динамические имена | `sql`SELECT ${ident('col')} FROM ${ident('tbl')}`` | 🔵 маркер `ident()` + `assertSqlIdentifier` (S10); 🔵 или позже |
+| H — вспомогательное | 10. `sql<T>`, `.as()`, `.asc/.desc`, `toString()`, `array([...])` | — | ✅ v1 (toString — debug-only) |
 
 ### Слой слот-маркера
 
@@ -156,7 +181,7 @@ class SlotMarker<K extends string = string, V = unknown> extends BaseFilter<V> {
 }
 ```
 
-- **Плоский** `slot(name)` — `SlotMarker<name, any>`: проходит `eq` любого фильтра, тип значения задаётся в `compiled<T>()` вручную.
+- **Плоский** `slot(name)` — `SlotMarker<name, any>`: проходит `eq` любого фильтра, тип значения задаётся в `compile<T>()` вручную.
 - **Типизированный** `S.slot(name)` — `SlotMarker<name, Def[name]>` из `QuerySlots` (см. compiled-queries.md): имя ограничено `keyof Def`, значение типа выведено из модели.
 - **eq-site проверка** — `BaseFilter<TValue>` становится generic (фантом), фильтры объявляют свой `V`:
   ```ts
@@ -182,13 +207,40 @@ const q = sql`
   WITH scoped AS (${base})                    // вложенный билдер/фрагмент → text+values+slotOrder
   SELECT * FROM scoped
   WHERE scoped.created_at > ${S.slot('since')}`;  // SlotMarker → именованный слот
-  // примитив/значение → literal-параметр
+  // примитив/значение → literal-параметр ($N)
 ```
 
-- Части интерполяции: **примитивы** → literal-param; **`SlotMarker`** → именованный слот; **`CompiledQuery`/билдер** → вливание его SQL и параметров.
+**Вход — четыре вида частей интерполяции:**
+
+| Часть | Поведение |
+|---|---|
+| примитив (string/number/boolean/Date/null) | → `$N` + параметр; **никогда** не инлайн |
+| `S.slot('x')` / `slot('x')` | → именованный слот; позиция → slotOrder |
+| `SqlFragment` / билдер / `CompiledQuery` | → вливание text+values+slotOrder + перенумерация `$N`; dedup слотов по имени |
+| строка-идентификатор | → **запрещена** как значение; идентификаторы — только валидируемый маркер (`ident()` + `assertSqlIdentifier`, S10) |
+
 - **Перенумерация `$N`**: при встраивании фрагмента с `M` параметрами идёт сдвиг на текущий счётчик (то же для маркеров). Порядок `slotOrder` — фактический порядок плейсхолдеров в итоговом тексте.
 - **Dedup**: слот-имя, встреченное в нескольких местах ⇒ один параметр; `fill` заменяет маркер во всех вхождениях (семантически одно значение).
-- **Безопасность**: интерполяция произвольной строки — инъекция (запрещено). Идентификаторы — только через `assertSqlIdentifier` (S10) или явный маркер-идентификатор.
+- **`undefined`** в интерполяции → ошибка с указанием позиции (не тихая потеря).
+- **Безопасность (инъекции — на библиотеке)**: runtime-значения в теге **всегда** становятся параметрами (`$N`), текст SQL из них не собирается в принципе — разработчик не может заинжектить через значение, это гарантия библиотеки. Запрет касается только **идентификаторов**: передача строки-имени через тег = ошибка; путь строк в текст SQL один — валидируемый маркер `ident()`.
+- **Debug-превью**: `SqlFragment.toString()` — инлайн значений для логов, отдельно, debug-only (в проде не использовать).
+
+**Встраивание в select/order (строки C/D таблицы):**
+- `sql<T>...`` + `.as(alias)` — обёртка в `SqlSelectable` (алиас **обязателен** для маппинга результата); принимается select-proxy'ем; рендер — отдельный kind в select-списке.
+- `sql`...``.asc/.desc` — сортировка по выражению; принимается order-proxy'ем.
+- Массивы в теге — **НЕ раскрываются** (см. `array()` ниже); подзапросы — только явным встраиванием билдера.
+
+### `array([...])` — массив-значение (companion-выражение, не тег)
+
+Массивы вынесены из тега в отдельное value-выражение — параметр как полноправное значение:
+
+```ts
+t.id.in(array([1, 2, 3]))      // IN ($1); params: [[1,2,3]] — node-pg сериализует JS-массив
+```
+
+- `array(...)` → маркер `ArrayValue<T>` → рендерится как очередной параметр.
+- `.in()` расширяется: `in(vals: T[] | ArrayValue<T> | BaseFilter<T>)` — принимает и литерал, и `array(...)`, и слот (см. ниже `ArrayField`), т.е. `t.id.in(S.slot('ids'))`.
+- Объекты/даты в любом value-слое сериализуются единым value-encoder адаптера (не `String()`).
 
 ### Контракт (sql-types, type-only)
 
@@ -213,7 +265,7 @@ const base = app.orm.single(User)
 const compiled = sql`
   WITH scoped AS (${base})
   SELECT * FROM scoped WHERE scoped.created_at > ${S.slot('since')}
-`.compiled(S);
+`.compile(S);
 // slotOrder: [{ tenantId, index:0 }, { since, index:1 }] — по фактическому порядку
 
 await app.orm.raw(...compiled.fill({ tenantId, since })).go();
@@ -224,9 +276,12 @@ await app.orm.raw(...compiled.fill({ tenantId, since })).go();
 - `packages/sql-types/src/index.ts` — `HoleRef`, `SlotDefinition`, `CompiledQuery` (type-only, пакет без runtime)
 - `packages/core/src/orm/slot.ts` (**NEW**) — `SlotMarker`, `slot()`, `isHoleRef`
 - `packages/core/src/orm/field-builders/base-filter.ts` — `BaseFilter<TValue>` (generic-фантом)
-- `packages/core/src/orm/field-builders/filters.ts` — фильтры объявляют `V`; `eq(val: V | BaseFilter<V>)`
-- `packages/sql-pg/src/sql-generator.ts` — ветка `isHoleRef`, `toSql` → slotOrder, guard в `execute()`
-- `packages/core/src/orm/index.ts` — публичный экспорт `sql`, `slot`
+- `packages/core/src/orm/field-builders/filters.ts` — фильтры объявляют `V`; `eq(val: V | BaseFilter<V>)`; `in(vals: T[] | ArrayValue<T> | BaseFilter<T>)`
+- `packages/core/src/orm/ast/selectable.ts` — `.array`-фантом (`ArrayField`) на `SelectableField`
+- `packages/core/src/orm/sql-fragment.ts` (**NEW**) — `SqlFragment`, тег `sql`, `ident()`, `array()`, `.as()/.asc/.desc`, `toString()`
+- `packages/core/src/orm/types/proxy.d.ts` — select/order-прокси принимают `SqlSelectable`/`SqlOrder`; `ArrayField` исключён из select
+- `packages/sql-pg/src/sql-generator.ts` — ветка `isHoleRef`; select/order-список: новые kinds; `ArrayValue`
+- `packages/core/src/orm/index.ts` — публичный экспорт `sql`, `slot`, `array`, `ident`
 
 ### Тесты
 
@@ -235,10 +290,13 @@ await app.orm.raw(...compiled.fill({ tenantId, since })).go();
 - guard: `execute()`/`go()` с незаполненным слотом → throw
 - тип: eq-отклонение (`BaseFilter<Date>` vs `BaseFilter<number>`) — expect-error
 - тег: встраивание билдера с where/include + слот снаружи; перенумерация; строка-идентификатор через тег → запрет
+- `array([...])` в `in()` → один массив-параметр; `in(S.slot('ids'))` (ArrayField) — тип и значение
+- select-embed: `sql<T>...`.as()` рендерится с алиасом, маппится; без `.as()` → тип-ошибка
+- order-embed: `sql`...`.desc` + строка-идентификатор в order → запрет
 
 ### Связи
 
-- Исполнение и типизация (QuerySlots, `.compiled()`, `.fill()`, `orm.raw`, фазы PR) — `plans/compiled-queries.md`
+- Исполнение и типизация (QuerySlots, `.compile()`, `.fill()`, `orm.raw`, фазы PR, оценка сложности) — `plans/compiled-queries.md`
 - Открывает **F2** («нет raw() в ORM-слое») — `plans/features.md`
 
 ---
