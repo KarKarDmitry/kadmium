@@ -119,3 +119,27 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 **Связанные файлы:**
 - `packages/sql-pg/src/ddl-validate.ts`
 - `packages/sql-pg/test/ddl-validate.test.ts`
+
+---
+
+## S10: SQL injection через имена колонок в DML
+
+**Важность:** 🟡 High
+
+**Краткое описание:** DDL-путь валидирует идентификаторы через `assertSqlIdentifier()`. DML-путь (`buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `_buildUpdateQuery`) интерполирует `Object.keys(data)` как `"${k}"` без валидации. Collection name проверяется, но имена колонок — нет.
+
+**Пример:**
+```typescript
+// Если data = { 'col"); DROP TABLE users; --': 'value' }
+// buildInsertSql генерирует:
+// INSERT INTO "users" ("col"); DROP TABLE users; --") VALUES ($1)
+```
+
+PostgreSQL двойные кавычки защищают от execution-level injection (точка с запятой внутри кавычек — часть идентификатора), но ключи с символами `"` сломают кавычки и откроют вектор.
+
+**Решение:** `assertSqlIdentifier(k, 'column name')` для каждого ключа из `Object.keys(data)` в начале `buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `_buildUpdateQuery`.
+
+**Связанные файлы:**
+- `packages/sql-pg/src/index.ts` (buildInsertSql:29-43, buildInsertManySql:55-75, buildUpsertManySql:77-100)
+- `packages/sql-pg/src/sql-generator.ts` (_buildUpdateQuery:688-693, _buildUpsertQuery:729-738)
+- `packages/sql-pg/src/ddl-validate.ts` (assertSqlIdentifier — уже существует)

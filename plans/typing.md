@@ -111,3 +111,34 @@ S extends SelectableField<infer T, any, any> ? T : unknown;  // fallback = unkno
 - `packages/core/test/model/model.test.ts:44`
 
 **Коммит:** `657db49`
+
+---
+
+## T6: AggregateField.as() мутирует in-place vs SelectableField.as() возвращает новый инстанс
+
+**Важность:** 🟢 Low
+
+**Краткое описание:** `AggregateField.as()` мутирует `this.alias` и возвращает `this`:
+```typescript
+as(alias: string): this & { alias: A } {
+  this.alias = alias;  // mutates in place
+  return this;
+}
+```
+Тогда как `SelectableField.as()` создаёт и возвращает новый инстанс:
+```typescript
+as(alias: string): SelectableField<...> {
+  return new SelectableField(this.tableAlias, this.fieldName, alias, ...);
+}
+```
+
+Это создаёт асимметрию: `sqb.clone()` должен special-case deep-copy только агрегаты (sqb.ts:103-109). Любой новый код, шарящий selects без clone, может сломаться если предполагает immutable для всех select items.
+
+**Решение (выбрать одно):**
+1. Сделать `AggregateField.as()` возвращающим новый инстанс (consistency).
+2. Задокументировать асимметрию в AGENTS.md.
+
+**Связанные файлы:**
+- `packages/core/src/orm/ast/aggregate.ts:26-29`
+- `packages/core/src/orm/ast/selectable.ts:23-33`
+- `packages/core/src/orm/sqb.ts:103-109` (_cloneSelects)

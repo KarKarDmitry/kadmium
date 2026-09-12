@@ -137,3 +137,108 @@ orm.single(User)
 - `plans/features.md` — секция F5 закрывается
 
 ---
+
+## План 3: `sql()` / `sql` ``-фрагменты + `slot()`-параметры (raw-выражения)
+
+**Статус:** ⬜ Запланирован. Разблокирует отложенное из Плана 1: «`sql()` (raw-фрагменты, как в Drizzle) — отдельный этап, в этот срез не входит». Высокоуровневый дизайн исполнения (QuerySlots, `.compiled()`, `.fill()`, `orm.raw()`) — в `plans/compiled-queries.md`; здесь только примитивы выражения.
+
+**Суть:** два примитива:
+- **`slot(name)`** — маркер «параметр по имени» в значении `WhereCondition` или в интерполяции тега. Позиция запоминается на компиляции, значение подаётся позже по ключу.
+- **`sql` ``** — композитор SQL-фрагментов (как Drizzle): значения, слоты, вложенные фрагменты/билдеры; автоперенумерация `$N` и dedup слотов по имени.
+
+### Слой слот-маркера
+
+```ts
+// repository: runtime-класс в Core
+class SlotMarker<K extends string = string, V = unknown> extends BaseFilter<V> {
+  readonly kind = 'slot' as const;
+  constructor(public readonly slotName: K) { super(/* ... */); }
+}
+```
+
+- **Плоский** `slot(name)` — `SlotMarker<name, any>`: проходит `eq` любого фильтра, тип значения задаётся в `compiled<T>()` вручную.
+- **Типизированный** `S.slot(name)` — `SlotMarker<name, Def[name]>` из `QuerySlots` (см. compiled-queries.md): имя ограничено `keyof Def`, значение типа выведено из модели.
+- **eq-site проверка** — `BaseFilter<TValue>` становится generic (фантом), фильтры объявляют свой `V`:
+  ```ts
+  class StringFilter extends BaseFilter<string> { eq(val: string | BaseFilter<string>): WhereCondition }
+  class NumberFilter extends BaseFilter<number> { ... }
+  ```
+  `tenantId.eq(S.slot('since'))` при `since: Date` → `BaseFilter<Date>` не подходит к `number | BaseFilter<number>` → **тип-ошибка у места использования**. `any`-фантом плоского `slot()` осознанно ломает эту проверку — компромисс за удобство.
+
+### Рендер (sql-pg)
+
+- `_renderValue` (sql-generator.ts): ветка `isHoleRef(value)` → `$N`, маркер кладётся в `values`, позиция пишется в slotOrder:
+  ```
+  values.push(marker); return `$${paramIndex.p++}`;  + slotOrder.append({ name, index })
+  ```
+- Duck-typing без импорта из Core (порядок: `core → sql-types ← sql-pg`, sql-pg не импортирует core): `isHoleRef(v) = v && typeof v === 'object' && (v as any).kind === 'slot'`.
+- `toSql()` возвращает `{ text, values, slotOrder }` (`slotOrder` — dedup по имени, индекс первого вхождения).
+- **Guard в `execute()`**: слот-маркер остался в `values` без `fill` → throw «unfilled slots: [names]».
+
+### `sql` ``-тег
+
+```ts
+const q = sql`
+  WITH scoped AS (${base})                    // вложенный билдер/фрагмент → text+values+slotOrder
+  SELECT * FROM scoped
+  WHERE scoped.created_at > ${S.slot('since')}`;  // SlotMarker → именованный слот
+  // примитив/значение → literal-параметр
+```
+
+- Части интерполяции: **примитивы** → literal-param; **`SlotMarker`** → именованный слот; **`CompiledQuery`/билдер** → вливание его SQL и параметров.
+- **Перенумерация `$N`**: при встраивании фрагмента с `M` параметрами идёт сдвиг на текущий счётчик (то же для маркеров). Порядок `slotOrder` — фактический порядок плейсхолдеров в итоговом тексте.
+- **Dedup**: слот-имя, встреченное в нескольких местах ⇒ один параметр; `fill` заменяет маркер во всех вхождениях (семантически одно значение).
+- **Безопасность**: интерполяция произвольной строки — инъекция (запрещено). Идентификаторы — только через `assertSqlIdentifier` (S10) или явный маркер-идентификатор.
+
+### Контракт (sql-types, type-only)
+
+```ts
+interface HoleRef { kind: 'slot'; slotName: string }
+interface SlotDefinition { name: string; index: number }
+interface CompiledQuery<TSlots = Record<string, never>> {
+  text: string;
+  values: (unknown | HoleRef)[];
+  slotOrder: SlotDefinition[];
+  fill(input: TSlots): { text: string; params: unknown[] };
+}
+```
+
+### Пример
+
+```ts
+const base = app.orm.single(User)
+  .where(t => t.tenantId.eq(S.slot('tenantId')))
+  .include(t => [t.posts]);
+
+const compiled = sql`
+  WITH scoped AS (${base})
+  SELECT * FROM scoped WHERE scoped.created_at > ${S.slot('since')}
+`.compiled(S);
+// slotOrder: [{ tenantId, index:0 }, { since, index:1 }] — по фактическому порядку
+
+await app.orm.raw(...compiled.fill({ tenantId, since })).go();
+```
+
+### Файлы
+
+- `packages/sql-types/src/index.ts` — `HoleRef`, `SlotDefinition`, `CompiledQuery` (type-only, пакет без runtime)
+- `packages/core/src/orm/slot.ts` (**NEW**) — `SlotMarker`, `slot()`, `isHoleRef`
+- `packages/core/src/orm/field-builders/base-filter.ts` — `BaseFilter<TValue>` (generic-фантом)
+- `packages/core/src/orm/field-builders/filters.ts` — фильтры объявляют `V`; `eq(val: V | BaseFilter<V>)`
+- `packages/sql-pg/src/sql-generator.ts` — ветка `isHoleRef`, `toSql` → slotOrder, guard в `execute()`
+- `packages/core/src/orm/index.ts` — публичный экспорт `sql`, `slot`
+
+### Тесты
+
+- рендер `$N` при нескольких слотах + нумерация после обычных параметров
+- dedup слотов по имени (один параметр, `fill` заменяет все вхождения)
+- guard: `execute()`/`go()` с незаполненным слотом → throw
+- тип: eq-отклонение (`BaseFilter<Date>` vs `BaseFilter<number>`) — expect-error
+- тег: встраивание билдера с where/include + слот снаружи; перенумерация; строка-идентификатор через тег → запрет
+
+### Связи
+
+- Исполнение и типизация (QuerySlots, `.compiled()`, `.fill()`, `orm.raw`, фазы PR) — `plans/compiled-queries.md`
+- Открывает **F2** («нет raw() в ORM-слое») — `plans/features.md`
+
+---

@@ -376,3 +376,19 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `packages/core/src/orm/orm.ts` (line 4)
 - `packages/core/src/ir/compile.ts` (CompilableModel)
 - `packages/core/src/core/app-core.ts`, `packages/core/src/core/model-registry.ts` (resolveModelClass)
+
+---
+
+## A22: IR/compile.ts импортирует Model — direction violation
+
+**Важность:** 🟡 Medium
+
+**Краткое описание:** `ir/compile.ts` импортирует `Model` из `../model/index` (строки 1-3). Контрактный слой IR зависит от конкретного класса Model для walk prototype-цепочке (line 99: `new (ParentCtor)()`). Зависимость должна быть `Model → IR`, не `IR → Model`.
+
+**Статус:** ⬜ Open
+
+**Решение:** Вынести `compileModel` из `ir/` в `model/` или `core/`, где можно свободно зависеть от Model. Или расширить `CompilableModel` интерфейс для поддержки walk по prototype-цепочке без импорта конкретного класса.
+
+**Связанные файлы:**
+- `packages/core/src/ir/compile.ts:1-3` (import Model)
+- `packages/core/src/ir/compile.ts:99` (new ParentCtor())
