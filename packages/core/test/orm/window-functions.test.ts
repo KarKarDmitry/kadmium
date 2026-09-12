@@ -71,9 +71,10 @@ describe('window functions', () => {
     expect(w.rowsBetween(1, 2).over.frame).toEqual([1, 2]);
   });
 
-  it('validate() rejects rank-family without ORDER BY', () => {
+  it('validate() requires ORDER BY for rank-family, allows row_number', () => {
     expect(() => windowFunctions.rank().validate()).toThrow(/ORDER BY/);
-    expect(() => windowFunctions.rowNumber().validate()).toThrow(/ORDER BY/);
+    expect(() => windowFunctions.denseRank().validate()).toThrow(/ORDER BY/);
+    expect(() => windowFunctions.rowNumber().validate()).not.toThrow();
     expect(() =>
       windowFunctions
         .rank()
