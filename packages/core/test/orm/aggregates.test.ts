@@ -50,35 +50,3 @@ describe('aggregates', () => {
     expect(a.alias).toBe('');
   });
 });
-
-describe('AggregateField.toSql', () => {
-  it('COUNT(*) AS "total"', () => {
-    const a = aggregates.count('*').as('total');
-    expect(a.toSql()).toBe('COUNT(*) AS "total"');
-  });
-
-  it('SUM("u"."amount") AS "sum"', () => {
-    const a = aggregates.sum(field('amount')).as('sum');
-    expect(a.toSql()).toBe('SUM("u"."amount") AS "sum"');
-  });
-
-  it('AVG("u"."age") AS "avg"', () => {
-    const a = aggregates.avg(field('age')).as('avg');
-    expect(a.toSql()).toBe('AVG("u"."age") AS "avg"');
-  });
-
-  it('MIN("u"."age") AS "min"', () => {
-    const a = aggregates.min(field('age')).as('min');
-    expect(a.toSql()).toBe('MIN("u"."age") AS "min"');
-  });
-
-  it('MAX("u"."age") AS "max"', () => {
-    const a = aggregates.max(field('age')).as('max');
-    expect(a.toSql()).toBe('MAX("u"."age") AS "max"');
-  });
-
-  it('throws without alias', () => {
-    const a = aggregates.count('*');
-    expect(() => a.toSql()).toThrow('Aggregate must have an alias');
-  });
-});

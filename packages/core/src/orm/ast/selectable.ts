@@ -31,13 +31,4 @@ export class SelectableField<
       this.column,
     ) as any;
   }
-
-  /** SQL-представление */
-  toSql(): string {
-    const col = this.column ?? this.fieldName;
-    const quoted = this.alias
-      ? `"${this.tableAlias}"."${col}" AS "${this.alias}"`
-      : `"${this.tableAlias}"."${col}"`;
-    return quoted;
-  }
 }

@@ -8,6 +8,7 @@ import type {
   WhereGroup,
   WhereExpression,
   SelectItem,
+  AggregateSelectable,
   IncludedRelation,
 } from '@karkardmitry/kadmium-sql-types';
 import { assertSqlIdentifier } from './ddl-validate';
@@ -224,7 +225,7 @@ export abstract class SqlGenerator {
     if (selects && selects.length > 0) {
       return selects
         .map((sel) => {
-          if (sel.kind === 'aggregate') return sel.toSql();
+          if (sel.kind === 'aggregate') return this._renderAggregate(sel);
           const col = sel.column ?? sel.fieldName;
           return `"${alias}"."${col}" AS "${sel.alias || sel.fieldName}"`;
         })
@@ -479,6 +480,26 @@ export abstract class SqlGenerator {
     return mainTableAlias;
   }
 
+  /**
+   * Рендер агрегата (COUNT/SUM/...) из структурных данных.
+   * Адаптер — единственный владелец SQL: ядро не строит строки (см. F8 plan).
+   */
+  private _renderAggregate(sel: AggregateSelectable): string {
+    if (!sel.alias) throw new Error('Aggregate must have an alias');
+    const inner =
+      sel.fieldName === '*' ? '*' : `"${sel.tableAlias}"."${sel.fieldName}"`;
+    return `${(sel.func ?? '').toUpperCase()}(${inner}) AS "${sel.alias}"`;
+  }
+
+  /** Рендер SELECT-элемента для RETURNING (поле/агрегат). */
+  private _renderSelectItem(sel: SelectItem): string {
+    if (sel.kind === 'aggregate') return this._renderAggregate(sel);
+    const col = sel.column ?? sel.fieldName;
+    return sel.alias
+      ? `"${sel.tableAlias}"."${col}" AS "${sel.alias}"`
+      : `"${sel.tableAlias}"."${col}"`;
+  }
+
   /** SELECT-лист: поля/агрегаты из sqb.selects, иначе `"alias".*`. */
   private _buildSelectFields(sqb: ReadonlySqb, mainTableAlias: string): string {
     if (!sqb.selects || sqb.selects.length === 0) {
@@ -489,7 +510,7 @@ export abstract class SqlGenerator {
       .map((sel) => {
         // AggregateField (count/sum/avg/min/max)
         if (sel.kind === 'aggregate') {
-          return sel.toSql();
+          return this._renderAggregate(sel);
         }
         const col = sel.column ?? sel.fieldName;
         const id = sel.tableAlias ? `"${sel.tableAlias}"."${col}"` : `"${col}"`;
@@ -707,7 +728,7 @@ export abstract class SqlGenerator {
 
     const returningClause =
       sqb.selects && sqb.selects.length > 0
-        ? sqb.selects.map((sel) => sel.toSql()).join(', ')
+        ? sqb.selects.map((sel) => this._renderSelectItem(sel)).join(', ')
         : '*';
 
     return {
@@ -782,7 +803,7 @@ export abstract class SqlGenerator {
 
     const returningClause =
       sqb.selects && sqb.selects.length > 0
-        ? sqb.selects.map((sel) => sel.toSql()).join(', ')
+        ? sqb.selects.map((sel) => this._renderSelectItem(sel)).join(', ')
         : '*';
 
     return {

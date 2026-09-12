@@ -41,14 +41,11 @@ function where(
   return { field, op, value, alias, column };
 }
 
-function group(
-  join: 'AND' | 'OR',
-  conditions: WhereCondition[],
-): WhereGroup {
+function group(join: 'AND' | 'OR', conditions: WhereCondition[]): WhereGroup {
   return { elements: conditions.map((condition) => ({ join, condition })) };
 }
 
-/** Поле, повторяющее реальный SelectableField.toSql() из core. */
+/** Поле с структурными данными — SQL рендерит адаптер. */
 function selectable(
   tableAlias: string,
   fieldName: string,
@@ -61,23 +58,17 @@ function selectable(
     fieldName,
     alias,
     column,
-    toSql: () => {
-      const col = column ?? fieldName;
-      return alias
-        ? `"${tableAlias}"."${col}" AS "${alias}"`
-        : `"${tableAlias}"."${col}"`;
-    },
   };
 }
 
-/** Агрегат, повторяющий реальный AggregateField.toSql() из core. */
-function aggregate(sql: string, alias: string): SelectItem {
+/** Агрегат с структурными данными — SQL рендерит адаптер. */
+function aggregate(func: string, alias: string): SelectItem {
   return {
     kind: 'aggregate',
     tableAlias: 'u',
     fieldName: '*',
     alias,
-    toSql: () => `${sql} AS "${alias}"`,
+    func,
   };
 }
 
@@ -132,7 +123,7 @@ describe('SqlGenerator — toSql: delete', () => {
   it('RETURNING aggregate', () => {
     const q = sqb({
       operation: 'delete',
-      selects: [aggregate('COUNT(*)', 'total')],
+      selects: [aggregate('count', 'total')],
     });
     const { text } = gen.toSql(q);
     expect(text).toContain('RETURNING COUNT(*) AS "total"');
@@ -141,7 +132,7 @@ describe('SqlGenerator — toSql: delete', () => {
   it('RETURNING mixed field and aggregate', () => {
     const q = sqb({
       operation: 'delete',
-      selects: [selectable('u', 'id'), aggregate('COUNT(*)', 'total')],
+      selects: [selectable('u', 'id'), aggregate('count', 'total')],
     });
     const { text } = gen.toSql(q);
     expect(text).toContain('RETURNING "u"."id", COUNT(*) AS "total"');

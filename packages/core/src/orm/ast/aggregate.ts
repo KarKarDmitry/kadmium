@@ -1,7 +1,7 @@
 /**
  * AggregateField — агрегатная функция в SELECT (COUNT, SUM, AVG, MIN, MAX).
  * Несёт phantom-тип TResult для type-level инференса результата.
- * Совместим с SelectableField интерфейсом из sql-types (toSql, alias, tableAlias, fieldName).
+ * Данные только: SQL-рендером занимается адаптер (структурный паттерн WhereCondition).
  */
 export class AggregateField<TResult = unknown> {
   public readonly kind = 'aggregate' as const;
@@ -14,7 +14,7 @@ export class AggregateField<TResult = unknown> {
     public readonly field: { tableAlias: string; fieldName: string } | '*',
   ) {}
 
-  /** Совместимость с SelectableField interface */
+  /** Совместимость с AggregateSelectable interface */
   get tableAlias(): string {
     return this.field === '*' ? '' : this.field.tableAlias;
   }
@@ -27,15 +27,5 @@ export class AggregateField<TResult = unknown> {
     const copy = new AggregateField<TResult>(this.func, this.field);
     copy.alias = alias;
     return copy as AggregateField<TResult> & { alias: A };
-  }
-
-  /** SQL-представление */
-  toSql(): string {
-    if (!this.alias) throw new Error('Aggregate must have an alias');
-    const inner =
-      this.field === '*'
-        ? '*'
-        : `"${this.field.tableAlias}"."${this.field.fieldName}"`;
-    return `${this.func.toUpperCase()}(${inner}) AS "${this.alias}"`;
   }
 }

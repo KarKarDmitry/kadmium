@@ -35,7 +35,6 @@ export interface SelectableField {
   readonly aggregate?: string;
   /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
   readonly column?: string;
-  toSql(): string;
 }
 
 export interface AggregateSelectable {
@@ -45,10 +44,9 @@ export interface AggregateSelectable {
   readonly alias?: string;
   /** Агрегатная функция: count | sum | avg | min | max */
   readonly func?: string;
-  toSql(): string;
 }
 
-/** Элемент SELECT: обычное поле или агрегат. */
+/** Элемент SELECT: обычное поле или агрегат. SQL рендерит адаптер из структуры. */
 export type SelectItem = SelectableField | AggregateSelectable;
 
 export interface JoinOptions {

@@ -42,10 +42,7 @@ function where(
   return { field, op, value, alias, column };
 }
 
-function group(
-  join: 'AND' | 'OR',
-  conditions: WhereCondition[],
-): WhereGroup {
+function group(join: 'AND' | 'OR', conditions: WhereCondition[]): WhereGroup {
   return { elements: conditions.map((condition) => ({ join, condition })) };
 }
 
@@ -61,7 +58,6 @@ function selectable(
     fieldName,
     alias,
     column,
-    toSql: () => `"${tableAlias}"."${column ?? fieldName}"`,
   };
 }
 
@@ -76,7 +72,6 @@ function aggregate(
     fieldName: '*',
     alias,
     func,
-    toSql: () => `${func.toUpperCase()}(*) AS "${alias}"`,
   };
 }
 
@@ -124,6 +119,20 @@ describe('SqlGenerator — toSql: select', () => {
     });
     const { text } = gen.toSql(q);
     expect(text).toContain('COUNT(*) AS "total"');
+  });
+
+  it('aggregate without alias throws', () => {
+    const q = sqb({
+      selects: [
+        {
+          kind: 'aggregate',
+          tableAlias: 'u',
+          fieldName: '*',
+          func: 'count',
+        },
+      ],
+    });
+    expect(() => gen.toSql(q)).toThrow('Aggregate must have an alias');
   });
 
   it('mixed selectable and aggregate', () => {

@@ -15,14 +15,10 @@ function sel(
     tableAlias,
     fieldName,
     alias,
-    toSql: () => `"${tableAlias}"."${fieldName}"`,
   };
 }
 
-function incl(
-  parentAlias: string,
-  propertyName: string,
-): IncludedRelation {
+function incl(parentAlias: string, propertyName: string): IncludedRelation {
   return {
     parentAlias,
     propertyName,
@@ -79,7 +75,6 @@ describe('ResultReshaper.reshape', () => {
         kind: 'selectable',
         tableAlias: '',
         fieldName: 'count',
-        toSql: () => 'count(*)',
       },
     ];
     const result = ResultReshaper.reshape(flat, selects, []);
@@ -87,15 +82,11 @@ describe('ResultReshaper.reshape', () => {
   });
 
   it('nests include relations under parent alias', () => {
-    const flat = [
-      { 'u.id': 1, author: { id: 2, name: 'Bob' } },
-    ];
+    const flat = [{ 'u.id': 1, author: { id: 2, name: 'Bob' } }];
     const selects = [sel('u', 'id')];
     const includes = [incl('u', 'author')];
     const result = ResultReshaper.reshape(flat, selects, includes);
-    expect(result).toEqual([
-      { u: { id: 1, author: { id: 2, name: 'Bob' } } },
-    ]);
+    expect(result).toEqual([{ u: { id: 1, author: { id: 2, name: 'Bob' } } }]);
   });
 
   it('handles multiple includes on the same parent', () => {
