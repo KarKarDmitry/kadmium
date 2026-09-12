@@ -782,7 +782,7 @@ export abstract class SqlGenerator {
     return `ORDER BY ${sqb.orders
       .map(
         (o) =>
-          `"${mainTableAlias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
+          `"${o.tableAlias ?? mainTableAlias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
       )
       .join(', ')}`;
   }

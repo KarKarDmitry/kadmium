@@ -25,19 +25,25 @@ export class ResultReshaper {
       };
 
       for (const sel of selects) {
-        if (sel.kind !== 'selectable') continue;
         const tableAlias = sel.tableAlias;
         const resultName =
           sel.alias ||
           (tableAlias ? `${tableAlias}.${sel.fieldName}` : sel.fieldName);
         const propertyName = sel.alias || sel.fieldName;
 
-        if (tableAlias) {
-          if (flatRow[resultName] !== undefined) {
-            child(tableAlias)[propertyName] = flatRow[resultName];
+        if (sel.kind === 'selectable') {
+          if (tableAlias) {
+            if (flatRow[resultName] !== undefined) {
+              child(tableAlias)[propertyName] = flatRow[resultName];
+            }
+          } else {
+            nestedRow[propertyName] = flatRow[resultName];
           }
         } else {
-          nestedRow[propertyName] = flatRow[resultName];
+          // aggregate / window: SQL-алиас без табличного префикса — верхний уровень
+          if (flatRow[resultName] !== undefined) {
+            nestedRow[resultName] = flatRow[resultName];
+          }
         }
       }
 

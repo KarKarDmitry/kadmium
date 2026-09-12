@@ -45,6 +45,7 @@ export class KadmiumSqb {
   public orders: {
     field: string;
     column?: string;
+    tableAlias?: string;
     direction: 'asc' | 'desc';
   }[] = [];
   public limit: number | null = null;

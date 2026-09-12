@@ -213,6 +213,7 @@ export class SingleQueryBuilder<
       this.sqb.orders.push({
         field: d.fieldName,
         column: d.column,
+        tableAlias: d.tableAlias,
         direction: d.direction,
       });
     }

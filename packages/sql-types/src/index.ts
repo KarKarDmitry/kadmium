@@ -118,6 +118,7 @@ export interface ReadonlySqb {
   readonly orders: readonly {
     field: string;
     column?: string;
+    tableAlias?: string;
     direction: 'asc' | 'desc';
   }[];
   readonly limit: number | null;
