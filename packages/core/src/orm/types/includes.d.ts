@@ -1,6 +1,6 @@
 import type { WhereExpression } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
-import type { AggregateField } from '../ast/aggregate';
+import type { FuncField } from '../ast/func-field';
 import type { OrderDirection, GetFieldName, GetFieldType } from './proxy';
 import type { Evaluate } from './relations';
 
@@ -44,8 +44,7 @@ type RelationResult<M, K extends string> =
 /** Канон GetFieldName/GetFieldType — в proxy.d.ts */
 export type { GetFieldName, GetFieldType } from './proxy';
 
-export type AnySelectable =
-  SelectableField<any, any, any> | AggregateField<any>;
+export type AnySelectable = SelectableField<any, any, any> | FuncField<any>;
 
 /** AllFields — маркер: select не вызван, берём все поля модели */
 export type AllFields = { readonly '~allFields': true };

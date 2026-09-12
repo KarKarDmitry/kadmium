@@ -1,4 +1,4 @@
-import { KadmiumSqb } from '../sqb';
+import { KadmiumSqb, type AnySelectableField } from '../sqb';
 import type { WhereCondition, WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
@@ -12,10 +12,10 @@ import type {
   OrderDirection,
   AliasesMap,
   FinalResult,
+  SelectTools,
 } from '../types/proxy';
 import type { IncludeConfig } from '../types/includes';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
 import type { AnySelectable } from '../types/includes';
 import { buildDebugSql } from './utils';
@@ -135,13 +135,15 @@ export class MultiQueryBuilder<
   // ── select ──
 
   select<const S extends readonly AnySelectable[]>(
-    fn: (t: MultiSelectProxy<T>, aggregates: AggregateFunctions) => S,
+    fn: (t: MultiSelectProxy<T>, tools: SelectTools) => S,
   ): {
     toSql(): string;
     go(): Promise<FinalResult<S, T, TInclude>[]>;
   } {
     const sqb = this.sqb.clone();
-    sqb.selects = [...fn(this._createSelectProxy(), aggregates)];
+    sqb.selects = [
+      ...fn(this._createSelectProxy(), { agg: aggregates }),
+    ] as AnySelectableField[];
     return {
       toSql: () => this._toSqlFrom(sqb),
       go: () => {

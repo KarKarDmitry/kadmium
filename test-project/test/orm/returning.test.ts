@@ -55,7 +55,7 @@ describe('returning: update / delete projection', () => {
       .single(UserModel)
       .update({ active: true })
       .where((u) => u.name.eq('Bob'))
-      .returning((u, { count }) => [count('*').as('total')])
+      .returning((u, { agg }) => [agg.count('*').as('total')])
       .sql();
     expect(sql).toContain('RETURNING COUNT(*) AS "total"');
   });

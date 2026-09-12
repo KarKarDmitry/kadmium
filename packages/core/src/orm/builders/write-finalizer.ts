@@ -1,8 +1,12 @@
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { KadmiumSqb, AnySelectableField } from '../sqb';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type { FilterProxy, SelectProxy, UpdateFinalizer } from '../types/proxy';
-import type { AggregateFunctions } from '../field-builders/aggregates';
+import type {
+  FilterProxy,
+  SelectProxy,
+  UpdateFinalizer,
+  SelectTools,
+} from '../types/proxy';
 import { aggregates } from '../field-builders/aggregates';
 import { buildDebugSql } from './utils';
 
@@ -54,10 +58,10 @@ export function buildWriteFinalizer<TModel extends Model>(
   };
 
   const returning = <S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>, aggregateFunctions: AggregateFunctions) => S,
+    fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
   ) => {
     sqb.selects = [
-      ...fn(createSelectProxy(), aggregates),
+      ...fn(createSelectProxy(), { agg: aggregates }),
     ] as AnySelectableField[];
     return {
       go: async (): Promise<FlatFinalResult<S>[]> => {

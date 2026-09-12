@@ -3,23 +3,18 @@
  * Несёт phantom-тип TResult для type-level инференса результата.
  * Данные только: SQL-рендером занимается адаптер (структурный паттерн WhereCondition).
  */
-export class AggregateField<TResult = unknown> {
+import { FuncField } from './func-field';
+
+export class AggregateField<TResult = unknown> extends FuncField<TResult> {
   public readonly kind = 'aggregate' as const;
-  public alias: string = '';
-  declare readonly aggregateType: TResult;
+  declare readonly func: 'count' | 'sum' | 'avg' | 'min' | 'max';
 
   constructor(
-    public readonly func: 'count' | 'sum' | 'avg' | 'min' | 'max',
+    func: 'count' | 'sum' | 'avg' | 'min' | 'max',
     /** '*'' для COUNT(*) или SelectableField для SUM(field) */
-    public readonly field: { tableAlias: string; fieldName: string } | '*',
-  ) {}
-
-  /** Совместимость с AggregateSelectable interface */
-  get tableAlias(): string {
-    return this.field === '*' ? '' : this.field.tableAlias;
-  }
-  get fieldName(): string {
-    return this.field === '*' ? '*' : this.field.fieldName;
+    field: { tableAlias: string; fieldName: string } | '*',
+  ) {
+    super(func, field);
   }
 
   /** Переименовать агрегат в SELECT (возвращает новый инстанс) */

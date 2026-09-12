@@ -8,6 +8,7 @@ import type {
 import type { WhereExpression } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { AggregateField } from '../ast/aggregate';
+import type { FuncField } from '../ast/func-field';
 import type {
   IncludeConfig,
   IncludeResult,
@@ -15,6 +16,15 @@ import type {
   AnySelectable,
 } from './includes';
 import type { AggregateFunctions } from '../field-builders/aggregates';
+
+/**
+ * Инструменты для select/first/returning callback'ов.
+ * Единый объект, чтобы можно было деструктурировать только нужное:
+ * `(t, { agg }) => [...]`, `(t, { wf }) => [...]` (wf — c F8).
+ */
+export interface SelectTools {
+  agg: AggregateFunctions;
+}
 
 export type NullableMethods = {
   readonly null: WhereCondition;
@@ -114,14 +124,14 @@ export interface UpdateFinalizer<
   TModel extends { ['~shape']: Record<string, unknown> },
 > {
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+    fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
   ): {
     go: () => Promise<FlatFinalResult<S>[]>;
     sql: () => string;
   };
   where(clause: (t: FilterProxy<TModel>) => WhereExpression | undefined): {
     returning<S extends readonly AnySelectable[]>(
-      fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+      fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
     ): {
       go: () => Promise<FlatFinalResult<S>[]>;
       sql: () => string;
@@ -227,7 +237,7 @@ type ObjectForAlias<S extends readonly any[], A extends string> = {
 
 /** Get the alias/field name from any selectable */
 export type GetFieldName<S> =
-  S extends AggregateField<any>
+  S extends FuncField<any>
     ? S['alias'] extends string
       ? S['alias']
       : never
@@ -238,12 +248,11 @@ export type GetFieldName<S> =
       : never;
 
 /** Get the result type from any selectable */
-export type GetFieldType<S> =
-  S extends AggregateField<infer T>
+export type GetFieldType<S> = [S] extends [FuncField<any>]
+  ? S['~result']
+  : S extends SelectableField<infer T, any, any, any>
     ? T
-    : S extends SelectableField<infer T, any, any, any>
-      ? T
-      : never;
+    : never;
 
 /** Helper: получить тип модели по алиасу из T */
 type ModelForAlias<T extends AliasesMap, A extends keyof T & string> =
@@ -281,7 +290,7 @@ export type FinalResult<
     >;
 } & {
   [
-    Sel in Extract<S[number], AggregateField<any>> as GetFieldName<Sel>
+    Sel in Extract<S[number], FuncField<any>> as GetFieldName<Sel>
   ]: GetFieldType<Sel>;
 } extends infer R2
   ? { [K in keyof R2]: R2[K] }

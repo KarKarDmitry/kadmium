@@ -3,7 +3,7 @@ import { createWhereGroup } from './ast/where';
 import type { SelectableField } from './ast/selectable';
 import { AggregateField } from './ast/aggregate';
 
-/** Поле в SELECT: обычное или агрегатное */
+/** Поле в SELECT: обычное или агрегатное (оконные появятся с F8) */
 export type AnySelectableField = SelectableField | AggregateField;
 import type { ModelIR } from '../ir/index';
 

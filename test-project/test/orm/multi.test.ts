@@ -47,7 +47,7 @@ describe('multi: joins, groupBy, aggregates', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .groupBy((t) => [t.u.name])
-      .select((t, { count }) => [t.u.name, count(t.p.id).as('postCount')])
+      .select((t, { agg }) => [t.u.name, agg.count(t.p.id).as('postCount')])
       .go();
     expect(rows.length).toBe(2);
   });

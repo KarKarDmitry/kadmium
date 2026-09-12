@@ -19,6 +19,7 @@ export type {
   AliasesMap,
   FinalResult,
   NullableMethods,
+  SelectTools,
 } from './proxy';
 
 export type { Evaluate } from './relations';

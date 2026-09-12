@@ -240,7 +240,7 @@ describe('SingleQueryBuilder — cursor', () => {
 describe('SingleQueryBuilder — having', () => {
   it('pushes aggregate-alias condition to sqb.havings', () => {
     const b = builder();
-    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.select((t, { agg }: any) => [t.id, agg.count('*').as('total')]);
     b.having((t: any) => t.total.gt(5));
     expect(b.sqb.havings.elements.length).toBe(1);
     const c = b.sqb.havings.elements[0].condition as {
@@ -264,7 +264,7 @@ describe('SingleQueryBuilder — having', () => {
 
   it('clone() copies havings', () => {
     const b = builder();
-    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.select((t, { agg }: any) => [t.id, agg.count('*').as('total')]);
     b.having((t: any) => t.total.gt(5));
     const c = b.clone();
     expect(c.sqb.havings.elements.length).toBe(1);
@@ -272,7 +272,7 @@ describe('SingleQueryBuilder — having', () => {
 
   it('havingOr appends an OR step (no auto-grouping)', () => {
     const b = builder();
-    b.select((t: any, a: any) => [t.id, a.count('*').as('total')]);
+    b.select((t, { agg }: any) => [t.id, agg.count('*').as('total')]);
     b.having((t: any) => t.total.gt(5));
     b.havingOr((t: any) => t.total.lt(1));
     expect(b.sqb.havings.elements.length).toBe(2);
@@ -412,7 +412,7 @@ describe('SingleQueryBuilder — update returning', () => {
     const b = builder(adapter);
     const f = b.update({ name: 'Alice' });
     await f
-      .returning((u: any, a: any) => [u.id, a.count('*').as('total')])
+      .returning((u, { agg }: any) => [u.id, agg.count('*').as('total')])
       .go();
     expect(adapter.execute).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -460,7 +460,7 @@ describe('SingleQueryBuilder — update returning', () => {
     adapter.execute.mockResolvedValue([{ id: 42 }]);
     const b = builder(adapter);
     const f = b.update({ name: 'new' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const result = await f
       .where((u: any) => u.id.eq(1))
       .returning((u: any) => [u.id])
@@ -590,7 +590,7 @@ describe('SingleQueryBuilder — clone', () => {
 
   it('deep-copies aggregate selects', () => {
     const b = builder();
-    b.select((t: any, a: any) => [a.count('*').as('total')]);
+    b.select((_t, { agg }: any) => [agg.count('*').as('total')]);
     const c = b.clone();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (c.sqb.selects![0] as any).as('renamed');

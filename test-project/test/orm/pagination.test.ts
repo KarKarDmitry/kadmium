@@ -90,7 +90,7 @@ describe('cursor: keyset pagination', () => {
     expect(page2Names).toContain('Heidi');
     expect(page2Names).toContain('Ivy');
     expect(page2Names).toContain('Jack');
-    expect(page2Names.every((n) => n > 'Carol')).toBe(true);
+    expect(page2Names.every((n) => n! > 'Carol')).toBe(true);
     const known = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank', 'Grace', 'Heidi', 'Ivy', 'Jack'];
     const covered = [...page1.map((r) => r.name), ...page2Names];
     expect(known.every((n) => covered.includes(n))).toBe(true);
@@ -103,7 +103,7 @@ describe('cursor: keyset pagination', () => {
       .order((u) => [u.age.desc])
       .limit(3)
       .go();
-    const boundary = page1[2].age;
+    const boundary = page1[2].age!;
 
     const page2 = await h.orm
       .single(UserModel)
@@ -112,9 +112,9 @@ describe('cursor: keyset pagination', () => {
       .limit(10)
       .go();
     expect(page2.length).toBe(7);
-    expect(page2.every((r) => r.age < boundary)).toBe(true);
+    expect(page2.every((r) => r.age! < boundary)).toBe(true);
 
-    const ages = [...page1.map((r) => r.age), ...page2.map((r) => r.age)];
+    const ages = [...page1.map((r) => r.age!), ...page2.map((r) => r.age!)];
     for (let i = 1; i < ages.length; i++) {
       expect(ages[i - 1]).toBeGreaterThanOrEqual(ages[i]);
     }
@@ -133,7 +133,7 @@ describe('cursor: keyset pagination', () => {
       .single(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) =>
-        or(u.age.gt(last.age), and(u.age.eq(last.age), u.id.gt(last.id))),
+        or(u.age.gt(last.age!), and(u.age.eq(last.age!), u.id.gt(last.id))),
       )
       .limit(4)
       .go();
@@ -144,7 +144,7 @@ describe('cursor: keyset pagination', () => {
       .single(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) =>
-        or(u.age.gt(page2[3].age), and(u.age.eq(page2[3].age), u.id.gt(page2[3].id))),
+        or(u.age.gt(page2[3].age!), and(u.age.eq(page2[3].age!), u.id.gt(page2[3].id))),
       )
       .limit(10)
       .go();
@@ -158,7 +158,7 @@ describe('cursor: keyset pagination', () => {
       .limit(3)
       .go();
     expect(page1.map((r) => r.name)).toEqual(['Dave', 'Bob', 'Eve']);
-    const boundary = page1[2].age;
+    const boundary = page1[2].age!;
 
     const before = await h.orm
       .single(UserModel)

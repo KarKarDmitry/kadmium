@@ -10,6 +10,7 @@ import type {
   UpdateFinalizer,
   HavingProxy,
   HavingSource,
+  SelectTools,
 } from '../types/proxy';
 import type {
   AllFields,
@@ -18,8 +19,10 @@ import type {
   QueryResult,
 } from '../types/includes';
 import type { Evaluate } from '../types/relations';
-import type { AggregateFunctions } from '../field-builders/aggregates';
 import { aggregates } from '../field-builders/aggregates';
+
+/** Инструменты select/first callback: сейчас агрегаты; окна появятся c F8. */
+const selectTools: SelectTools = { agg: aggregates };
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import {
   createFilterProxy,
@@ -114,17 +117,19 @@ export class SingleQueryBuilder<
   select(): SingleQueryBuilder<TModel, AllFields, TInclude, TMode>;
   /** С селектором (поля + агрегаты). */
   select<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+    fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
   ): SingleQueryBuilder<TModel, S, TInclude, TMode>;
   select(
     fn?:
       | ((t: SelectProxy<TModel>) => SelectableField[])
-      | ((t: SelectProxy<TModel>, a: AggregateFunctions) => AnySelectable[]),
+      | ((t: SelectProxy<TModel>, a: SelectTools) => AnySelectable[]),
   ): any {
     if (!fn) {
       this.sqb.selects = this._buildAllSelects();
     } else {
-      this.sqb.selects = fn(this._createSelectProxy(), aggregates);
+      this.sqb.selects = [
+        ...fn(this._createSelectProxy(), selectTools),
+      ] as AnySelectableField[];
     }
     return this;
   }
@@ -144,16 +149,16 @@ export class SingleQueryBuilder<
   first(): SingleQueryBuilder<TModel, TSelect, TInclude, 'first'>;
   /** first() — с селектором (поля + агрегаты). */
   first<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>, aggregates: AggregateFunctions) => S,
+    fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
   ): SingleQueryBuilder<TModel, S, TInclude, 'first'>;
   first(
     fn?:
       | ((t: SelectProxy<TModel>) => SelectableField[])
-      | ((t: SelectProxy<TModel>, a: AggregateFunctions) => AnySelectable[]),
+      | ((t: SelectProxy<TModel>, a: SelectTools) => AnySelectable[]),
   ): any {
     if (fn) {
       this.sqb.selects = [
-        ...fn(this._createSelectProxy(), aggregates),
+        ...fn(this._createSelectProxy(), selectTools),
       ] as AnySelectableField[];
     } else {
       this.sqb.selects = this._buildAllSelects();
