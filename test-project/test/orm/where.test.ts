@@ -125,24 +125,27 @@ describe('where: filters, groups, ordering, pagination', () => {
     expect(no).toBe(false);
   });
 
-  it('eq(null) filters NULL values like IS NULL; neq(null) like IS NOT NULL (TG11)', async () => {
-    await h.orm.single(UserModel).create({
-      name: 'NullAge',
-      email: 'nullage@test.com',
-      age: null,
-      active: false,
-      registeredAt: new Date('2024-06-01T00:00:00Z'),
-    }).go();
+  it('.null / .notNull filter NULL values like IS NULL / IS NOT NULL (TG11)', async () => {
+    await h.orm
+      .single(UserModel)
+      .create({
+        name: 'NullAge',
+        email: 'nullage@test.com',
+        age: null,
+        active: false,
+        registeredAt: new Date('2024-06-01T00:00:00Z'),
+      })
+      .go();
     try {
       const nulls = await h.orm
         .single(UserModel)
-        .where((u) => u.age.eq(null))
+        .where((u) => u.age.null)
         .go();
       expect(nulls.map((r) => r.name)).toContain('NullAge');
 
       const nonNulls = await h.orm
         .single(UserModel)
-        .where((u) => u.age.neq(null))
+        .where((u) => u.age.notNull)
         .go();
       expect(nonNulls.some((r) => r.name === 'NullAge')).toBe(false);
       expect(nonNulls.every((r) => r.age !== null)).toBe(true);
