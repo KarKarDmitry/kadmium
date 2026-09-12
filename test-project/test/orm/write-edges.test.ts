@@ -77,7 +77,7 @@ describe('write edges: null, empty, types, bulk', () => {
       })
       .go();
     expect(created.registeredAt).toBeInstanceOf(Date);
-    expect(created.registeredAt.getTime()).toBe(ts.getTime());
+    expect((created.registeredAt as Date).getTime()).toBe(ts.getTime());
   });
 
   it('createMany with heterogeneous field subsets', async () => {

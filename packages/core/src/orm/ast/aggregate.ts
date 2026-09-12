@@ -12,8 +12,7 @@ export class AggregateField<TResult = unknown> extends FuncField<TResult> {
   declare readonly func: 'count' | 'sum' | 'avg' | 'min' | 'max';
   /** Агрегат всегда имеет аргумент: поле или '*' — никогда null. */
   declare readonly field:
-    | { tableAlias: string; fieldName: string; column?: string }
-    | '*';
+    { tableAlias: string; fieldName: string; column?: string } | '*';
 
   constructor(
     func: 'count' | 'sum' | 'avg' | 'min' | 'max',

@@ -200,7 +200,9 @@ export function renderDefault(f: IrField): string | null {
     case 'datetime':
     case 'date':
     case 'time':
-      return `'${String(value instanceof Date ? value.toISOString() : value).replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+      return `'${String(value instanceof Date ? value.toISOString() : value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "''")}'`;
     case 'string':
     case 'uuid':
     default:

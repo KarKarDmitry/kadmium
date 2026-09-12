@@ -3,7 +3,10 @@
  * Used by PgAdapter and TransactionalPgAdapter.
  */
 
-import type { IncludedRelation, ReadonlySqb } from '@karkardmitry/kadmium-sql-types';
+import type {
+  IncludedRelation,
+  ReadonlySqb,
+} from '@karkardmitry/kadmium-sql-types';
 import { renderConflictClause } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { assertSqlIdentifier } from './ddl-validate';
@@ -162,9 +165,7 @@ export function unpackIncludeValue(
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       const clean = k.startsWith(prefix) ? k.slice(prefix.length) : k;
       const nestedInc = nestedMap.get(clean);
-      out[clean] = nestedInc
-        ? unpackIncludeValue(v, nestedInc, nestedMap)
-        : v;
+      out[clean] = nestedInc ? unpackIncludeValue(v, nestedInc, nestedMap) : v;
     }
     return out;
   }

@@ -32,20 +32,18 @@ afterAll(async () => {
   await h.adapter.end();
 });
 
-const ageOrder = (u: UserModel) => [u.age.asc, u.name.asc];
-
 describe('window functions: heavy cases', () => {
   it('ntile(3) splits 6 rows into 3 even buckets', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { wf }) => [
         u.name,
         u.age,
         wf
           .ntile(3)
-          .orderBy(...ageOrder(u))
+          .orderBy(u.age.asc, u.name.asc)
           .as('bucket'),
       ])
       .go();
@@ -56,7 +54,7 @@ describe('window functions: heavy cases', () => {
     // Внутри окна ORDER BY только по age — UB/UC становятся равными (rank 2/2).
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { wf }) => [
         u.name,
@@ -72,7 +70,7 @@ describe('window functions: heavy cases', () => {
   it('percent_rank() and cume_dist() are bounded and monotonic', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { wf }) => [
         u.name,
@@ -88,14 +86,14 @@ describe('window functions: heavy cases', () => {
   it('lag(age, 1, -1) over partition returns previous value or default', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { wf }) => [
         u.name,
         u.age,
         wf
           .lag(u.age, 1, -1)
-          .orderBy(...ageOrder(u))
+          .orderBy(u.age.asc, u.name.asc)
           .as('prev'),
       ])
       .go();
@@ -105,7 +103,7 @@ describe('window functions: heavy cases', () => {
   it('nth_value(age, 2) default frame starts at the partition + full frame', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { wf }) => [
         u.name,
@@ -127,7 +125,7 @@ describe('window functions: heavy cases', () => {
   it('two-column PARTITION BY (active, age) groups correctly', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { wf }) => [
         u.name,
@@ -147,7 +145,7 @@ describe('window functions: heavy cases', () => {
   it('ROWS BETWEEN 1 PRECEDING AND CURRENT ROW builds a sliding sum', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { agg }) => [
         u.name,
@@ -155,7 +153,7 @@ describe('window functions: heavy cases', () => {
         agg
           .sum(u.age)
           .over()
-          .orderBy(...ageOrder(u))
+          .orderBy(u.age.asc, u.name.asc)
           .rowsBetween(1, 'current')
           .as('sliding'),
       ])
@@ -167,18 +165,18 @@ describe('window functions: heavy cases', () => {
   it('first_value/last_value respect the window frame', async () => {
     const rows = await h.orm
       .single(UserModel)
-      .order((u) => ageOrder(u))
+      .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
       .select((u, { wf }) => [
         u.name,
         u.age,
         wf
           .firstValue(u.age)
-          .orderBy(...ageOrder(u))
+          .orderBy(u.age.asc, u.name.asc)
           .as('first'),
         wf
           .lastValue(u.age)
-          .orderBy(...ageOrder(u))
+          .orderBy(u.age.asc, u.name.asc)
           .as('last'),
       ])
       .go();
