@@ -383,12 +383,13 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 **Важность:** 🟡 Medium
 
-**Краткое описание:** `ir/compile.ts` импортирует `Model` из `../model/index` (строки 1-3). Контрактный слой IR зависит от конкретного класса Model для walk prototype-цепочке (line 99: `new (ParentCtor)()`). Зависимость должна быть `Model → IR`, не `IR → Model`.
+**Краткое описание:** `ir/compile.ts` импортировал `Model` из `../model/index`. Контрактный слой IR зависел от конкретного класса Model для walk prototype-цепочки (`new (ParentCtor)()`). Зависимость должна быть `Model → IR`, не `IR → Model`.
 
-**Статус:** ⬜ Open
+**Статус:** ✅ Resolved
 
-**Решение:** Вынести `compileModel` из `ir/` в `model/` или `core/`, где можно свободно зависеть от Model. Или расширить `CompilableModel` интерфейс для поддержки walk по prototype-цепочке без импорта конкретного класса.
+**Решение (реализовано):**
+1. `compileModel` переехал в `model/compile.ts` — принимает конкретный `Model`; `CompilableModel` удалён; `ir/` не содержит ни одного импорта model-слоя (только типы + `toSnakeCase`). Публичный экспорт `compileModel` из пакета сохранён (имя не менялось).
+2. On-demand fallback-компиляция вынесена из `orm.ts` в `ModelRegistry.irByName/irByClass` (счётчик `compileCount` там же); `AppCore` — тонкие фейсадные обёртки + getter `compileCount`. `orm.ts` больше не импортирует model-слой: только `ModelIR`, `AppCore`, `SqlAdapter`. Обратно-совместимый `OrmManager.compileCount` — getter на `appCore.compileCount`.
+3. Добавлено прямое тест-покрытие prototype-walk'а наследования: inverse refs от родителя, dedup объявленного поля, тихий skip неинстанцируемого родителя.
 
-**Связанные файлы:**
-- `packages/core/src/ir/compile.ts:1-3` (import Model)
-- `packages/core/src/ir/compile.ts:99` (new ParentCtor())
+**Связанные файлы:** `packages/core/src/model/compile.ts`, `packages/core/src/orm/orm.ts`, `packages/core/src/core/model-registry.ts`, `packages/core/src/core/app-core.ts`. Бывший `packages/core/src/ir/compile.ts` удалён.

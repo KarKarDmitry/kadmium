@@ -68,7 +68,7 @@ interface FieldIR {
 }
 ```
 
-**`compileModel(model)`** → `ModelIR` — compiles once, cached in OrmManager.
+**`compileModel(model)`** → `ModelIR` — lives in `model/compile.ts` (the `Model → IR` arrow). It is the **only** place allowed to depend on the concrete `Model` class. `ir/` itself never imports the model layer. IR is cached once at registration (`ModelRegistry`); on-demand fallback compiles live in `ModelRegistry.irByName/irByClass` (counted in `compileCount`). ORM (`orm/`) depends only on `ModelIR` — never on model classes or build steps.
 
 ## Layer 3: ORM (`orm/`)
 

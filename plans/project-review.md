@@ -86,7 +86,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | A18 | 🟢 | **`_pushWhere` structurally identical** in single.ts and multi.ts | ⚪ Won't fix (tried `50f6793`, reverted `e068b64`; see architecture.md A19) |
 | A19 | 🟢 | **Dual IR caches** in orm.ts | ✅ Resolved (`3fae15d`, see architecture.md A20) |
 | A20 | 🟢 | **orm.ts imports Model** from model layer | ✅ Resolved (`8a051a9`, see architecture.md A21) |
-| A22 | 🟡 | **IR/compile.ts imports Model — direction violation.** Контрактный слой IR зависит от конкретного класса `Model` (walk prototype chain). Зависимость должна быть `Model → IR`, не `IR → Model`. | ⬜ Open — фикс: вынести `compileModel` из `ir/` в `model/` или `core/`, где можно зависеть от Model. Или расширить `CompilableModel` для walk prototype. |
+| A22 | 🟡 | **IR/compile.ts imports Model — direction violation.** Контрактный слой IR зависит от конкретного класса `Model` (walk prototype chain). Зависимость должна быть `Model → IR`, не `IR → Model`. | ✅ Resolved (`e5c417d`, см. architecture.md A22): `compileModel` переехал в `model/compile.ts` (принимает конкретный `Model`, `CompilableModel` удалён, `ir/` без импортов Model); on-demand fallback-компиляция перенесена из `orm.ts` в `ModelRegistry`/`AppCore` — `orm.ts` зависит только от IR. |
 | A23 | 🟢 | **sql-pg/index.ts (461 строк) смешивает адаптеры и хелперы.** `PgAdapter`, `TransactionalPgAdapter`, `DebugSqlGenerator`, `buildInsertSql`, `unpackIncludes`, `finalizeRows` — всё в одном файле. | ✅ Fixed (`93c7ce6`): хелперы вынесены в `helpers.ts` (212 строк), index.ts — barrel + классы. Публичный API не изменился. |
 
 ### 3️⃣ Security
@@ -211,7 +211,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 - T5.7 ⬜ — **C17: Escape quotes in datetime defaults** — add `.replace(/'/g, "''")` in `renderDefault`.
 
 **Low (backlog):**
-- T5.8 ⬜ — **A22: Move `compileModel` out of `ir/`** to resolve IR→Model direction violation.
+- T5.8 ✅ — **A22: Move `compileModel` out of `ir/`** to resolve IR→Model direction violation.
 - T5.9 ✅ — **A23: Extract CRUD helpers** from `sql-pg/index.ts` into `helpers.ts`.
 - T5.10 ✅ — **P9: Pre-compute Map** in `unpackIncludeValue` outside row loop.
 - T5.11 ⬜ — **P10: BFS instead of O(n²)** for join ordering in `_buildFromJoins`.
