@@ -4,7 +4,7 @@
 > Updated 2026-09-05 — F1 resolved, F6 updated.
 > Updated 2026-09-07 — verified F1, F6 still resolved. F7 updated. F8 added.
 > Updated 2026-09-08 — F7 resolved via A1 (`b709ad1`).
-> Updated 2026-09-12 — F8 plan re-locked: variant B `{ agg, wf }`, base `FuncField`, Option A (adapter owns rendering). C1–C3 done.
+> Updated 2026-09-12 — F8 plan re-locked: variant B `{ agg, wf }`, base `FuncField`, Option A (adapter owns rendering). C1–C6 done (resolved).
 
 ---
 
@@ -14,7 +14,7 @@
 
 **Краткое описание:** Нет поддержки `OVER ()` — партиционирование, порядок, нумерация строк (`ROW_NUMBER`, `RANK`, `LAG`, `NTILE`...) и агрегатов по окну (`SUM(col) OVER (...)`).
 
-**Статус:** ⬜ Открыто. Агрегаты реализованы, но без `over()`. План зафиксирован, C1–C5 готово (AST + рендер + unit-тесты), осталась интеграция с реальным PG и доки (C6).
+**Статус:** ✅ Решено в `db7f6fe`…`621d880` (C1–C6). Оконные функции: `(t, { agg, wf })`, `agg.*.over()`, `wf.*` + OVER-рендер в sql-pg. Интеграция: 7 тестов (rank, row_number, lead, running total, frame).
 
 **Выбранный API (вариант B — деструктуризация `{ agg, wf }`):**
 ```typescript
@@ -70,7 +70,7 @@ select((u, { agg, wf }) => [
 - `packages/sql-types/src/index.ts` (`SelectItem`, `AggregateSelectable`, оконный вариант)
 - `packages/sql-pg/src/sql-generator.ts` (рендер select-листа)
 
-**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`), `d33a339`+`bc117fc` (C4/C5 — рендер окон в sql-pg: `WindowSelectable`, `_renderWindow`/`_renderOverClause`/`_renderFrameBound`, парам-аргументы `$N`; +10 sql-pg unit-тестов; коррекция: ORDER BY только для 4 рангов), `***` (C6 — интеграция с PG (7 тестов), `.asc/.desc` на `SelectableField`, доки: typing.md T6, AGENTS).
+**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`), `d33a339`+`bc117fc` (C4/C5 — рендер окон в sql-pg: `WindowSelectable`, `_renderWindow`/`_renderOverClause`/`_renderFrameBound`, парам-аргументы `$N`; +10 sql-pg unit-тестов; коррекция: ORDER BY только для 4 рангов), `621d880` (C6 — интеграция с PG (7 тестов), `.asc/.desc` на `SelectableField`, доки: typing.md T6, AGENTS).
 
 ---
 
