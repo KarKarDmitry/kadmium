@@ -71,5 +71,3 @@ export function toSnakeCase(name: string): string {
     .toLowerCase()
     .replace(/^_/, '');
 }
-
-export { compileModel } from './compile';

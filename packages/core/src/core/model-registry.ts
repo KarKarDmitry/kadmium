@@ -1,5 +1,5 @@
 import { Model, ModelClass } from '../model/index';
-import { compileModel } from '../ir/compile';
+import { compileModel } from '../model/compile';
 import type { ModelIR } from '../ir/index';
 import { notFound } from './errors';
 
@@ -37,6 +37,39 @@ export class ModelRegistry {
   /** Получить IR по классу модели */
   irOf(modelClass: ModelClass): ModelIR {
     return this.ir(modelClass.name);
+  }
+
+  /** Сколько раз IR компилировался on-demand (вне регистрации). */
+  public compileCount = 0;
+
+  /**
+   * IR по имени: из реестра, иначе класс из глобального реестра Model →
+   * компиляция на лету. Не добавляет IR в реестр AppCore.
+   */
+  irByName(name: string): ModelIR | undefined {
+    try {
+      return this.ir(name);
+    } catch {
+      // не в реестре — идём через on-demand компиляцию
+    }
+    const cls = this.resolveModelClass(name);
+    if (!cls) return undefined;
+    return this.compileIr(new cls());
+  }
+
+  /** IR по классу: из реестра, иначе компиляция на лету. */
+  irByClass(modelClass: ModelClass): ModelIR {
+    try {
+      return this.ir(modelClass.name);
+    } catch {
+      // не в реестре — идём через on-demand компиляцию
+    }
+    return this.compileIr(new modelClass());
+  }
+
+  private compileIr(model: Model): ModelIR {
+    this.compileCount++;
+    return compileModel(model);
   }
 
   /** Найти класс модели по имени (делегирует в глобальный реестр Model). */

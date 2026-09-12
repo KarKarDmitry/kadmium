@@ -1,29 +1,20 @@
-import { Model } from '../model/index';
-import type { ModelSchema, ModelRelation } from '../model/types/model';
-import type { ReferenceField } from '../model/types/ref';
-import type { ModelIR, FieldIR } from './index';
-import { toSnakeCase } from './index';
-
-/**
- * Structural contract for a compilable model.
- * ORM layer uses this instead of importing the concrete Model class.
- */
-export interface CompilableModel {
-  $build(): ModelSchema;
-  $refs(): ModelRelation[];
-}
+import { Model } from './index';
+import type { ModelSchema } from './types/model';
+import type { ReferenceField } from './types/ref';
+import type { ModelIR, FieldIR } from '../ir/index';
+import { toSnakeCase } from '../ir/index';
 
 /**
  * Компилирует модель в IR — единственный контракт для всех слоёв.
+ *
+ * Живёт в model-слое: это и есть стрелка Model → IR в архитектурной схеме.
+ * Слои выше (ORM, Validation, Forms, Codegen) читают уже готовый IR.
  *
  * Использование:
  *   const ir = compileModel(new Notes());
  *   orm.query(ir).where(...).go()
  */
-export function compileModel(
-  model: CompilableModel,
-  sourceFile?: string,
-): ModelIR {
+export function compileModel(model: Model, sourceFile?: string): ModelIR {
   const schema: ModelSchema = model.$build();
   const refs = model.$refs();
 
@@ -89,10 +80,11 @@ export function compileModel(
     };
   }
 
-  // Наследование: добавляем inverse refs от родителя
-  // Walk по цепочке прототипов требует конкретного класса Model —
-  // единственное место, где compile.ts остаётся завязан на Model.
-  const ParentCtor = Object.getPrototypeOf((model as Model).constructor) as
+  // Наследование: добавляем inverse refs от родителя.
+  // $refs() модели возвращает связи только на МОЁ имя класса; рефы,
+  // нацеленные на родителя, ребёнок не видит. Поэтому поднимаемся по
+  // цепочке прототипов на один уровень и докидываем refs родителя.
+  const ParentCtor = Object.getPrototypeOf(model.constructor) as
     typeof Model | undefined;
   if (ParentCtor && ParentCtor !== Model && typeof ParentCtor === 'function') {
     try {

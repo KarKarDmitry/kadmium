@@ -57,6 +57,24 @@ export class AppCore {
     return this.registry.irOf(modelClass);
   }
 
+  /**
+   * IR по имени: из реестра, иначе on-demand компиляция из глобального
+   * реестра Model. Возвращает undefined, если модели нет нигде.
+   */
+  irByName(name: string): ModelIR | undefined {
+    return this.registry.irByName(name);
+  }
+
+  /** IR по классу: из реестра, иначе on-demand компиляция. */
+  irByClass(modelClass: { new (): object }): ModelIR {
+    return this.registry.irByClass(modelClass as ModelClass);
+  }
+
+  /** Сколько раз IR компилировался on-demand (вне регистрации). */
+  get compileCount(): number {
+    return this.registry.compileCount;
+  }
+
   /** Найти класс модели по имени (делегирует в глобальный реестр Model). */
   resolveModelClass(name: string): ModelClass | undefined {
     return this.registry.resolveModelClass(name);

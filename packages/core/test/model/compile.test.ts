@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { compileModel } from '../../src/ir/compile';
+import { compileModel } from '../../src/model/compile';
 import { Model } from '../../src/model';
 import f from '../../src/model/fields';
 
@@ -251,6 +251,59 @@ describe('compileModel', () => {
       }
       const ir = compileModel(new M());
       expect(ir.fields.name.nullable).toBe(false);
+    });
+  });
+
+  describe('inheritance', () => {
+    it('child inherits inverse refs from parent via prototype walk', () => {
+      class Base extends Model {
+        name = f.string;
+      }
+      class Child extends Base {
+        extra = f.string;
+      }
+      class Comment extends Model {
+        target = f.ref.target(Base).manyToOne().inverse('comments');
+      }
+      Model.register(Base, Child, Comment);
+
+      const ir = compileModel(new Child());
+      expect(ir.fields.name).toBeDefined();
+      expect(ir.fields.extra).toBeDefined();
+      expect(ir.fields.comments).toBeDefined();
+      expect(ir.fields.comments.type).toBe('ref');
+      expect(ir.fields.comments.sourceModel).toBe('Comment');
+      expect(ir.fields.comments.ref).toBe('Comment');
+    });
+
+    it('does not overwrite inverse field already declared on child', () => {
+      class Base extends Model {
+        name = f.string;
+      }
+      class Child extends Base {
+        comments = f.string;
+      }
+      class Comment extends Model {
+        target = f.ref.target(Base).manyToOne().inverse('comments');
+      }
+      Model.register(Base, Child, Comment);
+
+      const ir = compileModel(new Child());
+      expect(ir.fields.comments.type).toBe('string');
+    });
+
+    it('skips non-instantiable parent silently', () => {
+      abstract class Base extends Model {
+        name = f.string;
+      }
+      class Child extends Base {
+        extra = f.string;
+      }
+      Model.register(Child);
+
+      const ir = compileModel(new Child());
+      expect(ir.fields.name).toBeDefined();
+      expect(ir.fields.extra).toBeDefined();
     });
   });
 });

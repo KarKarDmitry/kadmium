@@ -1,5 +1,3 @@
-import { compileModel } from '../ir/compile';
-import type { CompilableModel } from '../ir/compile';
 import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/multi';
 import type { ModelIR } from '../ir/index';
@@ -7,82 +5,44 @@ import type { AppCore } from '../core/app-core';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
 /**
- * Строит irLookup из всех IR, зарегистрированных в AppCore.
- * Кэш разделяется с OrmManager._irCache — единая точка хранения IR.
- */
-function buildIrLookup(
-  app: AppCore | undefined,
-  cache: Map<string, ModelIR | undefined>,
-): (name: string) => ModelIR | undefined {
-  return (name: string) => {
-    const cached = cache.get(name);
-    if (cached !== undefined || cache.has(name)) return cached;
-
-    if (app) {
-      try {
-        const ir = app.ir(name);
-        cache.set(name, ir);
-        return ir;
-      } catch {
-        // не найдено — продолжим
-      }
-    }
-
-    // Fallback: найти класс в реестре AppCore/Model и скомпилировать
-    const cls = app?.resolveModelClass(name);
-    if (!cls) {
-      cache.set(name, undefined);
-      return undefined;
-    }
-    const ir = compileModel(new cls() as unknown as CompilableModel);
-    cache.set(name, ir);
-    return ir;
-  };
-}
-
-/**
  * OrmManager — менеджер ORM-запросов, привязанный к AppCore.
  *
  * IR кешируется: модели компилируются один раз при регистрации в AppCore
  * (ModelRegistry), а `single()`/`query()` читают из реестра (O(1)) вместо
- * повторной компиляции на каждый запрос.
+ * повторной компиляции на каждый запрос. On-demand компиляция для моделей,
+ * которых нет в реестре AppCore, живёт в AppCore (ModelRegistry.compileCount).
  */
 export class OrmManager {
   private _irCache = new Map<string, ModelIR | undefined>();
-  private _irLookup: (name: string) => ModelIR | undefined;
+  private _irLookup = (name: string): ModelIR | undefined => {
+    const cached = this._irCache.get(name);
+    if (cached !== undefined || this._irCache.has(name)) return cached;
+    const ir = this.appCore.irByName(name);
+    this._irCache.set(name, ir);
+    return ir;
+  };
 
-  /** Сколько раз IR компилировался в горячем пути (не из кеша). */
-  public compileCount = 0;
+  /** Сколько раз IR компилировался on-demand (не из реестра AppCore). */
+  get compileCount(): number {
+    return this.appCore.compileCount;
+  }
 
   constructor(
     private appCore: AppCore,
     private _txAdapter?: SqlAdapter,
-  ) {
-    this._irLookup = buildIrLookup(this.appCore, this._irCache);
-  }
+  ) {}
 
   private get _adapter(): SqlAdapter | undefined {
     return this._txAdapter ?? this.appCore.sqlAdapter;
   }
 
   /** IR по классу модели: из реестра AppCore, иначе скомпилировать + закешировать. */
-  private _irFor<TModel>(modelClass: { new (): TModel }): ModelIR {
+  private _irFor(modelClass: { new (): object }): ModelIR {
     const name = modelClass.name;
     const cached = this._irCache.get(name);
     if (cached) return cached;
 
-    try {
-      const ir = this.appCore.ir(name);
-      this._irCache.set(name, ir);
-      return ir;
-    } catch {
-      // не в реестре — компилируем
-    }
-
-    this.compileCount++;
-    const ir = compileModel(
-      new (modelClass as unknown as new () => CompilableModel)(),
-    );
+    const ir = this.appCore.irByClass(modelClass);
     this._irCache.set(name, ir);
     return ir;
   }
