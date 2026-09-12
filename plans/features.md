@@ -41,7 +41,7 @@ select((u, { agg, wf }) => [
 - Смещение: `lag(col [, offset [, default]])`, `lead(col [, offset [, default]])` — offset/default — параметры
 - Значение: `first_value(col)`, `last_value(col)`, `nth_value(col, n)` (`n` — параметр)
 - Агрегат с окном: `agg.sum(col).over()` (→ `WindowField`), далее `.partitionBy/.orderBy`; + avg/min/max
-- Типы результата: ранги → `number`; доступ к строкам → `T | null`; оконные агрегаты → как сейчас (`number | null` и т.п.)
+- Типы результата: ранги → `number`; доступ к строкам → `lag/lead/nth_value → T | null` (смещённая строка может быть вне окна), `first/last_value → T` (NULL только если сама колонка nullable); оконные агрегаты → как сейчас (`number | null` и т.п.)
 - Фрейм v1: только `ROWS` (`rowsBetween(start, end)`, `FrameBound = number | 'unbounded' | 'current'`); `RANGE`/`GROUPS` — вне скоупа
 - Окно вешается цепочкой прямо на поле: `wf.rank().orderBy(p.views.desc)` → `OVER (ORDER BY ...)`; `.over()` только у `agg.*` (конверсия в оконный)
 

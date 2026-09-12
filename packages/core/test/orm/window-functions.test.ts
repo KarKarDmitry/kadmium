@@ -4,13 +4,14 @@ import { WindowField } from '../../src/orm/ast/window-field';
 import { WindowSpec } from '../../src/orm/ast/window-spec';
 import { AggregateField } from '../../src/orm/ast/aggregate';
 import { SelectableField } from '../../src/orm/ast/selectable';
+import type { OrderDirection } from '../../src/orm/types/proxy';
 
-function field(name: string): SelectableField {
-  return new SelectableField('u', name);
+function field(name: string): SelectableField<string> {
+  return new SelectableField<string, string>('u', name);
 }
 
-const orders = {
-  asc: [{ tableAlias: 'u', fieldName: 'x', direction: 'asc' as const }],
+const orders: { asc: readonly OrderDirection[] } = {
+  asc: [{ tableAlias: 'u', fieldName: 'x', direction: 'asc' }],
 };
 
 describe('window functions', () => {
@@ -21,7 +22,7 @@ describe('window functions', () => {
       ['dense_rank', windowFunctions.denseRank],
       ['percent_rank', windowFunctions.percentRank],
       ['cume_dist', windowFunctions.cumeDist],
-    ] as const) {
+    ] satisfies Array<[string, () => WindowField<number>]>) {
       const w = fn();
       expect(w).toBeInstanceOf(WindowField);
       expect(w.kind).toBe('window');
@@ -50,6 +51,20 @@ describe('window functions', () => {
     const w = windowFunctions.nthValue(field('amount'), 3);
     expect(w.func).toBe('nth_value');
     expect(w.args).toEqual([3]);
+  });
+
+  it('first/last_value are non-null, lag/lead/nth_value stay nullable', () => {
+    const f = field('amount');
+    const first: WindowField<string> = windowFunctions.firstValue(f);
+    const last: WindowField<string> = windowFunctions.lastValue(f);
+    const lag: WindowField<string | null> = windowFunctions.lag(f);
+    const nth: WindowField<string | null> = windowFunctions.nthValue(f, 2);
+    expect([first.func, last.func, lag.func, nth.func]).toEqual([
+      'first_value',
+      'last_value',
+      'lag',
+      'nth_value',
+    ]);
   });
 
   it('partitionBy/orderBy/rowsBetween build the spec immutably', () => {

@@ -29,10 +29,10 @@ export type WindowFunctions = {
   ) => WindowField<GetFieldType<F> | null>;
   firstValue: <F extends SelectableField<any, any, any>>(
     field: F,
-  ) => WindowField<GetFieldType<F> | null>;
+  ) => WindowField<GetFieldType<F>>;
   lastValue: <F extends SelectableField<any, any, any>>(
     field: F,
-  ) => WindowField<GetFieldType<F> | null>;
+  ) => WindowField<GetFieldType<F>>;
   nthValue: <F extends SelectableField<any, any, any>>(
     field: F,
     n: number,
@@ -77,9 +77,9 @@ export const windowFunctions: WindowFunctions = {
       lagLeadArgs(offset, defaultValue),
     ),
   firstValue: <F extends SelectableField<any, any, any>>(field: F) =>
-    new WindowField<GetFieldType<F> | null>('first_value', field),
+    new WindowField<GetFieldType<F>>('first_value', field),
   lastValue: <F extends SelectableField<any, any, any>>(field: F) =>
-    new WindowField<GetFieldType<F> | null>('last_value', field),
+    new WindowField<GetFieldType<F>>('last_value', field),
   nthValue: <F extends SelectableField<any, any, any>>(field: F, n: number) =>
     new WindowField<GetFieldType<F> | null>('nth_value', field, [n]),
 };
