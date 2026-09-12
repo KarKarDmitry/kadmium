@@ -625,6 +625,17 @@ export abstract class SqlGenerator {
           return this._renderAggregate(sel);
         }
         if (sel.kind === 'window') {
+          // PG: в GROUP BY-запросе окно может ссылаться только на групповые
+          // колонки или агрегаты — иначе 42803. Fail fast с понятной ошибкой.
+          if (
+            sqb.groupBy.length > 0 &&
+            sel.fieldName !== '*' &&
+            !sqb.groupBy.includes(sel.column ?? sel.fieldName)
+          ) {
+            throw new Error(
+              `WINDOW: ${(sel.func ?? '').toUpperCase()}() references "${sel.tableAlias}"."${sel.column ?? sel.fieldName}", which is not in GROUP BY`,
+            );
+          }
           return this._renderWindow(sel, values, paramIndex);
         }
         const col = sel.column ?? sel.fieldName;

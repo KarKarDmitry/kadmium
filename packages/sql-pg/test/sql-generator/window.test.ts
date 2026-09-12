@@ -75,7 +75,9 @@ describe('SqlGenerator — window functions', () => {
       ],
     });
     const { text } = gen.toSql(q);
-    expect(text).toContain('RANK() OVER (ORDER BY "u"."salary" DESC) AS "rank"');
+    expect(text).toContain(
+      'RANK() OVER (ORDER BY "u"."salary" DESC) AS "rank"',
+    );
   });
 
   it('windowed aggregate renders the DB column when the field is aliased', () => {
@@ -139,7 +141,12 @@ describe('SqlGenerator — window functions', () => {
   it('count(*) over empty window', () => {
     const q = sqb({
       selects: [
-        windowSel({ alias: 'cnt', func: 'count', aggregate: true, fieldName: '*' }),
+        windowSel({
+          alias: 'cnt',
+          func: 'count',
+          aggregate: true,
+          fieldName: '*',
+        }),
       ],
     });
     const { text } = gen.toSql(q);
@@ -165,7 +172,9 @@ describe('SqlGenerator — window functions', () => {
       ],
     });
     const { text, values } = gen.toSql(q);
-    expect(text).toContain('LAG("u"."price", $1, $2) OVER (ORDER BY "u"."created_at" ASC) AS "prev"');
+    expect(text).toContain(
+      'LAG("u"."price", $1, $2) OVER (ORDER BY "u"."created_at" ASC) AS "prev"',
+    );
     expect(values).toEqual([1, 0]);
   });
 
@@ -195,9 +204,7 @@ describe('SqlGenerator — window functions', () => {
       ],
     });
     const { text } = gen.toSql(q);
-    expect(text).toContain(
-      'ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW',
-    );
+    expect(text).toContain('ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW');
   });
 
   it('frames: numeric offsets (positive preceding, negative following)', () => {
@@ -225,5 +232,68 @@ describe('SqlGenerator — window functions', () => {
       selects: [windowSel({ alias: undefined, func: 'row_number' })],
     });
     expect(() => gen.toSql(q)).toThrow('Window function must have an alias');
+  });
+
+  it('grouped query: window over a grouped column is allowed', () => {
+    const q = sqb({
+      groupBy: ['id'],
+      selects: [
+        windowSel({
+          alias: 'total',
+          func: 'sum',
+          aggregate: true,
+          fieldName: 'id',
+        }),
+      ],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('SUM("u"."id") OVER () AS "total"');
+  });
+
+  it('grouped query: window counting all rows (count(*) over) is allowed', () => {
+    const q = sqb({
+      groupBy: ['author'],
+      selects: [
+        windowSel({
+          alias: 'n',
+          func: 'count',
+          aggregate: true,
+          fieldName: '*',
+        }),
+      ],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('COUNT(*) OVER () AS "n"');
+  });
+
+  it('grouped query: window on an ungrouped column fails fast', () => {
+    const q = sqb({
+      groupBy: ['author'],
+      selects: [
+        windowSel({
+          alias: 'byAuthor',
+          func: 'max',
+          aggregate: true,
+          fieldName: 'views',
+        }),
+      ],
+    });
+    expect(() => gen.toSql(q)).toThrow(/not in GROUP BY/);
+  });
+
+  it('grouped query: window arg (lag) on an ungrouped column fails fast', () => {
+    const q = sqb({
+      groupBy: ['author'],
+      selects: [
+        windowSel({
+          alias: 'prev',
+          func: 'lag',
+          fieldName: 'views',
+          args: [1],
+          over: { partitionBy: [], orderBy: [], frame: null },
+        }),
+      ],
+    });
+    expect(() => gen.toSql(q)).toThrow(/not in GROUP BY/);
   });
 });
