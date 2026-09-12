@@ -9,9 +9,19 @@ import type {
   WhereExpression,
   SelectItem,
   AggregateSelectable,
+  WindowSelectable,
+  WindowFrameBound,
   IncludedRelation,
 } from '@karkardmitry/kadmium-sql-types';
 import { assertSqlIdentifier } from './ddl-validate';
+
+/** Ранги требуют ORDER BY (PG: ошибка без него) — остальные окна допустимы с OVER (). */
+const WINDOW_RANK_FUNCTIONS = new Set([
+  'rank',
+  'dense_rank',
+  'percent_rank',
+  'cume_dist',
+]);
 
 /** Ссылка на поле (для field-to-field сравнений) */
 interface SqlIdentifierRef {
@@ -221,11 +231,15 @@ export abstract class SqlGenerator {
     alias: string,
     selects: readonly SelectItem[] | null,
     targetFields: { name: string; column: string }[],
+    values: unknown[],
+    paramIndex: { p: number },
   ): string {
     if (selects && selects.length > 0) {
       return selects
         .map((sel) => {
           if (sel.kind === 'aggregate') return this._renderAggregate(sel);
+          if (sel.kind === 'window')
+            return this._renderWindow(sel, values, paramIndex);
           const col = sel.column ?? sel.fieldName;
           return `"${alias}"."${col}" AS "${sel.alias || sel.fieldName}"`;
         })
@@ -299,6 +313,8 @@ export abstract class SqlGenerator {
           name,
           column: f.alias ?? name,
         })),
+      values,
+      paramIndex,
     );
     let innerFrom = `FROM "${collectionName}" AS "${alias}"`;
     for (const nested of relatedSqb.includes) {
@@ -433,7 +449,12 @@ export abstract class SqlGenerator {
     const mainTableAlias = this._mainTableAlias(sqb);
 
     // SELECT clause: поля/агрегаты + INCLUDE laterals как доп. select-item-ы
-    let selectClause = this._buildSelectFields(sqb, mainTableAlias);
+    let selectClause = this._buildSelectFields(
+      sqb,
+      mainTableAlias,
+      values,
+      paramIndex,
+    );
     const includes = this._buildIncludesClauses(
       sqb,
       mainTableAlias,
@@ -491,17 +512,104 @@ export abstract class SqlGenerator {
     return `${(sel.func ?? '').toUpperCase()}(${inner}) AS "${sel.alias}"`;
   }
 
-  /** Рендер SELECT-элемента для RETURNING (поле/агрегат). */
-  private _renderSelectItem(sel: SelectItem): string {
+  /** Граница фрейма ROWS: START 'unbounded' → UNBOUNDED PRECEDING, END → FOLLOWING. */
+  private _renderFrameBound(
+    bound: WindowFrameBound,
+    position: 'start' | 'end',
+  ): string {
+    if (bound === 'current') return 'CURRENT ROW';
+    if (bound === 'unbounded')
+      return position === 'start'
+        ? 'UNBOUNDED PRECEDING'
+        : 'UNBOUNDED FOLLOWING';
+    return `${Math.abs(bound)} ${bound < 0 ? 'FOLLOWING' : 'PRECEDING'}`;
+  }
+
+  /** OVER (PARTITION BY ... ORDER BY ... ROWS BETWEEN ...); пустое окно → OVER (). */
+  private _renderOverClause(over: WindowSelectable['over']): string {
+    if (!over) return 'OVER ()';
+    const parts: string[] = [];
+    if (over.partitionBy.length > 0) {
+      parts.push(
+        `PARTITION BY ${over.partitionBy
+          .map((p) => `"${p.tableAlias}"."${p.column ?? p.fieldName}"`)
+          .join(', ')}`,
+      );
+    }
+    if (over.orderBy.length > 0) {
+      parts.push(
+        `ORDER BY ${over.orderBy
+          .map(
+            (o) =>
+              `"${o.tableAlias}"."${o.column ?? o.fieldName}" ${o.direction.toUpperCase()}`,
+          )
+          .join(', ')}`,
+      );
+    }
+    if (over.frame) {
+      parts.push(
+        `ROWS BETWEEN ${this._renderFrameBound(over.frame[0], 'start')} AND ${this._renderFrameBound(over.frame[1], 'end')}`,
+      );
+    }
+    return parts.length > 0 ? `OVER (${parts.join(' ')})` : 'OVER ()';
+  }
+
+  /** Рендер оконной функции: FUNC(field, $N…) OVER (...) AS "alias". */
+  private _renderWindow(
+    sel: WindowSelectable,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): string {
+    if (!sel.alias) throw new Error('Window function must have an alias');
+    // PG: rank-семейство требует ORDER BY в окне — fail fast при рендере.
+    if (
+      sel.func &&
+      WINDOW_RANK_FUNCTIONS.has(sel.func) &&
+      (!sel.over || sel.over.orderBy.length === 0)
+    ) {
+      throw new Error(
+        `${sel.func.toUpperCase()}() requires ORDER BY in the window`,
+      );
+    }
+    const args: string[] = [];
+    if (sel.aggregate) {
+      const inner =
+        sel.fieldName === '*' ? '*' : `"${sel.tableAlias}"."${sel.fieldName}"`;
+      args.push(inner);
+    } else if (sel.fieldName !== '*' && sel.fieldName !== '') {
+      // Функции без поля (row_number, rank, ntile) не имеют field.
+      args.push(`"${sel.tableAlias}"."${sel.fieldName}"`);
+    }
+    for (const arg of sel.args ?? []) {
+      values.push(arg);
+      args.push(`$${paramIndex.p++}`);
+    }
+    const body = `${(sel.func ?? '').toUpperCase()}(${args.join(', ')})`;
+    return `${body} ${this._renderOverClause(sel.over)} AS "${sel.alias}"`;
+  }
+
+  /** Рендер SELECT-элемента для RETURNING (поле/агрегат/оконная функция). */
+  private _renderSelectItem(
+    sel: SelectItem,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): string {
     if (sel.kind === 'aggregate') return this._renderAggregate(sel);
+    if (sel.kind === 'window')
+      return this._renderWindow(sel, values, paramIndex);
     const col = sel.column ?? sel.fieldName;
     return sel.alias
       ? `"${sel.tableAlias}"."${col}" AS "${sel.alias}"`
       : `"${sel.tableAlias}"."${col}"`;
   }
 
-  /** SELECT-лист: поля/агрегаты из sqb.selects, иначе `"alias".*`. */
-  private _buildSelectFields(sqb: ReadonlySqb, mainTableAlias: string): string {
+  /** SELECT-лист: поля/агрегаты/окна из sqb.selects, иначе `"alias".*`. */
+  private _buildSelectFields(
+    sqb: ReadonlySqb,
+    mainTableAlias: string,
+    values: unknown[],
+    paramIndex: { p: number },
+  ): string {
     if (!sqb.selects || sqb.selects.length === 0) {
       return `"${mainTableAlias}".*`;
     }
@@ -511,6 +619,9 @@ export abstract class SqlGenerator {
         // AggregateField (count/sum/avg/min/max)
         if (sel.kind === 'aggregate') {
           return this._renderAggregate(sel);
+        }
+        if (sel.kind === 'window') {
+          return this._renderWindow(sel, values, paramIndex);
         }
         const col = sel.column ?? sel.fieldName;
         const id = sel.tableAlias ? `"${sel.tableAlias}"."${col}"` : `"${col}"`;
@@ -728,7 +839,9 @@ export abstract class SqlGenerator {
 
     const returningClause =
       sqb.selects && sqb.selects.length > 0
-        ? sqb.selects.map((sel) => this._renderSelectItem(sel)).join(', ')
+        ? sqb.selects
+            .map((sel) => this._renderSelectItem(sel, values, paramIndex))
+            .join(', ')
         : '*';
 
     return {
@@ -803,7 +916,9 @@ export abstract class SqlGenerator {
 
     const returningClause =
       sqb.selects && sqb.selects.length > 0
-        ? sqb.selects.map((sel) => this._renderSelectItem(sel)).join(', ')
+        ? sqb.selects
+            .map((sel) => this._renderSelectItem(sel, values, paramIndex))
+            .join(', ')
         : '*';
 
     return {

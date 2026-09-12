@@ -46,8 +46,40 @@ export interface AggregateSelectable {
   readonly func?: string;
 }
 
-/** Элемент SELECT: обычное поле или агрегат. SQL рендерит адаптер из структуры. */
-export type SelectItem = SelectableField | AggregateSelectable;
+/** Граница фрейма ROWS (число — смещение строк: 1→PRECEDING, -2→FOLLOWING). */
+export type WindowFrameBound = number | 'unbounded' | 'current';
+
+export interface WindowSelectable {
+  readonly kind: 'window';
+  readonly tableAlias: string;
+  readonly fieldName: string;
+  readonly alias?: string;
+  /** Функция окна: row_number | rank | ... | lag | lead | ntile | count (оконный агрегат) */
+  readonly func?: string;
+  /** true — оконный агрегат: тело рендерится как агрегат, хвост — OVER */
+  readonly aggregate?: boolean;
+  /** Параметры-аргументы (ntile(n), lag offset/default, nth_value(n)) */
+  readonly args?: readonly (number | string | boolean | null)[];
+  /** Спецификация окна: OVER (...); пустая → OVER () */
+  readonly over?: {
+    readonly partitionBy: readonly {
+      tableAlias: string;
+      fieldName: string;
+      column?: string;
+    }[];
+    readonly orderBy: readonly {
+      tableAlias: string;
+      fieldName: string;
+      column?: string;
+      direction: 'asc' | 'desc';
+    }[];
+    readonly frame: readonly [WindowFrameBound, WindowFrameBound] | null;
+  };
+}
+
+/** Элемент SELECT: поле, агрегат или оконная функция. SQL рендерит адаптер из структуры. */
+export type SelectItem =
+  SelectableField | AggregateSelectable | WindowSelectable;
 
 export interface JoinOptions {
   left: string;

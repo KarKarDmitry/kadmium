@@ -2,9 +2,10 @@ import type { WhereCondition, WhereGroup } from './ast/where';
 import { createWhereGroup } from './ast/where';
 import type { SelectableField } from './ast/selectable';
 import { AggregateField } from './ast/aggregate';
+import type { WindowField } from './ast/window-field';
 
-/** Поле в SELECT: обычное или агрегатное (оконные появятся с F8) */
-export type AnySelectableField = SelectableField | AggregateField;
+/** Поле в SELECT: обычное, агрегатное или оконная функция (F8). */
+export type AnySelectableField = SelectableField | AggregateField | WindowField;
 import type { ModelIR } from '../ir/index';
 
 /** Тип связи для include */

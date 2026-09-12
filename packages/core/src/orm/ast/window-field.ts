@@ -38,19 +38,12 @@ export type WindowFuncName =
 /** Аргумент-параметр оконной функции (ntile(n), lag offset/default, nth_value(n)) */
 export type WindowArg = number | string | boolean | null;
 
-/** Функции, требующие ORDER BY внутри окна (PG: иначе ошибка выполнения) */
+/** Ранги требуют ORDER BY внутри окна (PG: иначе ошибка выполнения). */
 const REQUIRES_ORDER_BY = new Set<WindowFuncName>([
-  'row_number',
   'rank',
   'dense_rank',
   'percent_rank',
   'cume_dist',
-  'ntile',
-  'lag',
-  'lead',
-  'first_value',
-  'last_value',
-  'nth_value',
 ]);
 
 export class WindowField<TResult = unknown> extends FuncField<TResult> {

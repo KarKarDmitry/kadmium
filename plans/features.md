@@ -14,7 +14,7 @@
 
 **Краткое описание:** Нет поддержки `OVER ()` — партиционирование, порядок, нумерация строк (`ROW_NUMBER`, `RANK`, `LAG`, `NTILE`...) и агрегатов по окну (`SUM(col) OVER (...)`).
 
-**Статус:** ⬜ Открыто. Агрегаты реализованы, но без `over()`. План зафиксирован, C1–C3 готово (AST окон), остался рендер (C4) и тесты/доки (C5–C6).
+**Статус:** ⬜ Открыто. Агрегаты реализованы, но без `over()`. План зафиксирован, C1–C5 готово (AST + рендер + unit-тесты), осталась интеграция с реальным PG и доки (C6).
 
 **Выбранный API (вариант B — деструктуризация `{ agg, wf }`):**
 ```typescript
@@ -57,7 +57,8 @@ select((u, { agg, wf }) => [
 - C1: рендер агрегатов → адаптер (227/492/710/785), `toSql` из контракта, зелёный бейзлайн
 - C2: базовый `FuncField` + entry-point `(t, { agg, wf })` (select/first/multi.select; returning — `{ agg }`), миграция having.test.ts, обобщение `GetFieldType`/`GetFieldName`/`AnySelectable`/`FinalResult`. **Важный фикс:** `GetFieldType` переписан на phantom indexed access `S['~result']` вместо `FuncField<infer T>` — на intersection `AggregateField<number> & {alias:'cnt'}`TS объединяет кандидатов infer'а в `number | unknown = unknown`, indexed access надёжен.
 - C3: AST окон — `func-field.field` допускает `null` (функции без поля), `WindowFunctions` (`wf`), `WindowSpec` — чистые данные (partitionBy/orderBy/frame), фрейм-гвард (ненулевые целые), `AggregateField.over()` → `WindowField` (`aggregate=true`), `SelectTools = { agg, wf }`, `ReturningTools = { agg }` (без wf — PG запрещает окна в RETURNING). `validate()` вызывается адаптером при рендере. API: `wf.rank().orderBy(...)`, `agg.sum(x).over().partitionBy(...)`
-- C4: рендер окон в sql-pg (492/227) с OVER и парам-аргументами; HAVING-гвард исключает оконные из aggAliases (kind='window' — уже исключён автоматически)
+- C4: рендер окон в sql-pg — `WindowSelectable` в sql-types-контракте, `AnySelectableField` включает `WindowField`, `_renderWindow` (тело + `$N` парам-аргументы через `values.push`) + `_renderOverClause`/`_renderFrameBound`, validation при рендере. **Важная коррекция:** ORDER BY требуют ТОЛЬКО 4 ранга (`rank/dense_rank/percent_rank/cume_dist`) — `row_number() OVER ()` валиден, `ntile/lag/lead/first/last/nth` тоже. HAVING-гвард не нужен: kind='window' не попадает в aggAliases автоматически.
+- C5: unit-тесты sql-pg рендера (OVER, `$N`, фреймы, throw) + core-коррекция validate()
 - C5: unit-тесты core + sql-pg (рендер с `$N`, фреймы)
 - C6: интеграция (docker PG) + доки (typing.md, AGENTS, README)
 
@@ -69,7 +70,7 @@ select((u, { agg, wf }) => [
 - `packages/sql-types/src/index.ts` (`SelectItem`, `AggregateSelectable`, оконный вариант)
 - `packages/sql-pg/src/sql-generator.ts` (рендер select-листа)
 
-**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`; +10 core unit-тестов).
+**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`; +10 core unit-тестов), `***` (C4/C5 — рендер окон в sql-pg: `WindowSelectable`, `_renderWindow`/`_renderOverClause`/`_renderFrameBound`, парам-аргументы `$N`; +10 sql-pg unit-тестов; коррекция: ORDER BY только для 4 рангов).
 
 ---
 
