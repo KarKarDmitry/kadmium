@@ -94,8 +94,10 @@ Runtime `Proxy` objects provide type-safe field access:
 - **`WhereCondition`** — `{ alias, field, column, op, value }`
 - **`WhereStep`** — `{ join: 'AND'|'OR', condition: Condition | Group }`
 - **`WhereGroup`** — `{ elements: WhereStep[] }`; `WhereExpression = Condition | Group`
-- **`SelectableField`** — SELECT field with phantom types
-- **`AggregateField`** — COUNT/SUM/AVG/MIN/MAX
+- **`SelectableField`** — SELECT field with phantom types; `.asc/.desc` → `OrderDirection`
+- **`FuncField`** — base for aggregates/window functions; phantom `'~result'` for type inference
+- **`AggregateField`** — COUNT/SUM/AVG/MIN/MAX; `.over()` → `WindowField`
+- **`WindowField`** — `OVER (...)` functions; `.partitionBy/.orderBy/.rowsBetween`, `.validate()`
 
 ### SQB (`sqb.ts`)
 

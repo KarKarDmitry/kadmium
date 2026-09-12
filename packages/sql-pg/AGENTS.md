@@ -39,6 +39,7 @@ PostgreSQL-specific:
 - **`$1`, `$2`...** — parameterized queries
 - **`RETURNING *`** — on UPDATE/DELETE
 - **`COALESCE(json_agg(subq), '[]'::json)`** — empty array for one-to-many
+- **Window functions** — `_renderWindow` renders `FUNC(field, $N…) OVER (PARTITION BY … ORDER BY … ROWS BETWEEN …)`, args → `values.push`; rank-family requires ORDER BY (enforced at render)
 
 ## Include System
 

@@ -138,6 +138,8 @@ as(alias: string): SelectableField<...> {
 1. Сделать `AggregateField.as()` возвращающим новый инстанс (consistency).
 2. Задокументировать асимметрию в AGENTS.md.
 
+**Статус:** ✅ Решено в `6e17165` (F8 C2) — `AggregateField.as()` возвращает новый инстанс (копия + alias), как и `SelectableField.as()`. Новый базовый `FuncField` сохраняет единый контракт; `FieldWindow.as()` тоже возвращает копию. `_cloneSelects` остаётся shallow-copy: все select-item'ы иммьютабельны после materialization.
+
 **Связанные файлы:**
 - `packages/core/src/orm/ast/aggregate.ts:26-29`
 - `packages/core/src/orm/ast/selectable.ts:23-33`

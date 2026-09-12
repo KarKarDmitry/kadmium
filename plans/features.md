@@ -29,8 +29,8 @@ select((u, { agg, wf }) => [
   wf.ntile(4).as('quartile'),
 ])
 // оконные функции и агрегаты дают ОДНО скалярное значение на строку результата
-// `.over()` — только у агрегатов (превращение в оконный); у wf.* окно подразумевается.
-// partitionBy/orderBy/rowsBetween чейнятся прямо на поле, им опционально предшествует `.over()`.
+// `.over()` — только у агрегатов (конверсия в оконный); у wf.* окно уже подразумевается.
+// partitionBy/orderBy/rowsBetween чейнятся прямо на поле; orderBy принимает p.field.desc/.asc.
 ```
 
 **Обоснование варианта B:** lib 0.1.0 (pre-1.0), миграция = 6 строк теста (`test-project/test/orm/having.test.ts`). Единый объект тулзов оставляет место для будущих расширений (операторы, json...), без затычек вроде `(t, _aggs, wf)`. Оконные в `returning()` **не добавляются** — Postgres запрещает оконные функции в `RETURNING` (`returning` получает только `{ agg }`).
@@ -43,7 +43,7 @@ select((u, { agg, wf }) => [
 - Агрегат с окном: `agg.sum(col).over()` (→ `WindowField`), далее `.partitionBy/.orderBy`; + avg/min/max
 - Типы результата: ранги → `number`; доступ к строкам → `T | null`; оконные агрегаты → как сейчас (`number | null` и т.п.)
 - Фрейм v1: только `ROWS` (`rowsBetween(start, end)`, `FrameBound = number | 'unbounded' | 'current'`); `RANGE`/`GROUPS` — вне скоупа
-- Окно вешается цепочкой прямо на поле: `wf.rank().orderBy(u.amount.desc)` → `OVER (ORDER BY ...)`; `.over()` на wf.* опционален (маркер), у `agg.*` обязателен (конверсия)
+- Окно вешается цепочкой прямо на поле: `wf.rank().orderBy(p.views.desc)` → `OVER (ORDER BY ...)`; `.over()` только у `agg.*` (конверсия в оконный)
 
 **Архитектура (Option A — рендером занимается адаптер):**
 - Core AST — **только данные**, по аналогии `WhereCondition { op, value }`: базовый `FuncField` (kind, func, field, argValues?, over?, alias); `AggregateField`/`WindowField` наследуют
@@ -60,7 +60,7 @@ select((u, { agg, wf }) => [
 - C4: рендер окон в sql-pg — `WindowSelectable` в sql-types-контракте, `AnySelectableField` включает `WindowField`, `_renderWindow` (тело + `$N` парам-аргументы через `values.push`) + `_renderOverClause`/`_renderFrameBound`, validation при рендере. **Важная коррекция:** ORDER BY требуют ТОЛЬКО 4 ранга (`rank/dense_rank/percent_rank/cume_dist`) — `row_number() OVER ()` валиден, `ntile/lag/lead/first/last/nth` тоже. HAVING-гвард не нужен: kind='window' не попадает в aggAliases автоматически.
 - C5: unit-тесты sql-pg рендера (OVER, `$N`, фреймы, throw) + core-коррекция validate()
 - C5: unit-тесты core + sql-pg (рендер с `$N`, фреймы)
-- C6: интеграция (docker PG) + доки (typing.md, AGENTS, README)
+- C6: интеграция (docker PG) + доки (typing.md, AGENTS, README). `.asc/.desc` добавлены на `SelectableField` — ORDER BY-направления доступны прямо из select-прокси для `.orderBy()` окон.
 
 **Связанные файлы:**
 - `packages/core/src/orm/field-builders/aggregates.ts`
@@ -70,7 +70,7 @@ select((u, { agg, wf }) => [
 - `packages/sql-types/src/index.ts` (`SelectItem`, `AggregateSelectable`, оконный вариант)
 - `packages/sql-pg/src/sql-generator.ts` (рендер select-листа)
 
-**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`; +10 core unit-тестов), `d33a339`+`bc117fc` (C4/C5 — рендер окон в sql-pg: `WindowSelectable`, `_renderWindow`/`_renderOverClause`/`_renderFrameBound`, парам-аргументы `$N`; +10 sql-pg unit-тестов; коррекция: ORDER BY только для 4 рангов).
+**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`), `d33a339`+`bc117fc` (C4/C5 — рендер окон в sql-pg: `WindowSelectable`, `_renderWindow`/`_renderOverClause`/`_renderFrameBound`, парам-аргументы `$N`; +10 sql-pg unit-тестов; коррекция: ORDER BY только для 4 рангов), `***` (C6 — интеграция с PG (7 тестов), `.asc/.desc` на `SelectableField`, доки: typing.md T6, AGENTS).
 
 ---
 
