@@ -22,7 +22,9 @@ export abstract class FuncField<TResult = unknown> {
      * null — функции без поля (row_number, rank, ...); окна кладут его в WindowField.
      */
     public readonly field:
-      { tableAlias: string; fieldName: string } | '*' | null = null,
+      | { tableAlias: string; fieldName: string; column?: string }
+      | '*'
+      | null = null,
   ) {}
 
   /** Совместимость с SelectItem интерфейсом из sql-types */
@@ -35,6 +37,12 @@ export abstract class FuncField<TResult = unknown> {
     return this.field === '*' || this.field === null
       ? '*'
       : this.field.fieldName;
+  }
+  /** Имя колонки в БД (FieldIR.alias ?? fieldName) — для selectable со alias. */
+  get column(): string | undefined {
+    return this.field === '*' || this.field === null
+      ? undefined
+      : this.field.column;
   }
 
   /** Переименовать функцию в SELECT (возвращает новый инстанс) */

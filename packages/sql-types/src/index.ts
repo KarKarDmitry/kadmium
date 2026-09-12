@@ -41,6 +41,8 @@ export interface AggregateSelectable {
   readonly kind: 'aggregate';
   readonly tableAlias: string;
   readonly fieldName: string;
+  /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
+  readonly column?: string;
   readonly alias?: string;
   /** Агрегатная функция: count | sum | avg | min | max */
   readonly func?: string;
@@ -53,6 +55,8 @@ export interface WindowSelectable {
   readonly kind: 'window';
   readonly tableAlias: string;
   readonly fieldName: string;
+  /** Имя колонки в БД (FieldIR.alias ?? fieldName) */
+  readonly column?: string;
   readonly alias?: string;
   /** Функция окна: row_number | rank | ... | lag | lead | ntile | count (оконный агрегат) */
   readonly func?: string;

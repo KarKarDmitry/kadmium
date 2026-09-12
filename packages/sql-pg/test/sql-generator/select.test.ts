@@ -121,6 +121,24 @@ describe('SqlGenerator — toSql: select', () => {
     expect(text).toContain('COUNT(*) AS "total"');
   });
 
+  it('aggregate renders the DB column when the field is aliased', () => {
+    const q = sqb({
+      selects: [
+        {
+          kind: 'aggregate',
+          tableAlias: 'u',
+          fieldName: 'isFlagged',
+          column: 'is_flagged',
+          alias: 'cnt',
+          func: 'count',
+        } as AggregateSelectable,
+      ],
+    });
+    const { text, values } = gen.toSql(q);
+    expect(text).toContain('COUNT("u"."is_flagged") AS "cnt"');
+    expect(values).toEqual([]);
+  });
+
   it('aggregate without alias throws', () => {
     const q = sqb({
       selects: [

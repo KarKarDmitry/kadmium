@@ -98,4 +98,39 @@ describe('alias(): property name vs DB column name', () => {
       .go();
     expect(Array.isArray(rows)).toBe(true);
   });
+
+  it('aggregate over an aliased column uses the DB column name', async () => {
+    const rows = await h.orm
+      .single(CommentModel)
+      .select((c, { agg }) => [agg.count(c.flagged).as('flaggedCount')])
+      .go();
+    expect(rows.length).toBe(1);
+    expect(rows[0].flaggedCount).toBe(8);
+  });
+
+  it('window aggregate over an aliased column uses the DB column name', async () => {
+    const [row] = await h.orm
+      .single(CommentModel)
+      .order((c) => [c.id.asc])
+      .where((c) => c.flagged.eq(true))
+      .select((c, { agg }) => [
+        c.text,
+        c.flagged,
+        agg.count(c.flagged).over().orderBy(c.id.asc).as('running'),
+      ])
+      .go();
+    expect(row.running).toBe(1);
+  });
+
+  it('first_value over an aliased column uses the DB column name', async () => {
+    const [row] = await h.orm
+      .single(CommentModel)
+      .order((c) => [c.id.asc])
+      .select((c, { wf }) => [
+        c.text,
+        wf.firstValue(c.flagged).orderBy(c.id.asc).as('firstFlagged'),
+      ])
+      .go();
+    expect(typeof row.firstFlagged).toBe('boolean');
+  });
 });

@@ -78,6 +78,35 @@ describe('SqlGenerator — window functions', () => {
     expect(text).toContain('RANK() OVER (ORDER BY "u"."salary" DESC) AS "rank"');
   });
 
+  it('windowed aggregate renders the DB column when the field is aliased', () => {
+    const q = sqb({
+      selects: [
+        windowSel({
+          fieldName: 'isFlagged',
+          column: 'is_flagged',
+          func: 'count',
+          aggregate: true,
+        }),
+      ],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('COUNT("u"."is_flagged") OVER () AS "w"');
+  });
+
+  it('first_value over an aliased column renders the DB column', () => {
+    const q = sqb({
+      selects: [
+        windowSel({
+          fieldName: 'isFlagged',
+          column: 'is_flagged',
+          func: 'first_value',
+        }),
+      ],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('FIRST_VALUE("u"."is_flagged") OVER () AS "w"');
+  });
+
   it('rank without ORDER BY throws', () => {
     const q = sqb({
       selects: [windowSel({ alias: 'rank', func: 'rank' })],

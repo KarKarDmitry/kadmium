@@ -58,7 +58,10 @@ export class WindowField<TResult = unknown> extends FuncField<TResult> {
 
   constructor(
     func: WindowFuncName,
-    field: { tableAlias: string; fieldName: string } | '*' | null = null,
+    field:
+      | { tableAlias: string; fieldName: string; column?: string }
+      | '*'
+      | null = null,
     args: readonly WindowArg[] = [],
     aggregate = false,
     over: WindowSpec = new WindowSpec(),

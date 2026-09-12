@@ -508,7 +508,9 @@ export abstract class SqlGenerator {
   private _renderAggregate(sel: AggregateSelectable): string {
     if (!sel.alias) throw new Error('Aggregate must have an alias');
     const inner =
-      sel.fieldName === '*' ? '*' : `"${sel.tableAlias}"."${sel.fieldName}"`;
+      sel.fieldName === '*'
+        ? '*'
+        : `"${sel.tableAlias}"."${sel.column ?? sel.fieldName}"`;
     return `${(sel.func ?? '').toUpperCase()}(${inner}) AS "${sel.alias}"`;
   }
 
@@ -574,11 +576,13 @@ export abstract class SqlGenerator {
     const args: string[] = [];
     if (sel.aggregate) {
       const inner =
-        sel.fieldName === '*' ? '*' : `"${sel.tableAlias}"."${sel.fieldName}"`;
+        sel.fieldName === '*'
+          ? '*'
+          : `"${sel.tableAlias}"."${sel.column ?? sel.fieldName}"`;
       args.push(inner);
     } else if (sel.fieldName !== '*' && sel.fieldName !== '') {
       // Функции без поля (row_number, rank, ntile) не имеют field.
-      args.push(`"${sel.tableAlias}"."${sel.fieldName}"`);
+      args.push(`"${sel.tableAlias}"."${sel.column ?? sel.fieldName}"`);
     }
     for (const arg of sel.args ?? []) {
       values.push(arg);
