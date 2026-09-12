@@ -2,10 +2,10 @@ import { BaseFilter } from './base-filter';
 import type { WhereCondition } from '../ast/where';
 
 export class StringFilter extends BaseFilter {
-  eq(val: string | BaseFilter): WhereCondition {
+  eq(val: string | BaseFilter | null): WhereCondition {
     return this._eq(val);
   }
-  neq(val: string | BaseFilter): WhereCondition {
+  neq(val: string | BaseFilter | null): WhereCondition {
     return this._neq(val);
   }
   gt(val: string | BaseFilter): WhereCondition {
@@ -47,10 +47,10 @@ export class StringFilter extends BaseFilter {
 }
 
 export class NumberFilter extends BaseFilter {
-  eq(val: number | BaseFilter): WhereCondition {
+  eq(val: number | BaseFilter | null): WhereCondition {
     return this._eq(val);
   }
-  neq(val: number | BaseFilter): WhereCondition {
+  neq(val: number | BaseFilter | null): WhereCondition {
     return this._neq(val);
   }
   gt(val: number | BaseFilter): WhereCondition {
@@ -74,10 +74,10 @@ export class NumberFilter extends BaseFilter {
 }
 
 export class BooleanFilter extends BaseFilter {
-  eq(val: boolean | BaseFilter): WhereCondition {
+  eq(val: boolean | BaseFilter | null): WhereCondition {
     return this._eq(val);
   }
-  neq(val: boolean | BaseFilter): WhereCondition {
+  neq(val: boolean | BaseFilter | null): WhereCondition {
     return this._neq(val);
   }
   true(): WhereCondition {
@@ -89,10 +89,10 @@ export class BooleanFilter extends BaseFilter {
 }
 
 export class DateFilter extends BaseFilter {
-  eq(val: Date | BaseFilter): WhereCondition {
+  eq(val: Date | BaseFilter | null): WhereCondition {
     return this._eq(val);
   }
-  neq(val: Date | BaseFilter): WhereCondition {
+  neq(val: Date | BaseFilter | null): WhereCondition {
     return this._neq(val);
   }
   after(val: Date): WhereCondition {
