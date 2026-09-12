@@ -11,7 +11,21 @@ export type ModelClass = typeof Model;
 export const MODEL_MARKER = Symbol.for('kadmium:model');
 
 export class Model {
-  /** Реестр моделей для разрешения связей */
+  /**
+   * Глобальный реестр моделей для разрешения связей (target classes, inverse refs).
+   *
+   * Это **shared mutable state на весь процесс**: любой `Model.register()` в одном
+   * месте виден отовсюду. Наложение разных наборов моделей в одном процессе
+   * (тесты, HMR, несколько приложений) интерферирует через этот реестр.
+   *
+   * Правила:
+   * - тесты и HMR очищают реестр через `Model.clear()` (оставит незарегистрированными
+   *   ссылки, пока не вызван `register()` снова);
+   * - multi-tenant с разными схемами моделей — изоляция per-process или scoped
+   *   registry (отдельная инфраструктура реестра, вне текущей реализации);
+   * - не полагаться на очерёдность регистрации — `$refs()`/`$build()` читают
+   *   реестр на момент вызова.
+   */
   private static registry = new Map<string, ModelClass>();
   /** Маркер для isModelClass() — без инстанцирования */
   static readonly [MODEL_MARKER] = true;

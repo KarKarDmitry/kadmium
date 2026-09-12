@@ -25,7 +25,7 @@ src/
 
 ## Layer 1: Model (`model/`)
 
-**`Model`** — base class with static registry.
+**`Model`** — base class with **process-global static registry** (`Model.register/Model.resolve/Model.clear`). This is shared mutable state: registering models affects the whole process. Tests and HMR must call `Model.clear()`; multi-tenant/schema-isolation requires per-process isolation or a scoped registry. Never rely on registration order.
 
 ```typescript
 class User extends Model {

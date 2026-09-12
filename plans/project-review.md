@@ -15,6 +15,7 @@
 > Updated 2026-09-11 — docs sync: A12-A20 rows & T2.5/T3.6/T3.9/TG6 refreshed to landings (A13-A21, help_source removed, built declarations shipped in `40c71a2`). Everything below is closed except C10 (deferred), H1/H2/H4 and features (F2/F8, G1). Architecture debt is fully closed.
 > Updated 2026-09-11 - code landings: P5 computeDiff done (`8e727d4`): batched introspection `inspectAll*` — 4 round-trips независимо от N (замер 10→4), O(1); TG9+TG10 done (`8c515df`): debug-логи убраны (5), count() самодастаточен; TG6 partial (`de01375`): CLI `init` покрыт unit-тестами; TG8 verdict — 35 white-box кастов (не ~100), аccepted; S7 won't fix (DEFAULT — SQL-выражение). Tests: core 323, sql-pg 251, project 117; lint baseline 87 (2 errors in includes.d.ts, untouched).
 > Updated 2026-09-11 — five-axis re-review: C12-C19 (transaction error masking, IN IN bug, clone shallow includes, row key inconsistency, BETWEEN validation, datetime default escaping, limit/offset validation, KadmiumApp no end()), S10-S11 (column name injection DML, global Model.registry), A22-A23 (IR→Model direction, sql-pg/index.ts SRP), P9-P10 (unpackIncludeValue Map/row, O(n²) join ordering), T6 (AggregateField.as mutates in-place).
+> Updated 2026-09-12 — close-out: C13 done (`8b9c455`), C16 done (`c77d82b`), C17 done (`98d3977`); A22 done (`e5c417d`); P10 → ⚪ accepted; S11 → ✅ документирован (JSDoc `model/index.ts` + core/AGENTS.md).
 
 ## Repository snapshot
 
@@ -103,7 +104,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | S8 | 🟢 | **`pg_sleep()` possible via DEFAULT** in DDL validation | 💤 Won't fix (акцептировано) — DEFAULT — SQL-выражение, корректная валидация требует SQL-парсера; пересмотреть при недоверенном вводе в DDL |
 | S9 | 🟢 | **Escaped-quote false positives** in ddl-validate.ts | ✅ Resolved (`ea589e2`): `''` больше не «несбалансированный» + регресс-тесты — see security.md S8 |
 | S10 | 🟡 | **SQL injection через имена колонок в DML.** `buildInsertSql` / `buildInsertManySql` / `_buildUpdateQuery` интерполируют `Object.keys(data)` как `"${k}"` без `assertSqlIdentifier()`. Ключ `"col"); DROP TABLE users; --` сломает кавычки. Collection name валиден, column names — нет. | ✅ Fixed (`adc3a0d`): `assertSqlIdentifier(k, 'column name')` для каждого ключа в 5 DML-путях + DB-free тесты. |
-| S11 | 🟢 | **Static `Model.registry` — shared global mutable state.** В multi-tenant сценарии или тестах с разными наборами моделей глобальный реестр может вызвать интерференцию. | ⬜ Open — документировать глобальную природу реестра; для multi-tenant — per-process изоляция или scoped registry. |
+| S11 | 🟢 | **Static `Model.registry` — shared global mutable state.** В multi-tenant сценарии или тестах с разными наборами моделей глобальный реестр может вызвать интерференцию. | ✅ Resolved: глобальная природа задокументирована (JSDoc в `model/index.ts` + core/AGENTS.md); для тестов/HMR есть `Model.clear()`; для multi-tenant — per-process изоляция или scoped registry. |
 
 ### 4️⃣ Performance
 
@@ -118,7 +119,7 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 | P7 | 🟡 | **applyDiff no transaction wrapping** — partial failure leaves DB in partially-migrated state | ✅ Done (`fee95eb`) — `applyDiffTransactional` + CLI fallback prompt, см. performance.md P6 |
 | P8 | 🟢 | **MAX_BATCH_ROWS hardcoded** without column count consideration | ✅ Done (`3ba5613`) — `maxBatchRows(columns)`, см. performance.md P7 |
 | P9 | 🟢 | **`unpackIncludeValue` создаёт Map на каждую строку.** Для 10k строк с includes — 10k+ Map аллокаций (GC собирает, но лишнее). | ✅ Fixed (`41b8a5a`): `nestedMap` предвычисляется в `unpackIncludes` и передаётся параметром. |
-| P10 | 🟢 | **O(n²) join ordering в `_buildFromJoins`.** While-цикл с повторным полным сканированием `joinsForIsland` на каждом проходе. Для типичных ORM-запросов (2-5 joins) пренебрежимо. | ⬜ Open — фикс: proper topological sort или BFS с queue. |
+| P10 | 🟢 | **O(n²) join ordering в `_buildFromJoins`.** While-цикл с повторным полным сканированием `joinsForIsland` на каждом проходе. Для типичных ORM-запросов (2-5 joins) пренебрежимо. | ⚪ Accepted (not a task): острова уже строятся через BFS (`_buildJoinGraph`+`_findJoinIslands`); O(n²) — только во внутреннем до-join цикла, для типичных запросов пренебрежимо; рефакторинг на queue рискует регрессами точных SQL-строк без измеримой выгоды. |
 
 ### 5️⃣ Readability / Hygiene
 
@@ -197,8 +198,8 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 ### Phase 5 — New findings from re-review (2026-09-11)
 
 **Critical/High (fix immediately):**
-- T5.1 ⬜ — **C12: Fix `.in()` renders as `IN IN`.** `_renderValue` для `IN` возвращает `IN ($1, $2)` — убрать `IN `, вернуть `($1, $2)`. Плюс unit-тест на `_renderCondition` с `IN` + integration-тест через query builder.
-- T5.2 ⬜ — **C13: Fix transaction error masking.** Убрать `_release()` из `commit()`/`rollback()` в `TransactionalPgAdapter`, оставить только в `end()`.
+- T5.1 ✅ — **C12: Fix `.in()` renders as `IN IN`.** `_renderValue` для `IN` возвращает `IN ($1, $2)` — убрать `IN `, вернуть `($1, $2)`. Плюс unit-тест на `_renderCondition` с `IN` + integration-тест через query builder.
+- T5.2 ✅ — **C13: Fix transaction error masking.** Убрать `_release()` из `commit()`/`rollback()` в `TransactionalPgAdapter`, оставить только в `end()`.
 - T5.3 ✅ — **S10: Validate column names in DML.** `assertSqlIdentifier(k)` для каждого ключа из `Object.keys(data)` в `buildInsertSql`, `buildInsertManySql`, `buildUpsertManySql`, `_buildUpdateQuery`.
 
 **Fixed (just now):**
@@ -207,14 +208,14 @@ Architecturally sound, well-decoupled IR contract, good CLI. Correctness layer (
 **Medium (next PR):**
 - T5.4 ✅ — **C14: Validate heterogeneous row keys** in `buildInsertManySql`/`buildUpsertManySql`.
 - T5.5 ✅ — **C15: Deep-clone includes** in `KadmiumSqb.clone()`.
-- T5.6 ⬜ — **C16: Validate BETWEEN array length** — throw if ≠ 2.
-- T5.7 ⬜ — **C17: Escape quotes in datetime defaults** — add `.replace(/'/g, "''")` in `renderDefault`.
+- T5.6 ✅ — **C16: Validate BETWEEN array length** — throw if ≠ 2.
+- T5.7 ✅ — **C17: Escape quotes in datetime defaults** — add `.replace(/'/g, "''")` in `renderDefault`.
 
 **Low (backlog):**
 - T5.8 ✅ — **A22: Move `compileModel` out of `ir/`** to resolve IR→Model direction violation.
 - T5.9 ✅ — **A23: Extract CRUD helpers** from `sql-pg/index.ts` into `helpers.ts`.
 - T5.10 ✅ — **P9: Pre-compute Map** in `unpackIncludeValue` outside row loop.
-- T5.11 ⬜ — **P10: BFS instead of O(n²)** for join ordering in `_buildFromJoins`.
+- T5.11 ⚪ — **P10: Join ordering in `_buildFromJoins`** — accepted, not fixed (острова уже BFS; O(n²) в inner-цикле пренебрежимо для типичных 2-5 joins; рефакторинг рискует регрессами точных SQL-строк в тестах).
 - T5.12 ✅ — **T6: Make `AggregateField.as()` immutable** (return new instance).
 
 ---
