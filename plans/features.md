@@ -70,7 +70,7 @@ select((u, { agg, wf }) => [
 - `packages/sql-types/src/index.ts` (`SelectItem`, `AggregateSelectable`, оконный вариант)
 - `packages/sql-pg/src/sql-generator.ts` (рендер select-листа)
 
-**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`; +10 core unit-тестов), `***` (C4/C5 — рендер окон в sql-pg: `WindowSelectable`, `_renderWindow`/`_renderOverClause`/`_renderFrameBound`, парам-аргументы `$N`; +10 sql-pg unit-тестов; коррекция: ORDER BY только для 4 рангов).
+**Коммиты:** `db7f6fe` (C1 — рендер агрегатов в адаптер, `toSql` убран из sql-types контракта), `6e17165` (C2 — FuncField base, select entry `{agg}`, phantom `~result` indexed-access фикс), `d762875` (C3 — AST окон: `WindowField`/`WindowSpec`, фабрика `wf`, `AggregateField.over()`, `SelectTools {agg,wf}` / `ReturningTools {agg}`; +10 core unit-тестов), `d33a339`+`bc117fc` (C4/C5 — рендер окон в sql-pg: `WindowSelectable`, `_renderWindow`/`_renderOverClause`/`_renderFrameBound`, парам-аргументы `$N`; +10 sql-pg unit-тестов; коррекция: ORDER BY только для 4 рангов).
 
 ---
 
