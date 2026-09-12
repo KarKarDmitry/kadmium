@@ -4,10 +4,14 @@
  * Данные только: SQL-рендером занимается адаптер (структурный паттерн WhereCondition).
  */
 import { FuncField } from './func-field';
+import { WindowField } from './window-field';
+import { WindowSpec } from './window-spec';
 
 export class AggregateField<TResult = unknown> extends FuncField<TResult> {
   public readonly kind = 'aggregate' as const;
   declare readonly func: 'count' | 'sum' | 'avg' | 'min' | 'max';
+  /** Агрегат всегда имеет аргумент: поле или '*' — никогда null. */
+  declare readonly field: { tableAlias: string; fieldName: string } | '*';
 
   constructor(
     func: 'count' | 'sum' | 'avg' | 'min' | 'max',
@@ -15,6 +19,15 @@ export class AggregateField<TResult = unknown> extends FuncField<TResult> {
     field: { tableAlias: string; fieldName: string } | '*',
   ) {
     super(func, field);
+  }
+
+  /**
+   * Превратить агрегат в оконный: `agg.sum(t.salary).over()` → `SUM(salary) OVER (...)`.
+   * Возвращает WindowField (kind='window') с окном over; можно чинить через
+   * `.partitionBy/.orderBy/.rowsBetween`.
+   */
+  over(spec: WindowSpec = new WindowSpec()): WindowField<TResult> {
+    return new WindowField<TResult>(this.func, this.field, [], true, spec);
   }
 
   /** Переименовать агрегат в SELECT (возвращает новый инстанс) */

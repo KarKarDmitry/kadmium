@@ -17,16 +17,24 @@ export abstract class FuncField<TResult = unknown> {
 
   constructor(
     public readonly func: string,
-    /** '*'' для COUNT(*) или поле для SUM(field) */
-    public readonly field: { tableAlias: string; fieldName: string } | '*',
+    /**
+     * '*'' для COUNT(*) или поле для SUM(field);
+     * null — функции без поля (row_number, rank, ...); окна кладут его в WindowField.
+     */
+    public readonly field:
+      { tableAlias: string; fieldName: string } | '*' | null = null,
   ) {}
 
   /** Совместимость с SelectItem интерфейсом из sql-types */
   get tableAlias(): string {
-    return this.field === '*' ? '' : this.field.tableAlias;
+    return this.field === '*' || this.field === null
+      ? ''
+      : this.field.tableAlias;
   }
   get fieldName(): string {
-    return this.field === '*' ? '*' : this.field.fieldName;
+    return this.field === '*' || this.field === null
+      ? '*'
+      : this.field.fieldName;
   }
 
   /** Переименовать функцию в SELECT (возвращает новый инстанс) */

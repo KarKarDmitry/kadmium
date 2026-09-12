@@ -20,9 +20,13 @@ import type {
 } from '../types/includes';
 import type { Evaluate } from '../types/relations';
 import { aggregates } from '../field-builders/aggregates';
+import { windowFunctions } from '../field-builders/window-functions';
 
-/** Инструменты select/first callback: сейчас агрегаты; окна появятся c F8. */
-const selectTools: SelectTools = { agg: aggregates };
+/** Инструменты select/first callback: агрегаты и оконные функции (c F8). */
+const selectTools: SelectTools = {
+  agg: aggregates,
+  wf: windowFunctions,
+};
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import {
   createFilterProxy,

@@ -16,15 +16,25 @@ import type {
   AnySelectable,
 } from './includes';
 import type { AggregateFunctions } from '../field-builders/aggregates';
+import type { WindowFunctions } from '../field-builders/window-functions';
 
 /**
- * Инструменты для select/first/returning callback'ов.
+ * Инструменты для select/first callback'ов.
  * Единый объект, чтобы можно было деструктурировать только нужное:
- * `(t, { agg }) => [...]`, `(t, { wf }) => [...]` (wf — c F8).
+ * `(t, { agg }) => [...]`, `(t, { wf }) => [...]`, `(t, { agg, wf }) => [...]`.
  */
 export interface SelectTools {
   agg: AggregateFunctions;
+  wf: WindowFunctions;
 }
+
+/**
+ * Инструменты для returning callback'а: без wf — PG запрещает оконные
+ * функции в RETURNING.
+ */
+export type ReturningTools = {
+  agg: AggregateFunctions;
+};
 
 export type NullableMethods = {
   readonly null: WhereCondition;
@@ -124,14 +134,14 @@ export interface UpdateFinalizer<
   TModel extends { ['~shape']: Record<string, unknown> },
 > {
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ): {
     go: () => Promise<FlatFinalResult<S>[]>;
     sql: () => string;
   };
   where(clause: (t: FilterProxy<TModel>) => WhereExpression | undefined): {
     returning<S extends readonly AnySelectable[]>(
-      fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
+      fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
     ): {
       go: () => Promise<FlatFinalResult<S>[]>;
       sql: () => string;

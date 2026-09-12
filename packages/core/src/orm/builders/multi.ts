@@ -17,6 +17,7 @@ import type {
 import type { IncludeConfig } from '../types/includes';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { aggregates } from '../field-builders/aggregates';
+import { windowFunctions } from '../field-builders/window-functions';
 import type { AnySelectable } from '../types/includes';
 import { buildDebugSql } from './utils';
 import {
@@ -142,7 +143,10 @@ export class MultiQueryBuilder<
   } {
     const sqb = this.sqb.clone();
     sqb.selects = [
-      ...fn(this._createSelectProxy(), { agg: aggregates }),
+      ...fn(this._createSelectProxy(), {
+        agg: aggregates,
+        wf: windowFunctions,
+      }),
     ] as AnySelectableField[];
     return {
       toSql: () => this._toSqlFrom(sqb),

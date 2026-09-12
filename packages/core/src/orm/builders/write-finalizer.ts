@@ -5,7 +5,7 @@ import type {
   FilterProxy,
   SelectProxy,
   UpdateFinalizer,
-  SelectTools,
+  ReturningTools,
 } from '../types/proxy';
 import { aggregates } from '../field-builders/aggregates';
 import { buildDebugSql } from './utils';
@@ -58,7 +58,7 @@ export function buildWriteFinalizer<TModel extends Model>(
   };
 
   const returning = <S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ) => {
     sqb.selects = [
       ...fn(createSelectProxy(), { agg: aggregates }),

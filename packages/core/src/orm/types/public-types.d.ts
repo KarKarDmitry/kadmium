@@ -20,6 +20,7 @@ export type {
   FinalResult,
   NullableMethods,
   SelectTools,
+  ReturningTools,
 } from './proxy';
 
 export type { Evaluate } from './relations';
