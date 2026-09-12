@@ -72,6 +72,24 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     );
   });
 
+  it('renders IN with a value list', () => {
+    const g = group([step('AND', where('id', 'IN', [1, 2, 3], 'u'))]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
+      '"u"."id" IN ($1, $2, $3)',
+    );
+    expect(values).toEqual([1, 2, 3]);
+  });
+
+  it('renders empty IN as 1=0 (never a bare IN syntax error)', () => {
+    const g = group([step('AND', where('id', 'IN', [], 'u'))]);
+    const values: unknown[] = [];
+    const p = { p: 1 };
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe('1=0');
+    expect(values).toEqual([]);
+  });
+
   it('renders nested groups with parentheses when join differs', () => {
     const g = group([
       step('AND', where('active', '=', true, 'u')),
@@ -148,9 +166,7 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     const g = group([step('AND', where('name', 'IS NULL', null, 'u'))]);
     const values: unknown[] = [];
     const p = { p: 1 };
-    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
-      '"u"."name" IS NULL',
-    );
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe('"u"."name" IS NULL');
     expect(values).toEqual([]);
   });
 
@@ -161,7 +177,7 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
       '"u"."age" IS NOT NULL',
     );
-expect(values).toEqual([]);
+    expect(values).toEqual([]);
   });
 
   it('throws on non-whitelisted operator (S5)', () => {

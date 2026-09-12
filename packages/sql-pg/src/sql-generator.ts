@@ -85,7 +85,7 @@ export abstract class SqlGenerator {
     }
     // IN
     if (w.op === 'IN' && Array.isArray(w.value)) {
-      if (w.value.length === 0) return '1=0';
+      if (w.value.length === 0) return '()';
       const vals = w.value.map(() => `$${paramIndex.p++}`).join(', ');
       values.push(...w.value);
       return `(${vals})`;
@@ -137,6 +137,10 @@ export abstract class SqlGenerator {
     }
     if (w.op === 'IS NULL' || w.op === 'IS NOT NULL') {
       return `${left} ${w.op}`;
+    }
+    // IN () — пустой список: ни одно значение не подходит → предикат всегда ложен.
+    if (w.op === 'IN' && Array.isArray(w.value) && w.value.length === 0) {
+      return '1=0';
     }
     const right = this._renderValue(w, values, paramIndex);
     return `${left} ${w.op} ${right}`;

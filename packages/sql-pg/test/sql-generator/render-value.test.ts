@@ -53,12 +53,14 @@ describe('SqlGenerator — _renderValue', () => {
     expect(values).toEqual([1, 2, 3]);
   });
 
-  it('renders 1=0 for empty IN array', () => {
+  it('empty IN array is a guard case: predicates short-circuit in _renderCondition', () => {
+    // _renderValue сам по себе не отвечает за пустой IN — предикат целиком
+    // превращается в 1=0 на уровне _renderCondition (см. where-clause.test.ts).
     const w = where('id', 'IN', []);
     const values: unknown[] = [];
     const p = { p: 1 };
     const result = gen['_renderValue'](w, values, p);
-    expect(result).toBe('1=0');
+    expect(result).toBe('()');
     expect(values).toEqual([]);
   });
 
