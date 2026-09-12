@@ -132,12 +132,25 @@ describe('ResultReshaper.reshape', () => {
     ]);
   });
 
-  it('skips aggregate selects (kind=aggregate)', () => {
-    const flat = [{ 'u.id': 1, cnt: 5 }];
+  it('places aggregate and window selects at top level', () => {
+    const flat = [{ 'u.id': 1, cnt: 5, rn: 1, total: 12 }];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const selects: any[] = [
       sel('u', 'id'),
       { kind: 'aggregate', tableAlias: 'u', fieldName: '*', alias: 'cnt' },
+      { kind: 'window', tableAlias: 'u', fieldName: 'id', alias: 'rn' },
+      { kind: 'window', tableAlias: 'u', fieldName: 'id', alias: 'total' },
+    ];
+    const result = ResultReshaper.reshape(flat, selects, []);
+    expect(result).toEqual([{ u: { id: 1 }, cnt: 5, rn: 1, total: 12 }]);
+  });
+
+  it('drops aggregate/window columns absent from the flat row', () => {
+    const flat = [{ 'u.id': 1 }];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const selects: any[] = [
+      sel('u', 'id'),
+      { kind: 'window', tableAlias: 'u', fieldName: 'id', alias: 'rn' },
     ];
     const result = ResultReshaper.reshape(flat, selects, []);
     expect(result).toEqual([{ u: { id: 1 } }]);
