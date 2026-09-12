@@ -648,6 +648,14 @@ export abstract class SqlGenerator {
       .join(', ');
   }
 
+  /** PG-ключевое слово join: 'outer' → FULL OUTER (просто OUTER невалидно). */
+  private _joinKeyword(
+    direction?: 'inner' | 'left' | 'right' | 'outer',
+  ): string {
+    if (direction === 'outer') return 'FULL OUTER';
+    return (direction || 'inner').toUpperCase();
+  }
+
   /** INCLUDE subqueries (LEFT JOIN LATERAL): select-item + from-хвост. */
   private _buildIncludesClauses(
     sqb: ReadonlySqb,
@@ -732,7 +740,7 @@ export abstract class SqlGenerator {
           }
           if (newAlias && join.on && !('elements' in join.on)) {
             const onSql = this._buildConditionSql(join.on, values, paramIndex);
-            islandFromClause += ` ${(join.direction || 'inner').toUpperCase()} JOIN "${sqb.tableContext.get(newAlias)}" AS "${newAlias}" ON ${onSql}`;
+            islandFromClause += ` ${this._joinKeyword(join.direction)} JOIN "${sqb.tableContext.get(newAlias)}" AS "${newAlias}" ON ${onSql}`;
             islandTablesInFrom.add(newAlias);
             processedJoins.add(join);
             tablesAddedInPass = true;

@@ -244,6 +244,30 @@ describe('SqlGenerator — toSql: select', () => {
     expect(text).toContain('RIGHT JOIN "posts" AS "p"');
   });
 
+  it('OUTER JOIN renders FULL OUTER (not bare OUTER)', () => {
+    const q = sqb({
+      tableContext: new Map([
+        ['u', 'users'],
+        ['p', 'posts'],
+      ]),
+      joins: [
+        {
+          left: 'u',
+          right: 'p',
+          direction: 'outer',
+          on: where(
+            'id',
+            '=',
+            { getIdentifierForSql: () => '"p"."authorId"' },
+            'u',
+          ),
+        },
+      ],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('FULL OUTER JOIN "posts" AS "p"');
+  });
+
   it('defaults join direction to INNER', () => {
     const q = sqb({
       tableContext: new Map([
