@@ -41,7 +41,7 @@ export class StringFilter extends BaseFilter<string> {
   iend(val: string): WhereCondition {
     return this.clause('ILIKE', `%${val}`);
   }
-  in(vals: string[]): WhereCondition {
+  in(vals: string[] | BaseFilter<string[]>): WhereCondition {
     return this.clause('IN', vals);
   }
 }
@@ -68,7 +68,7 @@ export class NumberFilter extends BaseFilter<number> {
   between(a: number, b: number): WhereCondition {
     return this.clause('BETWEEN', [a, b]);
   }
-  in(vals: number[]): WhereCondition {
+  in(vals: number[] | BaseFilter<number[]>): WhereCondition {
     return this.clause('IN', vals);
   }
 }
@@ -110,7 +110,7 @@ export class DateFilter extends BaseFilter<Date> {
   between(a: Date, b: Date): WhereCondition {
     return this.clause('BETWEEN', [a, b]);
   }
-  in(vals: Date[]): WhereCondition {
+  in(vals: Date[] | BaseFilter<Date[]>): WhereCondition {
     return this.clause('IN', vals);
   }
 }

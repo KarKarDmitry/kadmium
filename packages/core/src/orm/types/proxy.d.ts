@@ -7,6 +7,7 @@ import type {
 } from '../field-builders/filters';
 import type { WhereExpression } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
+import type { ArrayField } from '../ast/array-field';
 import type { AggregateField } from '../ast/aggregate';
 import type { FuncField } from '../ast/func-field';
 import type {
@@ -232,13 +233,15 @@ type ObjectForAlias<S extends readonly any[], A extends string> = {
   [
     Sel in FieldsForAlias<S, A> as Sel extends SelectableField<
       any,
-      any,
+      infer FN,
       infer AL,
       any
     >
       ? AL extends string
         ? AL
-        : Sel['fieldName'] & string
+        : FN extends string
+          ? FN
+          : never
       : never
   ]: Sel extends SelectableField<infer T, any, any, any> ? T : never;
 } extends infer O
@@ -248,21 +251,36 @@ type ObjectForAlias<S extends readonly any[], A extends string> = {
 /** Get the alias/field name from any selectable */
 export type GetFieldName<S> =
   S extends FuncField<any>
-    ? S['alias'] extends string
-      ? S['alias']
-      : never
-    : S extends SelectableField<any, any, infer AL, any>
+    ? S extends { alias: infer AL }
       ? AL extends string
         ? AL
-        : S['fieldName'] & string
-      : never;
+        : never
+      : never
+    : S extends ArrayField<any, infer FN, infer AL>
+      ? AL extends string
+        ? AL
+        : FN extends string
+          ? FN
+          : never
+      : S extends SelectableField<any, infer FN, infer AL, any>
+        ? AL extends string
+          ? AL
+          : FN extends string
+            ? FN
+            : never
+        : never;
 
 /** Get the result type from any selectable */
-export type GetFieldType<S> = [S] extends [FuncField<any>]
-  ? S['~result']
-  : S extends SelectableField<infer T, any, any, any>
-    ? T
-    : never;
+export type GetFieldType<S> =
+  S extends FuncField<any>
+    ? S extends { '~result': infer R }
+      ? R
+      : never
+    : S extends ArrayField<infer T, any, any>
+      ? T
+      : S extends SelectableField<infer T, any, any, any>
+        ? T
+        : never;
 
 /** Helper: получить тип модели по алиасу из T */
 type ModelForAlias<T extends AliasesMap, A extends keyof T & string> =

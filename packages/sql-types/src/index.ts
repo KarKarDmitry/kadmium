@@ -156,6 +156,17 @@ export interface SlotDefinition {
   readonly index: number;
 }
 
+/**
+ * Скомпилированный запрос (План 3, B1B2): SQL-текст с $N-плейсхолдерами,
+ * значения (маркеры слотов на месте ожидания fill) и порядок слотов.
+ * fill(input) добавляется в B2 вместе с исполнением.
+ */
+export type CompiledQuery = {
+  readonly text: string;
+  readonly values: (unknown | HoleRef)[];
+  readonly slotOrder: SlotDefinition[];
+};
+
 // ── Adapter interface ──
 
 export interface SqlAdapter {

@@ -3,6 +3,7 @@
  * Несёт phantom-типы: TFieldType (TS-тип значения), TFieldName (имя поля), TAlias (алиас).
  */
 import type { OrderDirection } from '../types/proxy';
+import { ArrayField } from './array-field';
 
 export class SelectableField<
   TFieldType = unknown,
@@ -38,6 +39,19 @@ export class SelectableField<
       column: this.column,
       direction: 'desc',
     };
+  }
+
+  /**
+   * Массив-слот (B1): фантом для декларации слотов через QuerySlots
+   * (`t.id.in(S.slot('ids'))`). Type-only — в runtime-рендер не попадает;
+   * коммутирует с .as(): `u.id.array.as('ids')` ≡ `u.id.as('x').array`.
+   */
+  get array(): ArrayField<NonNullable<TFieldType>[], TFieldName, TAlias> {
+    return new ArrayField<NonNullable<TFieldType>[], TFieldName, TAlias>(
+      this.tableAlias,
+      this.fieldName,
+      this.alias,
+    );
   }
 
   /** Переименовать колонку в SELECT */

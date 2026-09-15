@@ -6,6 +6,10 @@ export { and, or } from './where-expression';
 export { SelectableField } from './ast/selectable';
 export { BaseFilter } from './field-builders/base-filter';
 export { SlotMarker, slot } from './slot';
+export { QuerySlots } from './query-slots';
+export type { ToDef } from './query-slots';
+export { ArrayField } from './ast/array-field';
+export type { AnyArrayField } from './ast/array-field';
 export {
   StringFilter,
   NumberFilter,
