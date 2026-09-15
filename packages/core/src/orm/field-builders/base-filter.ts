@@ -2,10 +2,24 @@ import type { WhereCondition } from '../ast/where';
 import type { KadmiumSqb } from '../sqb';
 
 /**
- * BaseFilter — базовый класс для всех фильтров.
+ * BaseFilter<TValue> — базовый класс для всех фильтров.
  * Создаёт WhereCondition для AST.
+ *
+ * TValue — phantom-тип значения поля. Фильтры объявляют свой V
+ * (StringFilter extends BaseFilter<string>, NumberFilter extends BaseFilter<number>...),
+ * а методы сравнений принимают `V | BaseFilter<V>` — это даёт тип-ошибку
+ * на месте использования при несовпадении типов (eq(date) в string-фильтре,
+ * слот другого типа, кросс-тип поле-к-полю).
+ *
+ * `_value` не существует в рантайме (declare, без инициализации) — только
+ * для структурной variance TypeScript. НЕ добавляйте «голый» BaseFilter
+ * (= BaseFilter<unknown>) в union сигнатур сравнений: через него проходит
+ * любой BaseFilter<Date>/<number> и eq-site проверка перестаёт работать.
  */
-export class BaseFilter {
+export class BaseFilter<TValue = unknown> {
+  /** phantom — не существует в рантайме; только для типов */
+  declare readonly _value: TValue;
+
   constructor(
     public readonly sqb: KadmiumSqb,
     public readonly field: string,

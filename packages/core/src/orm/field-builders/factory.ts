@@ -9,7 +9,7 @@ import {
   DateFilter,
 } from './filters';
 
-export type NullableFilter = BaseFilter & {
+export type NullableFilter = BaseFilter<unknown> & {
   readonly null: WhereCondition;
   readonly notNull: WhereCondition;
 };

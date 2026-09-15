@@ -1,23 +1,23 @@
 import { BaseFilter } from './base-filter';
 import type { WhereCondition } from '../ast/where';
 
-export class StringFilter extends BaseFilter {
-  eq(val: string | BaseFilter): WhereCondition {
+export class StringFilter extends BaseFilter<string> {
+  eq(val: string | BaseFilter<string>): WhereCondition {
     return this._eq(val);
   }
-  neq(val: string | BaseFilter): WhereCondition {
+  neq(val: string | BaseFilter<string>): WhereCondition {
     return this._neq(val);
   }
-  gt(val: string | BaseFilter): WhereCondition {
+  gt(val: string | BaseFilter<string>): WhereCondition {
     return this.clause('>', val);
   }
-  gte(val: string | BaseFilter): WhereCondition {
+  gte(val: string | BaseFilter<string>): WhereCondition {
     return this.clause('>=', val);
   }
-  lt(val: string | BaseFilter): WhereCondition {
+  lt(val: string | BaseFilter<string>): WhereCondition {
     return this.clause('<', val);
   }
-  lte(val: string | BaseFilter): WhereCondition {
+  lte(val: string | BaseFilter<string>): WhereCondition {
     return this.clause('<=', val);
   }
   between(a: string, b: string): WhereCondition {
@@ -46,23 +46,23 @@ export class StringFilter extends BaseFilter {
   }
 }
 
-export class NumberFilter extends BaseFilter {
-  eq(val: number | BaseFilter): WhereCondition {
+export class NumberFilter extends BaseFilter<number> {
+  eq(val: number | BaseFilter<number>): WhereCondition {
     return this._eq(val);
   }
-  neq(val: number | BaseFilter): WhereCondition {
+  neq(val: number | BaseFilter<number>): WhereCondition {
     return this._neq(val);
   }
-  gt(val: number | BaseFilter): WhereCondition {
+  gt(val: number | BaseFilter<number>): WhereCondition {
     return this.clause('>', val);
   }
-  gte(val: number | BaseFilter): WhereCondition {
+  gte(val: number | BaseFilter<number>): WhereCondition {
     return this.clause('>=', val);
   }
-  lt(val: number | BaseFilter): WhereCondition {
+  lt(val: number | BaseFilter<number>): WhereCondition {
     return this.clause('<', val);
   }
-  lte(val: number | BaseFilter): WhereCondition {
+  lte(val: number | BaseFilter<number>): WhereCondition {
     return this.clause('<=', val);
   }
   between(a: number, b: number): WhereCondition {
@@ -73,11 +73,11 @@ export class NumberFilter extends BaseFilter {
   }
 }
 
-export class BooleanFilter extends BaseFilter {
-  eq(val: boolean | BaseFilter): WhereCondition {
+export class BooleanFilter extends BaseFilter<boolean> {
+  eq(val: boolean | BaseFilter<boolean>): WhereCondition {
     return this._eq(val);
   }
-  neq(val: boolean | BaseFilter): WhereCondition {
+  neq(val: boolean | BaseFilter<boolean>): WhereCondition {
     return this._neq(val);
   }
   true(): WhereCondition {
@@ -88,11 +88,11 @@ export class BooleanFilter extends BaseFilter {
   }
 }
 
-export class DateFilter extends BaseFilter {
-  eq(val: Date | BaseFilter): WhereCondition {
+export class DateFilter extends BaseFilter<Date> {
+  eq(val: Date | BaseFilter<Date>): WhereCondition {
     return this._eq(val);
   }
-  neq(val: Date | BaseFilter): WhereCondition {
+  neq(val: Date | BaseFilter<Date>): WhereCondition {
     return this._neq(val);
   }
   after(val: Date): WhereCondition {
@@ -116,9 +116,9 @@ export class DateFilter extends BaseFilter {
 }
 
 /** NullableMixin — добавляет .null / .notNull */
-export function addNullable(
-  base: BaseFilter,
-): BaseFilter & { null: WhereCondition; notNull: WhereCondition } {
+export function addNullable<TValue = unknown>(
+  base: BaseFilter<TValue>,
+): BaseFilter<TValue> & { null: WhereCondition; notNull: WhereCondition } {
   return Object.assign(base, {
     get null(): WhereCondition {
       return {

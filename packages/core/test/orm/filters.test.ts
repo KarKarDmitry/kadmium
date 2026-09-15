@@ -6,6 +6,7 @@ import {
   DateFilter,
   addNullable,
 } from '../../src/orm/field-builders/filters';
+import { BaseFilter } from '../../src/orm/field-builders/base-filter';
 import { makeSqb } from './helpers';
 
 function sqb() {
@@ -203,5 +204,42 @@ describe('addNullable', () => {
     const nf = addNullable(f);
     expect('null' in nf).toBe(true);
     expect('notNull' in nf).toBe(true);
+  });
+});
+
+describe('typed V (eq-site)', () => {
+  it('same-V field ref compiles', () => {
+    const f = new NumberFilter(sqb(), 'age', 'u');
+    const ref = new NumberFilter(sqb(), 'minAge', 'u');
+    expect(f.eq(ref)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '=', value: ref });
+  });
+  it('nullable same-V refinery keeps eq validity', () => {
+    const f = new NumberFilter(sqb(), 'age', 'u');
+    const ref = addNullable(new NumberFilter(sqb(), 'minAge', 'u'));
+    expect(f.eq(ref)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '=', value: ref });
+  });
+  it('cross-type field ref is a type error', () => {
+    const f = new NumberFilter(sqb(), 'age', 'u');
+    const ref = new StringFilter(sqb(), 'name', 'u');
+    // @ts-expect-error — StringFilter (BaseFilter<string>) не легален в eq number
+    f.eq(ref);
+  });
+  it('boolean into number eq is a type error', () => {
+    const f = new NumberFilter(sqb(), 'age', 'u');
+    const ref = new BooleanFilter(sqb(), 'active', 'u');
+    // @ts-expect-error — BooleanFilter (BaseFilter<boolean>) не легален в eq number
+    f.eq(ref);
+  });
+  it('cross-type nullable ref is a type error', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    const ref = addNullable(new NumberFilter(sqb(), 'age', 'u'));
+    // @ts-expect-error — nullable NumberFilter не попадает в eq string
+    f.eq(ref);
+  });
+  it('bare BaseFilter into eq is a type error (eq-site stays strict)', () => {
+    const f = new NumberFilter(sqb(), 'age', 'u');
+    const bare: BaseFilter = new NumberFilter(sqb(), 'age', 'u');
+    // @ts-expect-error — голый BaseFilter (= BaseFilter<unknown>) не легален в eq number
+    f.eq(bare);
   });
 });
