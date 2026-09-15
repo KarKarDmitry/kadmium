@@ -148,7 +148,7 @@ for (const req of incoming) {
 ### Разбивка на под-коммиты (~300 строк/PR)
 
 - **A1** — типизация фильтров: `BaseFilter<TValue>` + `V` + `eq/neq/...`. Самый изолированный старт; сразу выплывают кросс-типовые eq в тестах. — ✅ Done (`bbf78dc`): phantom `BaseFilter<TValue>` (`declare readonly _value`), все фильтры объявляют V, `eq/neq/gt/gte/lt/lte` → `V | BaseFilter<V>`; eq-site-тесты в `filters.test.ts` (same-V реф валиден; кросс-тип реф и голый `BaseFilter` → expected-error). Кросс-типовых `eq` в тестах не нашлось (всё уже было typed). Тип-narrowing (голый `BaseFilter` в eq теперь ошибка) — пометка в теле коммита; runtime 0.
-- **A2** — слот-маркер + рендер: `SlotMarker`, `slot()`, `isHoleRef`, `_renderValue`, `slotOrder` в `toSql`, guard «unfilled».
+- **A2** — слот-маркер + рендер: `SlotMarker`, `slot()`, `isHoleRef`, `_renderValue`, `slotOrder` в `toSql`, guard «unfilled». — ✅ Done (`528f9f1`): sql-types (HoleRef/SlotDefinition, `toSql` + `slotOrder?`), core `orm/slot.ts` (`SlotMarker<K, V> extends BaseFilter<V>`, плоский `slot()` → `SlotMarker<Name, any>`, `isHoleRef`), sql-pg (`ParamState { p, slotOrder? }`, слот-ветка ПЕРВОЙ в `_renderValue` до field-to-field, dedup по имени, slotOrder в toSql/update/upsert/delete, `assertNoUnfilledSlots` в обоих execute). Ветка-порядок критична (SlotMarker тоже BaseFilter); тип `HoleRef` из sql-types (sql-pg core не импортирует). `CompiledQuery`/`.fill()` — B1/B2.
 - **B1** — `QuerySlots` + `.compile()` (типы, без исполнения): ToDef, `ArrayField`/`.array`, исключение из select-proxy.
 - **B2** — исполнение: `CompiledQuery.fill()` (порядок+валидация), `OrmManager.raw`, integration против PG.
 - **C1** — тег: `SqlFragment`, интерполяция, перенумерация, dedup, `toString()`, запрет строк-идентификаторов.
