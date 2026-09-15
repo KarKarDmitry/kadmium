@@ -19,6 +19,8 @@ import type {
   QueryResult,
 } from '../types/includes';
 import type { Evaluate } from '../types/relations';
+import { QuerySlots, type ToDef } from '../query-slots';
+import type { AnyArrayField } from '../ast/array-field';
 import { aggregates } from '../field-builders/aggregates';
 import { windowFunctions } from '../field-builders/window-functions';
 
@@ -28,6 +30,7 @@ const selectTools: SelectTools = {
   wf: windowFunctions,
 };
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type { CompiledQuery, HoleRef } from '@karkardmitry/kadmium-sql-types';
 import {
   createFilterProxy,
   createSelectProxy,
@@ -362,6 +365,43 @@ export class SingleQueryBuilder<
 
   toSql(): string {
     return this._toSqlFrom(this.sqb.clone());
+  }
+
+  /**
+   * Терминал компиляции (План 3, B1): sqb.clone() → toSql → CompiledQuery.
+   * Плоский путь — тип слотов руками; типизированный — runtime-проверка имён
+   * через QuerySlots.assertSlotNames. TResult — миррор go() (first/many).
+   */
+  compile<
+    T extends Record<string, unknown> = Record<string, never>,
+  >(): CompiledQuery<
+    T,
+    TMode extends 'first'
+      ? Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined
+      : Evaluate<QueryResult<TModel, TSelect, TInclude>>[]
+  >;
+  compile<S extends readonly (AnySelectable | AnyArrayField)[]>(
+    slots: QuerySlots<TModel, S>,
+  ): CompiledQuery<
+    ToDef<S>,
+    TMode extends 'first'
+      ? Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined
+      : Evaluate<QueryResult<TModel, TSelect, TInclude>>[]
+  >;
+  compile(slots?: QuerySlots<TModel, any>): CompiledQuery<any, any> {
+    const sqb = this.sqb.clone();
+    this._materializeSelects(sqb);
+    if (!this.adapter)
+      throw new Error('No adapter configured; cannot compile SQL.');
+    const { text, values, slotOrder } = this.adapter.toSql(sqb);
+    slots?.assertSlotNames(slotOrder ?? []);
+    return {
+      text,
+      values: values as (unknown | HoleRef)[],
+      slotOrder: slotOrder ?? [],
+      single: this._isFirst,
+      sqb,
+    } as unknown as CompiledQuery<any, any>;
   }
 
   // ── count / exists ──

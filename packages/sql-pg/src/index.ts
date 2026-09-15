@@ -110,6 +110,14 @@ class TransactionalPgAdapter
     return finalizeRows(result.rows, sqb);
   }
 
+  /** Превратить плоские строки в результат под контекст запроса (B2, orm.run). */
+  reshape(
+    sqb: ReadonlySqb,
+    rows: Record<string, unknown>[],
+  ): Record<string, unknown>[] {
+    return finalizeRows(rows, sqb);
+  }
+
   async create(
     collectionName: string,
     data: Record<string, unknown>,
@@ -180,6 +188,14 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     this.logger?.(text, values);
     const result = await this.pool.query(text, values);
     return finalizeRows(result.rows, sqb);
+  }
+
+  /** Превратить плоские строки в результат под контекст запроса (B2, orm.run). */
+  reshape(
+    sqb: ReadonlySqb,
+    rows: Record<string, unknown>[],
+  ): Record<string, unknown>[] {
+    return finalizeRows(rows, sqb);
   }
 
   async create(
@@ -286,6 +302,7 @@ export function createDebugAdapter(): SqlAdapter {
     raw: () => {
       throw new Error(NOT_ALLOWED);
     },
+    reshape: (_sqb, rows) => rows,
     ddl: new Proxy({} as PgDdlAdapter, {
       get: () => {
         throw new Error(NOT_ALLOWED);

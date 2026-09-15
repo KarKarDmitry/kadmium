@@ -159,12 +159,24 @@ export interface SlotDefinition {
 /**
  * Скомпилированный запрос (План 3, B1B2): SQL-текст с $N-плейсхолдерами,
  * значения (маркеры слотов на месте ожидания fill) и порядок слотов.
- * fill(input) добавляется в B2 вместе с исполнением.
+ * `sqb` — снапшот контекста (selects/includes/tableContext) для reshape
+ * результата; `TSlots`/`TResult` — type-only (fill и go в B2).
  */
-export type CompiledQuery = {
+export type CompiledQuery<
+  TSlots extends Record<string, unknown> = Record<string, never>,
+  TResult = unknown,
+> = {
   readonly text: string;
   readonly values: (unknown | HoleRef)[];
   readonly slotOrder: SlotDefinition[];
+  /** type-only бренд слота-мапы — typed fill; runtime-значения не пишутся */
+  readonly _slots: TSlots;
+  /** type-only бренд результата — типизирует go() раннера; runtime-значения нет */
+  readonly _result?: TResult;
+  /** single-режим (first()): run().go() разворачивает rows[0], как go() билдера */
+  readonly single: boolean;
+  /** Снапшот sqb после materializeSelects — reshape-контекст (B2) */
+  readonly sqb: ReadonlySqb;
 };
 
 // ── Adapter interface ──
@@ -180,6 +192,12 @@ export interface SqlAdapter {
 
   /** Execute a query */
   execute(sqb: ReadonlySqb): Promise<Record<string, unknown>[]>;
+
+  /** Превратить плоские строки в результат под контекст запроса (unpack includes + multi-reshape). */
+  reshape(
+    sqb: ReadonlySqb,
+    rows: Record<string, unknown>[],
+  ): Record<string, unknown>[];
 
   /** Raw SQL execution */
   raw<T = unknown>(sql: string, params?: unknown[]): Promise<T[]>;

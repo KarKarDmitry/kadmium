@@ -3,6 +3,12 @@ import { MultiQueryBuilder } from './builders/multi';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type { CompiledQuery } from '@karkardmitry/kadmium-sql-types';
+import {
+  fillCompiled,
+  type CompiledRunner,
+  type ExtractResult,
+} from './compiled-query';
 
 /**
  * OrmManager — менеджер ORM-запросов, привязанный к AppCore.
@@ -117,5 +123,46 @@ export class OrmManager {
    */
   withAdapter(adapter: SqlAdapter): OrmManager {
     return new OrmManager(this.appCore, adapter);
+  }
+
+  /**
+   * Выполнить компилированный запрос (План 3, B2): fill(input).go().
+   * Ноль рендера на выборке: adapter.raw + adapter.reshape(compiled.sqb, rows).
+   * ExecutableSQL не существует — SQL-просмотр через .fill(...).sql().
+   */
+  run<C extends CompiledQuery<any, any>>(compiled: C): CompiledRunner<C> {
+    const adapter = this._adapter;
+    if (!adapter)
+      throw new Error('No SQL adapter configured; cannot run compiled query.');
+    return {
+      fill: (input) => {
+        const { text, params } = fillCompiled(compiled, input);
+        return {
+          sql: () => `SQL: ${text}\nVALUES: [${params.join(', ')}]`,
+          go: async (): Promise<ExtractResult<C>> => {
+            const rows = adapter.reshape(
+              compiled.sqb,
+              await adapter.raw<Record<string, unknown>>(text, params),
+            );
+            // single-режим (first()): разворачиваем rows[0] как go() билдера
+            return (compiled.single ? rows[0] : rows) as ExtractResult<C>;
+          },
+        };
+      },
+    };
+  }
+
+  /**
+   * Плоский raw-доступ без reshape (План 3, B2).
+   * Компактная обёртка над adapter.raw — типы строк задаёт вызывающий.
+   */
+  raw<T = Record<string, unknown>>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<T[]> {
+    const adapter = this._adapter;
+    if (!adapter)
+      throw new Error('No SQL adapter configured; cannot run raw SQL.');
+    return adapter.raw<T>(sql, params);
   }
 }

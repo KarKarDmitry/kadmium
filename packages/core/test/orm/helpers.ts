@@ -4,9 +4,26 @@ import type { ModelIR } from '../../src/ir/index';
 import type { SqlAdapter, ReadonlySqb } from '@karkardmitry/kadmium-sql-types';
 
 export interface MockAdapter {
-  toSql: Mock<(sqb: ReadonlySqb) => { text: string; values: unknown[] }>;
+  toSql: Mock<
+    (sqb: ReadonlySqb) => {
+      text: string;
+      values: unknown[];
+      slotOrder?: { name: string; index: number }[];
+    }
+  >;
   execute: Mock<(sqb: ReadonlySqb) => Promise<Record<string, unknown>[]>>;
-  create: Mock<(table: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>>;
+  reshape: Mock<
+    (
+      sqb: ReadonlySqb,
+      rows: Record<string, unknown>[],
+    ) => Record<string, unknown>[]
+  >;
+  create: Mock<
+    (
+      table: string,
+      data: Record<string, unknown>,
+    ) => Promise<Record<string, unknown>>
+  >;
   createMany: Mock<
     (
       table: string,
@@ -18,18 +35,23 @@ export interface MockAdapter {
       },
     ) => Promise<Record<string, unknown>[]>
   >;
-  raw: Mock<(sql: string, values: unknown[]) => Promise<Record<string, unknown>[]>>;
+  raw: Mock<
+    (sql: string, values: unknown[]) => Promise<Record<string, unknown>[]>
+  >;
   ddl: SqlAdapter['ddl'];
-  beginTransaction: Mock<() => Promise<{
-    toSql: Mock;
-    execute: Mock;
-    create: Mock;
-    raw: Mock;
-    ddl: SqlAdapter['ddl'];
-    commit: Mock;
-    rollback: Mock;
-    end: Mock;
-  }>>;
+  beginTransaction: Mock<
+    () => Promise<{
+      toSql: Mock;
+      execute: Mock;
+      reshape: Mock;
+      create: Mock;
+      raw: Mock;
+      ddl: SqlAdapter['ddl'];
+      commit: Mock;
+      rollback: Mock;
+      end: Mock;
+    }>
+  >;
   end: Mock<() => Promise<void>>;
 }
 
@@ -37,6 +59,11 @@ export function makeMockAdapter(): MockAdapter {
   return {
     toSql: vi.fn().mockReturnValue({ text: 'SELECT 1', values: [] }),
     execute: vi.fn().mockResolvedValue([]),
+    reshape: vi
+      .fn()
+      .mockImplementation(
+        (_: ReadonlySqb, rows: Record<string, unknown>[]) => rows,
+      ),
     create: vi.fn().mockResolvedValue({ id: 1 }),
     createMany: vi.fn().mockResolvedValue([]),
     raw: vi.fn().mockResolvedValue([]),
@@ -45,6 +72,11 @@ export function makeMockAdapter(): MockAdapter {
     beginTransaction: vi.fn().mockResolvedValue({
       toSql: vi.fn().mockReturnValue({ text: 'BEGIN', values: [] }),
       execute: vi.fn().mockResolvedValue([]),
+      reshape: vi
+        .fn()
+        .mockImplementation(
+          (_: ReadonlySqb, rows: Record<string, unknown>[]) => rows,
+        ),
       create: vi.fn().mockResolvedValue({}),
       raw: vi.fn().mockResolvedValue([]),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
