@@ -72,14 +72,14 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     );
   });
 
-  it('renders IN with a value list', () => {
+  it('renders IN as = ANY($1) — array as one param', () => {
     const g = group([step('AND', where('id', 'IN', [1, 2, 3], 'u'))]);
     const values: unknown[] = [];
     const p = { p: 1 };
     expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
-      '"u"."id" IN ($1, $2, $3)',
+      '"u"."id" = ANY($1)',
     );
-    expect(values).toEqual([1, 2, 3]);
+    expect(values).toEqual([[1, 2, 3]]);
   });
 
   it('renders empty IN as 1=0 (never a bare IN syntax error)', () => {

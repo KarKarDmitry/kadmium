@@ -109,6 +109,7 @@ export abstract class SqlGenerator {
       ) {
         paramIndex.slotOrder.push({ name: marker.slotName, index: idx });
       }
+      // IN-слот: длина массива неизвестна на этапе рендера → оператор берёт _renderCondition
       return `$${idx}`;
     }
     // field-to-field сравнение
@@ -123,12 +124,11 @@ export abstract class SqlGenerator {
     if (w.value === null || w.value === undefined) {
       return 'NULL';
     }
-    // IN
+    // IN — массив одним параметром (в т.ч. слоты: длина неизвестна → = ANY)
     if (w.op === 'IN' && Array.isArray(w.value)) {
       if (w.value.length === 0) return '()';
-      const vals = w.value.map(() => `$${paramIndex.p++}`).join(', ');
-      values.push(...w.value);
-      return `(${vals})`;
+      values.push(w.value);
+      return `$${paramIndex.p++}`;
     }
     // BETWEEN
     if (w.op === 'BETWEEN') {
@@ -181,6 +181,11 @@ export abstract class SqlGenerator {
     // IN () — пустой список: ни одно значение не подходит → предикат всегда ложен.
     if (w.op === 'IN' && Array.isArray(w.value) && w.value.length === 0) {
       return '1=0';
+    }
+    // IN — все варианты (массив или слот) через один параметр → = ANY($N)
+    if (w.op === 'IN') {
+      const right = this._renderValue(w, values, paramIndex);
+      return `${left} = ANY(${right})`;
     }
     const right = this._renderValue(w, values, paramIndex);
     return `${left} ${w.op} ${right}`;

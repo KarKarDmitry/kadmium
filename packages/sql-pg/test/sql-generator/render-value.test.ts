@@ -44,13 +44,13 @@ describe('SqlGenerator — _renderValue', () => {
     expect(values).toEqual([]);
   });
 
-  it('renders IN with array values', () => {
+  it('renders IN array as a single param ($1)', () => {
     const w = where('id', 'IN', [1, 2, 3]);
     const values: unknown[] = [];
     const p = { p: 1 };
     const result = gen['_renderValue'](w, values, p);
-    expect(result).toBe('($1, $2, $3)');
-    expect(values).toEqual([1, 2, 3]);
+    expect(result).toBe('$1');
+    expect(values).toEqual([[1, 2, 3]]);
   });
 
   it('empty IN array is a guard case: predicates short-circuit in _renderCondition', () => {
@@ -93,12 +93,12 @@ describe('SqlGenerator — _renderValue', () => {
     expect(values).toEqual([]);
   });
 
-  it('IN: _renderCondition produces "col" IN ($1, $2) — not IN IN', () => {
+  it('IN: _renderCondition produces "col" = ANY($1) — array as one param', () => {
     const w = where('id', 'IN', [10, 20, 30], 'u', 'id');
     const values: unknown[] = [];
     const p = { p: 1 };
     const result = gen['_renderCondition']('"u"."id"', w, values, p);
-    expect(result).toBe('"u"."id" IN ($1, $2, $3)');
-    expect(values).toEqual([10, 20, 30]);
+    expect(result).toBe('"u"."id" = ANY($1)');
+    expect(values).toEqual([[10, 20, 30]]);
   });
 });
