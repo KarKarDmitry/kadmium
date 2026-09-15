@@ -138,11 +138,34 @@ export interface ReadonlySqb {
   readonly doNothing: boolean;
 }
 
+// ── Slot markers (compiled queries, План 3) ──
+
+/**
+ * Маркер именованного слота — placeholder для значения, заполняемого
+ * compile().fill({...}) (B1/B2). В sql-pg никак не находится в рантайме
+ * (duck-typing по kind === 'slot'), в core — класс SlotMarker из orm/slot.ts.
+ */
+export interface HoleRef {
+  readonly kind: 'slot';
+  readonly slotName: string;
+}
+
+/** Позиция именованного слота в параметрах: index = номер $N (1-based). */
+export interface SlotDefinition {
+  readonly name: string;
+  readonly index: number;
+}
+
 // ── Adapter interface ──
 
 export interface SqlAdapter {
   /** Convert SQB to SQL with parameters */
-  toSql(sqb: ReadonlySqb): { text: string; values: unknown[] };
+  toSql(sqb: ReadonlySqb): {
+    text: string;
+    values: unknown[];
+    /** Именованные слоты в порядке первого вхождения (пуст, когда слотов нет) */
+    slotOrder?: SlotDefinition[];
+  };
 
   /** Execute a query */
   execute(sqb: ReadonlySqb): Promise<Record<string, unknown>[]>;

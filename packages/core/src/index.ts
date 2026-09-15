@@ -10,6 +10,7 @@ export { compileModel } from './model/compile';
 export { OrmManager } from './orm/orm';
 
 export { and, or } from './orm';
+export { slot, SlotMarker } from './orm';
 export type { WhereExpression } from './orm';
 
 export {

@@ -14,7 +14,7 @@ import type {
   TransactionalAdapter,
   ReadonlySqb,
 } from '@karkardmitry/kadmium-sql-types';
-import { SqlGenerator } from './sql-generator';
+import { SqlGenerator, assertNoUnfilledSlots } from './sql-generator';
 import { PgDdlAdapter } from './ddl-adapter';
 import { maxBatchRows } from './batch';
 import {
@@ -104,6 +104,7 @@ class TransactionalPgAdapter
 
   async execute(sqb: ReadonlySqb): Promise<Record<string, unknown>[]> {
     const { text, values } = this.toSql(sqb);
+    assertNoUnfilledSlots(values);
     this.logger?.(text, values);
     const result = await this.client.query(text, values);
     return finalizeRows(result.rows, sqb);
@@ -175,6 +176,7 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
 
   async execute(sqb: ReadonlySqb): Promise<Record<string, unknown>[]> {
     const { text, values } = this.toSql(sqb);
+    assertNoUnfilledSlots(values);
     this.logger?.(text, values);
     const result = await this.pool.query(text, values);
     return finalizeRows(result.rows, sqb);

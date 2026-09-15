@@ -12,8 +12,35 @@ import type {
   WindowSelectable,
   WindowFrameBound,
   IncludedRelation,
+  HoleRef,
+  SlotDefinition,
 } from '@karkardmitry/kadmium-sql-types';
 import { assertSqlIdentifier } from './ddl-validate';
+
+/** Duck-typed guard (core не импортируем — контракт по kind === 'slot'). */
+export function isHoleRef(v: unknown): v is HoleRef {
+  return (
+    !!v && typeof v === 'object' && (v as { kind?: unknown }).kind === 'slot'
+  );
+}
+
+/**
+ * Mutable thread-state рендера: счётчик параметров + именованные слоты.
+ * slotOrder — dedup по имени (индекс первого вхождения); дубль маркера
+ * по-прежнему даёт отдельный $N, но в slotOrder не попадает.
+ */
+export type ParamState = { p: number; slotOrder?: SlotDefinition[] };
+
+/** Guard «unfilled»: маркеры не должны доходить до инсолнения (A2 → fill в B2). */
+export function assertNoUnfilledSlots(values: unknown[]): void {
+  const names = [
+    ...new Set(values.filter(isHoleRef).map((v) => (v as HoleRef).slotName)),
+  ];
+  if (names.length === 0) return;
+  throw new Error(
+    `Unfilled slot(s): ${names.join(', ')} — use .fill({...}) or a plain value`,
+  );
+}
 
 /** Ранги требуют ORDER BY (PG: ошибка без него) — остальные окна допустимы с OVER (). */
 const WINDOW_RANK_FUNCTIONS = new Set([
@@ -69,8 +96,21 @@ export abstract class SqlGenerator {
   protected _renderValue(
     w: WhereCondition,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
+    // именованный слот — ДО field-to-field ветки (SlotMarker тоже BaseFilter)
+    if (isHoleRef(w.value)) {
+      const marker = w.value;
+      values.push(marker);
+      const idx = paramIndex.p++;
+      if (
+        paramIndex.slotOrder &&
+        !paramIndex.slotOrder.some((s) => s.name === marker.slotName)
+      ) {
+        paramIndex.slotOrder.push({ name: marker.slotName, index: idx });
+      }
+      return `$${idx}`;
+    }
     // field-to-field сравнение
     if (
       w.value &&
@@ -107,7 +147,7 @@ export abstract class SqlGenerator {
   protected _buildWhereGroupSql(
     group: WhereGroup,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
     resolveBare?: (col: string) => string,
   ): string {
     if (group.elements.length === 0) return '';
@@ -130,7 +170,7 @@ export abstract class SqlGenerator {
     left: string,
     w: WhereCondition,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     if (!VALID_OPS.has(w.op)) {
       throw new Error(`Unsupported operator: ${w.op}`);
@@ -155,7 +195,7 @@ export abstract class SqlGenerator {
   private _renderWhereExpression(
     expression: WhereExpression,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
     resolveBare: ((col: string) => string) | undefined,
     contextJoin: 'AND' | 'OR',
     hasSiblings: boolean,
@@ -184,7 +224,7 @@ export abstract class SqlGenerator {
   protected _buildWhereClause(
     rootGroup: WhereGroup,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
     extraConditions: string[],
   ): string {
     const mainSql = this._buildWhereGroupSql(rootGroup, values, paramIndex);
@@ -196,7 +236,7 @@ export abstract class SqlGenerator {
   protected _buildConditionSql(
     w: WhereCondition,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     const col = w.column ?? w.field;
     const left = w.alias ? `"${w.alias}"."${col}"` : `"${col}"`;
@@ -211,7 +251,7 @@ export abstract class SqlGenerator {
   protected _buildHavingClause(
     sqb: ReadonlySqb,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     if (sqb.havings.elements.length === 0) return '';
     const aggAliases = new Map<string, string>();
@@ -236,7 +276,7 @@ export abstract class SqlGenerator {
     selects: readonly SelectItem[] | null,
     targetFields: { name: string; column: string }[],
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     if (selects && selects.length > 0) {
       return selects
@@ -267,7 +307,7 @@ export abstract class SqlGenerator {
     limit: number | null,
     offset: number | null,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     const parts: string[] = [];
     if (orders.length > 0) {
@@ -300,7 +340,7 @@ export abstract class SqlGenerator {
     inc: IncludedRelation,
     correlationCondition: WhereCondition,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): { from: string; select: string } {
     const alias = inc.propertyName;
     const lateralAlias = `__inc_${alias}`;
@@ -424,15 +464,20 @@ export abstract class SqlGenerator {
 
   // ═══ Main query builders ═══
 
-  public toSql(sqb: ReadonlySqb): { text: string; values: unknown[] } {
+  public toSql(sqb: ReadonlySqb): {
+    text: string;
+    values: unknown[];
+    slotOrder: SlotDefinition[];
+  } {
     const values: unknown[] = [];
-    const paramIndex = { p: 1 };
+    const paramIndex: ParamState = { p: 1, slotOrder: [] };
 
     switch (sqb.operation) {
       case 'select':
         return {
           text: this._buildSelectQueryText(sqb, values, paramIndex),
           values,
+          slotOrder: paramIndex.slotOrder ?? [],
         };
       case 'update':
         return this._buildUpdateQuery(sqb);
@@ -448,7 +493,7 @@ export abstract class SqlGenerator {
   private _buildSelectQueryText(
     sqb: ReadonlySqb,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     const mainTableAlias = this._mainTableAlias(sqb);
 
@@ -564,7 +609,7 @@ export abstract class SqlGenerator {
   private _renderWindow(
     sel: WindowSelectable,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     if (!sel.alias) throw new Error('Window function must have an alias');
     // PG: rank-семейство требует ORDER BY в окне — fail fast при рендере.
@@ -600,7 +645,7 @@ export abstract class SqlGenerator {
   private _renderSelectItem(
     sel: SelectItem,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     if (sel.kind === 'aggregate') return this._renderAggregate(sel);
     if (sel.kind === 'window')
@@ -616,7 +661,7 @@ export abstract class SqlGenerator {
     sqb: ReadonlySqb,
     mainTableAlias: string,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     if (!sqb.selects || sqb.selects.length === 0) {
       return `"${mainTableAlias}".*`;
@@ -665,7 +710,7 @@ export abstract class SqlGenerator {
     sqb: ReadonlySqb,
     mainTableAlias: string,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): { select: string; from: string } {
     let select = '';
     const froms: string[] = [];
@@ -694,7 +739,7 @@ export abstract class SqlGenerator {
   private _buildFromJoins(
     sqb: ReadonlySqb,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): { from: string; extraConditions: string[] } {
     const allAliases = [...sqb.tableContext.keys()];
     const joinGraph = this._buildJoinGraph(sqb.joins);
@@ -765,7 +810,7 @@ export abstract class SqlGenerator {
   private _buildSelectWhereClause(
     sqb: ReadonlySqb,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
     extraConditions: string[],
   ): string {
     if (
@@ -817,7 +862,7 @@ export abstract class SqlGenerator {
   private _buildPaginationClause(
     sqb: ReadonlySqb,
     values: unknown[],
-    paramIndex: { p: number },
+    paramIndex: ParamState,
   ): string {
     let limitClause = '';
     if (sqb.limit !== null) {
@@ -837,13 +882,14 @@ export abstract class SqlGenerator {
   private _buildUpdateQuery(sqb: ReadonlySqb): {
     text: string;
     values: unknown[];
+    slotOrder: SlotDefinition[];
   } {
     if (sqb.tableContext.size !== 1)
       throw new Error('UPDATE requires exactly one table');
     const collectionName = sqb.tableContext.values().next().value;
     const tableAlias = sqb.tableContext.keys().next().value;
     const values: unknown[] = [];
-    const paramIndex = { p: 1 };
+    const paramIndex: ParamState = { p: 1, slotOrder: [] };
     const data = sqb.updateData;
 
     if (!data || Object.keys(data).length === 0)
@@ -876,6 +922,7 @@ export abstract class SqlGenerator {
         .trim()
         .replace(/\s+/g, ' '),
       values,
+      slotOrder: paramIndex.slotOrder ?? [],
     };
   }
 
@@ -884,6 +931,7 @@ export abstract class SqlGenerator {
   private _buildUpsertQuery(sqb: ReadonlySqb): {
     text: string;
     values: unknown[];
+    slotOrder: SlotDefinition[];
   } {
     if (sqb.tableContext.size !== 1)
       throw new Error('UPSERT requires exactly one table');
@@ -897,7 +945,7 @@ export abstract class SqlGenerator {
     for (const k of keys) assertSqlIdentifier(k, 'column name');
     const columns = keys.map((k) => `"${k}"`).join(', ');
     const values: unknown[] = [];
-    const paramIndex = { p: 1 };
+    const paramIndex: ParamState = { p: 1, slotOrder: [] };
     const placeholders = keys
       .map((k) => {
         values.push(data[k]);
@@ -919,6 +967,7 @@ export abstract class SqlGenerator {
         .trim()
         .replace(/\s+/g, ' '),
       values,
+      slotOrder: paramIndex.slotOrder ?? [],
     };
   }
 
@@ -927,13 +976,14 @@ export abstract class SqlGenerator {
   private _buildDeleteQuery(sqb: ReadonlySqb): {
     text: string;
     values: unknown[];
+    slotOrder: SlotDefinition[];
   } {
     if (sqb.tableContext.size !== 1)
       throw new Error('DELETE requires exactly one table');
     const collectionName = sqb.tableContext.values().next().value;
     const tableAlias = sqb.tableContext.keys().next().value;
     const values: unknown[] = [];
-    const paramIndex = { p: 1 };
+    const paramIndex: ParamState = { p: 1, slotOrder: [] };
     const whereClause = this._buildWhereClause(
       sqb.wheres,
       values,
@@ -953,6 +1003,7 @@ export abstract class SqlGenerator {
         .trim()
         .replace(/\s+/g, ' '),
       values,
+      slotOrder: paramIndex.slotOrder ?? [],
     };
   }
 }
