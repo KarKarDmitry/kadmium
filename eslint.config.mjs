@@ -32,6 +32,10 @@ export default tseslint.config(
   //   },
   // },
   {
+    files: ['packages/core/test/orm/query-slots.test.ts'],
+    rules: { '@typescript-eslint/no-unused-vars': 'off' },
+  },
+  {
     files: ['test-project/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
