@@ -147,7 +147,7 @@ for (const req of incoming) {
 
 ### Разбивка на под-коммиты (~300 строк/PR)
 
-- **A1** — типизация фильтров: `BaseFilter<TValue>` + `V` + `eq/neq/...`. Самый изолированный старт; сразу выплывают кросс-типовые eq в тестах.
+- **A1** — типизация фильтров: `BaseFilter<TValue>` + `V` + `eq/neq/...`. Самый изолированный старт; сразу выплывают кросс-типовые eq в тестах. — ✅ Done (`bbf78dc`): phantom `BaseFilter<TValue>` (`declare readonly _value`), все фильтры объявляют V, `eq/neq/gt/gte/lt/lte` → `V | BaseFilter<V>`; eq-site-тесты в `filters.test.ts` (same-V реф валиден; кросс-тип реф и голый `BaseFilter` → expected-error). Кросс-типовых `eq` в тестах не нашлось (всё уже было typed). Тип-narrowing (голый `BaseFilter` в eq теперь ошибка) — пометка в теле коммита; runtime 0.
 - **A2** — слот-маркер + рендер: `SlotMarker`, `slot()`, `isHoleRef`, `_renderValue`, `slotOrder` в `toSql`, guard «unfilled».
 - **B1** — `QuerySlots` + `.compile()` (типы, без исполнения): ToDef, `ArrayField`/`.array`, исключение из select-proxy.
 - **B2** — исполнение: `CompiledQuery.fill()` (порядок+валидация), `OrmManager.raw`, integration против PG.
