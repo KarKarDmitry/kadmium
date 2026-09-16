@@ -56,7 +56,7 @@ describe('db: schema diff + health', () => {
     const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
     // droppedTables не заполняется при создании (не авто-дроп)
     const hasDrop = diff.operations.some(
-      (o: any) => o.type === 'drop-table' && o.table === 'unmanaged_extra',
+      (o) => o.type === 'drop-table' && o.table === 'unmanaged_extra',
     );
     expect(hasDrop).toBe(false);
     await h.adapter.ddl.raw('DROP TABLE IF EXISTS "unmanaged_extra"');
