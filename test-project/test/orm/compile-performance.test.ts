@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   AppCore,
   Model,
+  MultiQuerySlots,
   OrmManager,
   QuerySlots,
   slot,
@@ -405,5 +406,243 @@ describe('render-perf: обычный билдер vs compiled (без запр�
 
     // Число условий растёт линейно → рендер билдера обязан дорожать; compiled почти не реагирует.
     expect(b8).toBeGreaterThan(b1);
+  });
+
+  it('10) multi: join + typed-слот — compiled не пересобирает join-цепочку', () => {
+    const S = new MultiQuerySlots({ u: UserModel, p: PostModel }).push((t) => [
+      t.p.published,
+    ]);
+    const r = benchCase(
+      'multi join + slot',
+      harness.count,
+      harness.reset,
+      () =>
+        orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .where((t) => t.p.published.eq(true))
+          .select((t) => [t.u.name, t.p.title])
+          .toSql(),
+      () => {
+        const c = orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .where((t) => t.p.published.eq(S.slot('published')))
+          .select((t) => [t.u.name, t.p.title])
+          .compile(S);
+        return () => orm.run(c).fill({ published: true }).sql();
+      },
+    );
+
+    expect(r.buildRenders).toBe(ITERS);
+    expect(r.compRenders).toBe(1);
+    expect(r.previewC).toBe(r.previewB);
+    expect(r.previewC).toContain('JOIN');
+    expect(r.compMs).toBeLessThan(r.buildMs);
+  });
+
+  it('11) multi flat: slot() на nullable-поле — compile<T>() без MultiQuerySlots', () => {
+    const r = benchCase(
+      'multi flat slot',
+      harness.count,
+      harness.reset,
+      () =>
+        orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .where((t) => t.p.title.eq('Hello Postgres'))
+          .select((t) => [t.u.name, t.p.title])
+          .toSql(),
+      () => {
+        const c = orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .where((t) => t.p.title.eq(slot('title')))
+          .select((t) => [t.u.name, t.p.title])
+          .compile<{ title: string | undefined }>();
+        return () => orm.run(c).fill({ title: 'Hello Postgres' }).sql();
+      },
+    );
+
+    expect(r.buildRenders).toBe(ITERS);
+    expect(r.compRenders).toBe(1);
+    expect(r.previewC).toBe(r.previewB);
+    expect(r.previewC).toContain('$1');
+    expect(r.compMs).toBeLessThan(r.buildMs);
+  });
+
+  it('12) multi: order + limit + offset + typed-слот — пагинация переиспользуется', () => {
+    const S = new MultiQuerySlots({ u: UserModel, p: PostModel }).push((t) => [
+      t.p.views,
+    ]);
+    const r = benchCase(
+      'multi order+limit',
+      harness.count,
+      harness.reset,
+      () =>
+        orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .where((t) => t.p.views.gt(0))
+          .order((t) => [t.p.views.desc])
+          .limit(5)
+          .offset(0)
+          .select((t) => [t.u.name, t.p.title])
+          .toSql(),
+      () => {
+        const c = orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .where((t) => t.p.views.gt(S.slot('views')))
+          .order((t) => [t.p.views.desc])
+          .limit(5)
+          .offset(0)
+          .select((t) => [t.u.name, t.p.title])
+          .compile(S);
+        return () => orm.run(c).fill({ views: 0 }).sql();
+      },
+    );
+
+    expect(r.buildRenders).toBe(ITERS);
+    expect(r.compRenders).toBe(1);
+    expect(r.previewC).toBe(r.previewB);
+    expect(r.previewC).toContain('LIMIT');
+    expect(r.compMs).toBeLessThan(r.buildMs);
+  });
+
+  it('13) multi: include (LATERAL) + слот в include().where() — LATERAL не рендерится повторно', () => {
+    const r = benchCase(
+      'multi include',
+      harness.count,
+      harness.reset,
+      () =>
+        orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .include({ p: { comments: { where: (c) => c.text.neq('x') } } })
+          .select((t) => [t.p.title])
+          .toSql(),
+      () => {
+        const c = orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .include({ p: { comments: { where: (c) => c.text.neq(slot('text')) } } })
+          .select((t) => [t.p.title])
+          .compile<{ text: string | undefined }>();
+        return () => orm.run(c).fill({ text: 'x' }).sql();
+      },
+    );
+
+    expect(r.buildRenders).toBe(ITERS);
+    expect(r.compRenders).toBe(1);
+    expect(r.previewC).toBe(r.previewB);
+    expect(r.previewC).toContain('LATERAL');
+    expect(r.compMs).toBeLessThan(r.buildMs);
+  });
+
+  it('14) multi: groupBy + aggregate + typed-слот — группировка не пересобирается', () => {
+    const S = new MultiQuerySlots({ u: UserModel, p: PostModel }).push((t) => [
+      t.p.views,
+    ]);
+    const r = benchCase(
+      'multi groupBy agg',
+      harness.count,
+      harness.reset,
+      () =>
+        orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .groupBy((t) => [t.u.name])
+          .where((t) => t.p.views.gte(5))
+          .select((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
+          .toSql(),
+      () => {
+        const c = orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+          .groupBy((t) => [t.u.name])
+          .where((t) => t.p.views.gte(S.slot('views')))
+          .select((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
+          .compile(S);
+        return () => orm.run(c).fill({ views: 5 }).sql();
+      },
+    );
+
+    expect(r.buildRenders).toBe(ITERS);
+    expect(r.compRenders).toBe(1);
+    expect(r.previewC).toBe(r.previewB);
+    expect(r.previewC).toContain('GROUP BY');
+    expect(r.compMs).toBeLessThan(r.buildMs);
+  });
+
+  it('15) multi: слот в join().on — paramIndex общего рендера не сбрасывается', () => {
+    const r = benchCase(
+      'multi slot in ON',
+      harness.count,
+      harness.reset,
+      () =>
+        orm
+          .query({ u: UserModel, p: PostModel })
+          .join({ left: 'u', right: 'p', on: (t) => t.p.author.eq(1) })
+          .where((t) => t.u.id.eq(t.p.author))
+          .select((t) => [t.p.title])
+          .toSql(),
+      () => {
+        const c = orm
+          .query({ u: UserModel, p: PostModel })
+          .join({
+            left: 'u',
+            right: 'p',
+            on: (t) => t.p.author.eq(slot('author')),
+          })
+          .where((t) => t.u.id.eq(t.p.author))
+          .select((t) => [t.p.title])
+          .compile<{ author: number | undefined }>();
+        return () => orm.run(c).fill({ author: 1 }).sql();
+      },
+    );
+
+    expect(r.buildRenders).toBe(ITERS);
+    expect(r.compRenders).toBe(1);
+    expect(r.previewC).toBe(r.previewB);
+    expect(r.previewC).toContain('JOIN');
+    expect(r.compMs).toBeLessThan(r.buildMs);
+  });
+
+  it('16) multi: 3 таблицы (comment→post→user) + typed-слот', () => {
+    const S = new MultiQuerySlots({
+      c: CommentModel,
+      p: PostModel,
+      a: UserModel,
+    }).push((t) => [t.a.id]);
+    const build = () =>
+      orm
+        .query({ c: CommentModel, p: PostModel, a: UserModel })
+        .join({ left: 'c', right: 'p', on: (t) => t.c.post.eq(t.p.id) })
+        .join({ left: 'c', right: 'a', on: (t) => t.c.user.eq(t.a.id) })
+        .where((t) => t.a.id.eq(1))
+        .select((t) => [t.p.title, t.c.text]);
+    const r = benchCase(
+      'multi 3-table',
+      harness.count,
+      harness.reset,
+      () => build().toSql(),
+      () => {
+        const c = orm
+          .query({ c: CommentModel, p: PostModel, a: UserModel })
+          .join({ left: 'c', right: 'p', on: (t) => t.c.post.eq(t.p.id) })
+          .join({ left: 'c', right: 'a', on: (t) => t.c.user.eq(t.a.id) })
+          .where((t) => t.a.id.eq(S.slot('id')))
+          .select((t) => [t.p.title, t.c.text])
+          .compile(S);
+        return () => orm.run(c).fill({ id: 1 }).sql();
+      },
+    );
+
+    expect(r.buildRenders).toBe(ITERS);
+    expect(r.compRenders).toBe(1);
+    expect(r.previewC).toBe(r.previewB);
+    expect(r.previewC).toContain('JOIN');
+    expect(r.compMs).toBeLessThan(r.buildMs);
   });
 });

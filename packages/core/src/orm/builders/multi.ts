@@ -15,10 +15,16 @@ import type {
   SelectTools,
 } from '../types/proxy';
 import type { IncludeConfig } from '../types/includes';
-import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type {
+  CompiledQuery,
+  HoleRef,
+  SqlAdapter,
+} from '@karkardmitry/kadmium-sql-types';
 import { aggregates } from '../field-builders/aggregates';
 import { windowFunctions } from '../field-builders/window-functions';
 import type { AnySelectable } from '../types/includes';
+import type { AnyArrayField } from '../ast/array-field';
+import type { MultiQuerySlots, ToDef } from '../query-slots';
 import { buildDebugSql } from './utils';
 import {
   buildRelation,
@@ -41,6 +47,27 @@ type MultiIncludeConfig<T extends AliasesMap> = {
         }
   >;
 };
+
+/**
+ * MultiSelectResult — терминал multi-запроса (select финализирует цепочку).
+ * compile() компилирует снaпшот: плоский путь — тип слотов руками
+ * (compile<T>()), типизированный — runtime-проверка имён через
+ * MultiQuerySlots.assertSlotNames. TResult — миррор go() (всегда массив).
+ */
+export interface MultiSelectResult<
+  S extends readonly AnySelectable[],
+  T extends AliasesMap,
+  C extends MultiIncludeConfig<T> = Record<never, never>,
+> {
+  toSql(): string;
+  go(): Promise<FinalResult<S, T, C>[]>;
+  compile<
+    TSlots extends Record<string, unknown> = Record<string, never>,
+  >(): CompiledQuery<TSlots, FinalResult<S, T, C>[]>;
+  compile<NS extends readonly (AnySelectable | AnyArrayField)[]>(
+    slots: MultiQuerySlots<T, NS>,
+  ): CompiledQuery<ToDef<NS>, FinalResult<S, T, C>[]>;
+}
 
 /**
  * MultiQueryBuilder — построитель многотабличных запросов.
@@ -137,10 +164,7 @@ export class MultiQueryBuilder<
 
   select<const S extends readonly AnySelectable[]>(
     fn: (t: MultiSelectProxy<T>, tools: SelectTools) => S,
-  ): {
-    toSql(): string;
-    go(): Promise<FinalResult<S, T, TInclude>[]>;
-  } {
+  ): MultiSelectResult<S, T, TInclude> {
     const sqb = this.sqb.clone();
     sqb.selects = [
       ...fn(this._createSelectProxy(), {
@@ -148,15 +172,32 @@ export class MultiQueryBuilder<
         wf: windowFunctions,
       }),
     ] as AnySelectableField[];
-    return {
+    const result: MultiSelectResult<S, T, TInclude> = {
       toSql: () => this._toSqlFrom(sqb),
       go: () => {
         if (this.adapter) {
-          return this.adapter.execute(sqb) as any;
+          return this.adapter.execute(sqb) as Promise<
+            FinalResult<S, T, TInclude>[]
+          >;
         }
         throw new Error('No adapter configured; cannot execute query.');
       },
+      compile: (slots?: MultiQuerySlots<T, any>) => {
+        const snap = sqb.clone();
+        if (!this.adapter)
+          throw new Error('No adapter configured; cannot compile SQL.');
+        const { text, values, slotOrder } = this.adapter.toSql(snap);
+        slots?.assertSlotNames(slotOrder ?? []);
+        return {
+          text,
+          values: values as (unknown | HoleRef)[],
+          slotOrder: slotOrder ?? [],
+          single: false,
+          sqb: snap,
+        } as unknown as CompiledQuery<any, any>;
+      },
     };
+    return result;
   }
 
   // ── include ──

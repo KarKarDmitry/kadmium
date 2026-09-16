@@ -11,7 +11,7 @@ export { OrmManager } from './orm/orm';
 
 export { and, or } from './orm';
 export { slot, SlotMarker } from './orm';
-export { QuerySlots } from './orm';
+export { QuerySlots, MultiQuerySlots } from './orm';
 export type { WhereExpression } from './orm';
 
 export {

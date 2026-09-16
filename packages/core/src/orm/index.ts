@@ -1,12 +1,13 @@
 export { OrmManager } from './orm';
 export { SingleQueryBuilder } from './builders/single';
 export { MultiQueryBuilder } from './builders/multi';
+export type { MultiSelectResult } from './builders/multi';
 export { KadmiumSqb } from './sqb';
 export { and, or } from './where-expression';
 export { SelectableField } from './ast/selectable';
 export { BaseFilter } from './field-builders/base-filter';
 export { SlotMarker, slot } from './slot';
-export { QuerySlots } from './query-slots';
+export { QuerySlots, MultiQuerySlots } from './query-slots';
 export type { ToDef } from './query-slots';
 export { ArrayField } from './ast/array-field';
 export type { AnyArrayField } from './ast/array-field';
