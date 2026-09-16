@@ -81,9 +81,9 @@ export interface WindowSelectable {
   };
 }
 
-/** Элемент SELECT: поле, агрегат или оконная функция. SQL рендерит адаптер из структуры. */
+/** Элемент SELECT: поле, агрегат, оконная функция или сырой sql-фрагмент. SQL рендерит адаптер из структуры. */
 export type SelectItem =
-  SelectableField | AggregateSelectable | WindowSelectable;
+  SelectableField | AggregateSelectable | WindowSelectable | SqlSelectItem;
 
 export interface JoinOptions {
   left: string;
@@ -150,10 +150,20 @@ export interface HoleRef {
   readonly slotName: string;
 }
 
-/** Позиция именованного слота в параметрах: index = номер $N (1-based). */
+/** Резервный идентификатор в контракте */
 export interface SlotDefinition {
   readonly name: string;
   readonly index: number;
+}
+
+/** Сырой sql-фрагмент в SELECT: предрендеренный текст + параметры фрагмента (C2). */
+export interface SqlSelectItem {
+  readonly kind: 'sql-item';
+  readonly alias: string;
+  /** Текст фрагмента с локальными $1..$N (сдвигается на текущий paramIndex). */
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
 }
 
 /**

@@ -32,6 +32,11 @@ export class SelectableField<
     };
   }
 
+  /** Идентификатор колонки для встраивания в sql-фрагменты: `"alias"."column"`. */
+  getIdentifierForSql(): string {
+    return `"${this.tableAlias}"."${this.column ?? this.fieldName}"`;
+  }
+
   get desc(): OrderDirection {
     return {
       tableAlias: this.tableAlias,

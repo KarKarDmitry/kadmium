@@ -14,7 +14,13 @@ export type SqlPart =
   | null
   | SlotMarker
   | SqlFragment
-  | CompiledQuery<Record<string, unknown>, unknown>;
+  | CompiledQuery<Record<string, unknown>, unknown>
+  | SqlFieldRef;
+
+/** Объект, который рендерится в идентификатор колонки: SelectableField, BaseFilter. */
+export interface SqlFieldRef {
+  getIdentifierForSql(): string;
+}
 
 export function sql<T = unknown>(
   strings: TemplateStringsArray,
@@ -72,11 +78,24 @@ export class SqlFragment<T = unknown> {
 
 export class SqlSelectable<T, A extends string> {
   readonly kind = 'sql-item' as const;
+  readonly alias: A;
+  /** Текст фрагмента с локальными $1..$N (сдвигается на текущий paramIndex адаптера). */
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
 
-  constructor(
-    readonly fragment: SqlFragment<T>,
-    readonly alias: A,
-  ) {}
+  constructor(fragment: SqlFragment<T>, alias: A) {
+    const values: unknown[] = [];
+    const slotOrder: SlotDefinition[] = [];
+    const text = renderFragment(fragment.segments, fragment.parts, values, {
+      p: 1,
+      slotOrder,
+    });
+    this.alias = alias;
+    this.text = text;
+    this.values = values;
+    this.slotOrder = slotOrder;
+  }
 }
 
 export class SqlOrder<D extends 'asc' | 'desc'> {
@@ -151,6 +170,14 @@ function renderPart(
     return inlineCompiled(part, values, paramIndex);
   }
 
+  if (
+    typeof part === 'object' &&
+    part !== null &&
+    'getIdentifierForSql' in part
+  ) {
+    return (part as SqlFieldRef).getIdentifierForSql();
+  }
+
   values.push(part);
   return `$${paramIndex.p++}`;
 }
@@ -200,5 +227,7 @@ function debugPart(part: SqlPart): string {
     return renderDebug(part.segments, part.parts);
   if (typeof part === 'object' && isCompiledQuery(part))
     return part.text + ` [${(part.values ?? []).join(', ')}]`;
+  if (typeof part === 'object' && 'getIdentifierForSql' in part)
+    return (part as SqlFieldRef).getIdentifierForSql();
   return String(part);
 }

@@ -11,6 +11,7 @@
 import type { SelectableField } from '../ast/selectable';
 import type { FuncField } from '../ast/func-field';
 import type { ArrayField } from '../ast/array-field';
+import type { SqlSelectable } from '../sql-fragment';
 import type {
   CompiledQuery,
   SlotDefinition,
@@ -28,8 +29,12 @@ export type AnySelectableField = SelectableField<
 /** Любая функция в SELECT (агрегат/оконная) без вывода результата. */
 export type AnyFuncField = FuncField<unknown>;
 
-/** Любое select-поле: колонка или функция (wildcard). */
-export type AnySelectable = AnySelectableField | AnyFuncField;
+/** Любой sql-фрагмент в SELECT: результат/алиас неизвестны (wildcard для `extends`). */
+export type AnySqlSelectable = SqlSelectable<unknown, string>;
+
+/** Любое select-поле: колонка, функция или sql-фрагмент (wildcard). */
+export type AnySelectable =
+  AnySelectableField | AnyFuncField | AnySqlSelectable;
 
 /** Массив-слот: wildcard для фантомного `ArrayField`. */
 export type AnyArrayField = ArrayField<unknown, string, string | undefined>;

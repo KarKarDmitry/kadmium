@@ -3,9 +3,14 @@ import { createWhereGroup } from './ast/where';
 import type { SelectableField } from './ast/selectable';
 import { AggregateField } from './ast/aggregate';
 import type { WindowField } from './ast/window-field';
+import type { SqlSelectable } from './sql-fragment';
 
-/** Поле в SELECT: обычное, агрегатное или оконная функция (F8). */
-export type AnySelectableField = SelectableField | AggregateField | WindowField;
+/** Поле в SELECT: обычное, агрегатное, оконная функция (F8) или sql-фрагмент (C2). */
+export type AnySelectableField =
+  | SelectableField
+  | AggregateField
+  | WindowField
+  | SqlSelectable<unknown, string>;
 import type { ModelIR } from '../ir/index';
 
 /** Тип связи для include */

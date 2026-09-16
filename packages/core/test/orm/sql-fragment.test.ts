@@ -6,6 +6,7 @@ import {
   shiftSql,
 } from '../../src/orm/sql-fragment';
 import { slot } from '../../src/orm/slot';
+import { SelectableField } from '../../src/orm/ast/selectable';
 import type { CompiledQuery } from '@karkardmitry/kadmium-sql-types';
 
 function makeCompiled(
@@ -208,12 +209,53 @@ describe('sql — toString (debug)', () => {
 });
 
 describe('sql — .as()', () => {
-  it('returns SqlSelectable with alias', () => {
+  it('pre-renders SqlSelectable with alias and text', () => {
     const f = sql`EXTRACT(YEAR FROM now())`;
     const s = f.as('year');
     expect(s.kind).toBe('sql-item');
-    expect(s.fragment).toBe(f);
     expect(s.alias).toBe('year');
+    expect(s.text).toBe('EXTRACT(YEAR FROM now())');
+    expect(s.values).toEqual([]);
+    expect(s.slotOrder).toEqual([]);
+  });
+
+  it('pre-renders params and slots into the selectable', () => {
+    const s = slot('ids');
+    const sel = sql`COALESCE(x, ${1}, ${s})`.as('c');
+    expect(sel.text).toBe('COALESCE(x, $1, $2)');
+    expect(sel.values).toEqual([1, s]);
+    expect(sel.slotOrder).toEqual([{ name: 'ids', index: 2 }]);
+  });
+});
+
+describe('sql — field refs', () => {
+  it('inlines getIdentifierForSql() for field-like parts', () => {
+    const f = sql`EXTRACT(YEAR FROM created_at)`;
+    const sel = f.as('year');
+    expect(sel.text).toBe('EXTRACT(YEAR FROM created_at)');
+  });
+
+  it('renders a SelectableField as an identifier', () => {
+    const field = {
+      getIdentifierForSql: () => '"u"."created_at"',
+    };
+    const c = sql`EXTRACT(YEAR FROM ${field})`.compile();
+    expect(c.text).toBe('EXTRACT(YEAR FROM "u"."created_at")');
+    expect(c.values).toEqual([]);
+  });
+
+  it('renders a field ref via toString', () => {
+    const field = {
+      getIdentifierForSql: () => '"p"."views"',
+    };
+    expect(sql`${field} + 1`.toString()).toBe('"p"."views" + 1');
+  });
+
+  it('renders a SelectableField via getIdentifierForSql()', () => {
+    const u = new SelectableField('u', 'created_at');
+    const c = sql`EXTRACT(YEAR FROM ${u})`.compile();
+    expect(c.text).toBe('EXTRACT(YEAR FROM "u"."created_at")');
+    expect(c.values).toEqual([]);
   });
 });
 

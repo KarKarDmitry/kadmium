@@ -18,6 +18,7 @@ import type {
 } from './includes';
 import type { AggregateFunctions } from '../field-builders/aggregates';
 import type { WindowFunctions } from '../field-builders/window-functions';
+import type { SqlSelectable } from '../sql-fragment';
 
 /**
  * Инструменты для select/first callback'ов.
@@ -272,7 +273,9 @@ export type GetFieldName<S> =
           : FN extends string
             ? FN
             : never
-        : never;
+        : S extends SqlSelectable<unknown, infer A>
+          ? A
+          : never;
 
 /** Get the result type from any selectable */
 export type GetFieldType<S> =
@@ -284,7 +287,9 @@ export type GetFieldType<S> =
       ? T
       : S extends SelectableField<infer T, string, string | undefined, string>
         ? T
-        : never;
+        : S extends SqlSelectable<infer T, string>
+          ? T
+          : never;
 
 /** Helper: получить тип модели по алиасу из T */
 type ModelForAlias<T extends AliasesMap, A extends keyof T & string> =

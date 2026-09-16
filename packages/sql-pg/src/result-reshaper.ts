@@ -25,6 +25,12 @@ export class ResultReshaper {
       };
 
       for (const sel of selects) {
+        if (sel.kind === 'sql-item') {
+          if (flatRow[sel.alias] !== undefined) {
+            nestedRow[sel.alias] = flatRow[sel.alias];
+          }
+          continue;
+        }
         const tableAlias = sel.tableAlias;
         const resultName =
           sel.alias ||

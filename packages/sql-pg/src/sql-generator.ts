@@ -14,6 +14,7 @@ import type {
   IncludedRelation,
   HoleRef,
   SlotDefinition,
+  SqlSelectItem,
 } from '@karkardmitry/kadmium-sql-types';
 import { assertSqlIdentifier } from './ddl-validate';
 
@@ -49,6 +50,12 @@ const WINDOW_RANK_FUNCTIONS = new Set([
   'percent_rank',
   'cume_dist',
 ]);
+
+/** Сдвинуть $N в предрендеренном тексте фрагмента на offset позиций (C2). */
+export function shiftParameters(text: string, offset: number): string {
+  if (offset === 0) return text;
+  return text.replace(/\$(\d+)/g, (_, num) => `$${Number(num) + offset}`);
+}
 
 /** Ссылка на поле (для field-to-field сравнений) */
 interface SqlIdentifierRef {
@@ -289,6 +296,8 @@ export abstract class SqlGenerator {
           if (sel.kind === 'aggregate') return this._renderAggregate(sel);
           if (sel.kind === 'window')
             return this._renderWindow(sel, values, paramIndex);
+          if (sel.kind === 'sql-item')
+            return this._renderSqlItem(sel, values, paramIndex);
           const col = sel.column ?? sel.fieldName;
           return `"${alias}"."${col}" AS "${sel.alias || sel.fieldName}"`;
         })
@@ -655,10 +664,33 @@ export abstract class SqlGenerator {
     if (sel.kind === 'aggregate') return this._renderAggregate(sel);
     if (sel.kind === 'window')
       return this._renderWindow(sel, values, paramIndex);
+    if (sel.kind === 'sql-item')
+      return this._renderSqlItem(sel, values, paramIndex);
     const col = sel.column ?? sel.fieldName;
     return sel.alias
       ? `"${sel.tableAlias}"."${col}" AS "${sel.alias}"`
       : `"${sel.tableAlias}"."${col}"`;
+  }
+
+  /** Рендер sql-фрагмента в SELECT: локальные $1..$N сдвигаются на текущий paramIndex. */
+  private _renderSqlItem(
+    sel: SqlSelectItem,
+    values: unknown[],
+    paramIndex: ParamState,
+  ): string {
+    const start = paramIndex.p;
+    const text = shiftParameters(sel.text, start - 1);
+    for (const v of sel.values) values.push(v);
+    paramIndex.p = start + sel.values.length;
+    for (const s of sel.slotOrder) {
+      if (
+        paramIndex.slotOrder &&
+        !paramIndex.slotOrder.some((os) => os.name === s.name)
+      ) {
+        paramIndex.slotOrder.push({ name: s.name, index: start - 1 + s.index });
+      }
+    }
+    return `${text} AS "${sel.alias}"`;
   }
 
   /** SELECT-лист: поля/агрегаты/окна из sqb.selects, иначе `"alias".*`. */
@@ -692,6 +724,8 @@ export abstract class SqlGenerator {
           }
           return this._renderWindow(sel, values, paramIndex);
         }
+        if (sel.kind === 'sql-item')
+          return this._renderSqlItem(sel, values, paramIndex);
         const col = sel.column ?? sel.fieldName;
         const id = sel.tableAlias ? `"${sel.tableAlias}"."${col}"` : `"${col}"`;
         if (sel.alias) return `${id} AS "${sel.alias}"`;
