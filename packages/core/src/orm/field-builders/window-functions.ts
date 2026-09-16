@@ -4,8 +4,8 @@
  * Данные только: рендером окон занимается адаптер.
  */
 import { WindowField, type WindowArg } from '../ast/window-field';
-import type { SelectableField } from '../ast/selectable';
 import type { GetFieldType } from '../types/proxy';
+import type { AnySelectableField } from '../types/phantom';
 
 type NoArgWindow = () => WindowField<number>;
 type WithArgWindow = (arg: number) => WindowField<number>;
@@ -17,23 +17,23 @@ export type WindowFunctions = {
   percentRank: NoArgWindow;
   cumeDist: NoArgWindow;
   ntile: WithArgWindow;
-  lag: <F extends SelectableField<any, any, any>>(
+  lag: <F extends AnySelectableField>(
     field: F,
     offset?: number,
     defaultValue?: GetFieldType<F> | string | number | boolean | null,
   ) => WindowField<GetFieldType<F> | null>;
-  lead: <F extends SelectableField<any, any, any>>(
+  lead: <F extends AnySelectableField>(
     field: F,
     offset?: number,
     defaultValue?: GetFieldType<F> | string | number | boolean | null,
   ) => WindowField<GetFieldType<F> | null>;
-  firstValue: <F extends SelectableField<any, any, any>>(
+  firstValue: <F extends AnySelectableField>(
     field: F,
   ) => WindowField<GetFieldType<F>>;
-  lastValue: <F extends SelectableField<any, any, any>>(
+  lastValue: <F extends AnySelectableField>(
     field: F,
   ) => WindowField<GetFieldType<F>>;
-  nthValue: <F extends SelectableField<any, any, any>>(
+  nthValue: <F extends AnySelectableField>(
     field: F,
     n: number,
   ) => WindowField<GetFieldType<F> | null>;
@@ -56,7 +56,7 @@ export const windowFunctions: WindowFunctions = {
   percentRank: () => new WindowField<number>('percent_rank'),
   cumeDist: () => new WindowField<number>('cume_dist'),
   ntile: (arg) => new WindowField<number>('ntile', null, [arg]),
-  lag: <F extends SelectableField<any, any, any>>(
+  lag: <F extends AnySelectableField>(
     field: F,
     offset?: number,
     defaultValue?: GetFieldType<F> | string | number | boolean | null,
@@ -66,7 +66,7 @@ export const windowFunctions: WindowFunctions = {
       field,
       lagLeadArgs(offset, defaultValue),
     ),
-  lead: <F extends SelectableField<any, any, any>>(
+  lead: <F extends AnySelectableField>(
     field: F,
     offset?: number,
     defaultValue?: GetFieldType<F> | string | number | boolean | null,
@@ -76,10 +76,10 @@ export const windowFunctions: WindowFunctions = {
       field,
       lagLeadArgs(offset, defaultValue),
     ),
-  firstValue: <F extends SelectableField<any, any, any>>(field: F) =>
+  firstValue: <F extends AnySelectableField>(field: F) =>
     new WindowField<GetFieldType<F>>('first_value', field),
-  lastValue: <F extends SelectableField<any, any, any>>(field: F) =>
+  lastValue: <F extends AnySelectableField>(field: F) =>
     new WindowField<GetFieldType<F>>('last_value', field),
-  nthValue: <F extends SelectableField<any, any, any>>(field: F, n: number) =>
+  nthValue: <F extends AnySelectableField>(field: F, n: number) =>
     new WindowField<GetFieldType<F> | null>('nth_value', field, [n]),
 };
