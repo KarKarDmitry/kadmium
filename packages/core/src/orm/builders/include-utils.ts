@@ -5,8 +5,9 @@ import type { WhereExpression } from '../ast/where';
 import type { OrderDirection } from '../types/proxy';
 
 /**
- * Значение конфига одного relation. Колбэки принимают `any`-proxy:
- * их полная типизация невозможна без generic-параметра целевой модели.
+ * Runtime-значение конфига одного relation (внутреннее): колбэки принимают
+ * прощённый `any`-proxy. Публичная типобезопасная версия — IncludeConfig
+ * (types/includes.d.ts) с типизированными FilterProxy/OrderProxy.
  */
 export type IncludeConfigValue =
   | boolean

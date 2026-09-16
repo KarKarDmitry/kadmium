@@ -1,7 +1,13 @@
 import type { WhereExpression } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
 import type { FuncField } from '../ast/func-field';
-import type { OrderDirection, GetFieldName, GetFieldType } from './proxy';
+import type {
+  OrderDirection,
+  GetFieldName,
+  GetFieldType,
+  FilterProxy,
+  OrderProxy,
+} from './proxy';
 import type { Evaluate } from './relations';
 
 // ── Helper types ──
@@ -75,10 +81,15 @@ type IncludeSelectProxy<T> = {
   >;
 };
 
-/** Proxy для where/order callback внутри include */
-type IncludeFilterProxy<T> = {
-  [K in T extends { ['~shape']: infer S } ? keyof S & string : never]: any;
-};
+/** Proxy для where callback внутри include — типизированный FilterProxy целевой модели. */
+type IncludeFilterProxy<T> = FilterProxy<
+  Extract<T, { ['~shape']: Record<string, unknown> }>
+>;
+
+/** Proxy для order callback внутри include — OrderProxy целевой модели (.asc/.desc). */
+type IncludeOrderProxy<T> = OrderProxy<
+  Extract<T, { ['~shape']: Record<string, unknown> }>
+>;
 
 /**
  * Конфиг одного relation. Options едины для to-one и to-many —
@@ -94,7 +105,7 @@ type IncludeRelationConfig<M, K extends string> =
       where?: (
         t: IncludeFilterProxy<RelTarget<M, K>>,
       ) => WhereExpression | undefined;
-      order?: (t: IncludeFilterProxy<RelTarget<M, K>>) => OrderDirection[];
+      order?: (t: IncludeOrderProxy<RelTarget<M, K>>) => OrderDirection[];
       limit?: number;
       include?: IncludeConfig<RelTarget<M, K>>;
     };
@@ -119,7 +130,7 @@ type WithIncludes<Base, Included> = Evaluate<
 /** Вычислить тип одного relation по config */
 type ResolveRelation<M, K extends string, C> = C extends true
   ? RelationResult<M, K>
-  : C extends { select: infer S; include: infer Nested }
+  : C extends { select: unknown; include: infer Nested }
     ? RelKind<M, K> extends 'one-to-many'
       ? WithIncludes<
           FlatFinalResult<ExtractSelectResult<C>>,
@@ -129,7 +140,7 @@ type ResolveRelation<M, K extends string, C> = C extends true
           FlatFinalResult<ExtractSelectResult<C>>,
           ResolveIncludes<RelTarget<M, K>, Nested>
         >
-    : C extends { select: infer S }
+    : C extends { select: unknown }
       ? RelKind<M, K> extends 'one-to-many'
         ? Evaluate<FlatFinalResult<ExtractSelectResult<C>>>[]
         : Evaluate<FlatFinalResult<ExtractSelectResult<C>>>

@@ -138,6 +138,56 @@ describe('single: go() vs run(compile()).fill().go()', () => {
     ]);
   });
 
+  it('typed-слот внутри include({ posts: { where } }) — слот из LATERAL попадает в slotOrder, parity с go()', async () => {
+    const id = seedData.alice.id as number;
+    const S = new QuerySlots(UserModel).push((u) => [
+      u.id,
+      u.id.as('minViews'),
+    ]);
+    const direct = await h.orm
+      .single(UserModel)
+      .select((u) => [u.id])
+      .where((u) => u.id.eq(id))
+      .include({
+        posts: { where: (p) => p.views.gt(0), order: (p) => [p.title.asc] },
+      })
+      .go();
+    const c = h.orm
+      .single(UserModel)
+      .select((u) => [u.id])
+      .where((u) => u.id.eq(S.slot('id')))
+      .include({
+        posts: {
+          where: (p) => p.views.gt(S.slot('minViews')),
+          order: (p) => [p.title.asc],
+        },
+      })
+      .compile(S);
+    const viaRun = await h.orm.run(c).fill({ id, minViews: 0 }).go();
+
+    expectSameRows(viaRun, direct);
+    // оба слота из рендера (main-where + LATERAL) попали в общий slotOrder
+    expect(c.slotOrder.map((s) => s.name).sort()).toEqual(['id', 'minViews']);
+  });
+
+  it('плоский slot() внутри include({ posts: { where } }) + compile<T>() — результат как go()', async () => {
+    const direct = await h.orm
+      .single(UserModel)
+      .select((u) => [u.id])
+      .where((u) => u.name.eq('Alice'))
+      .include({ posts: { where: (p) => p.views.gt(0) } })
+      .go();
+    const c = h.orm
+      .single(UserModel)
+      .select((u) => [u.id])
+      .where((u) => u.name.eq(slot('name')))
+      .include({ posts: { where: (p) => p.views.gt(slot('minViews')) } })
+      .compile<{ name: string | undefined; minViews: number }>();
+    const viaRun = await h.orm.run(c).fill({ name: 'Alice', minViews: 0 }).go();
+
+    expectSameRows(viaRun, direct);
+  });
+
   it('order + page с одним слотом — одинаковый порядок и пагинация', async () => {
     const S = new QuerySlots(PostModel).push((p) => [p.views]);
     const direct = await h.orm
