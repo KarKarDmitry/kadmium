@@ -1,6 +1,6 @@
 # Реиспользуемые скомпилированные запросы (QuerySlots + compile + fill + orm.raw)
 
-**Статус:** ⬜ В процессе (A✅, B✅; C отложен).
+**Статус:** ⬜ В процессе (A✅, B✅ + multi B3/B4✅; C отложен).
 Примитивы (`slot`, `sql`-тег, рендер, контракт `CompiledQuery`) — в `plans/builder-expression.md` (План 3). Этот план — верхний слой: декларация слотов через модель, терминалы билдера, заполнение параметров и выполнение в горячем цикле. Открывает **F2** (`plans/features.md`).
 
 ---
@@ -118,7 +118,7 @@ for (const req of incoming) {
 
 - **Dedup слотов по имени** — один параметр на имя; семантика «одно значение». Обрабатывается адаптером/тегом (План 3).
 - **Optional-слоты** (`.req/.opt`) — не вводим; все слоты обязательны.
-- **`multi.compile()` / слоты в `orm.query({...})`** — позже, вне скоупа.
+- **`multi.compile()` / слоты в `orm.query({...})`** — ✅ реализовано (B3/B4, `8633bd2`): `multi.select(...).compile<T>()` (плоские слоты) и `compile(S)` с `MultiQuerySlots<T, S>` (типы из алиасов). Терминал — `select()`; `single: false`; `MultiSelectResult` в `multi.ts`.
 - **Плоский `slot()`** держит `any`-фантом → пропускает eq-проверку по значению (осознанный компромисс; тип задаётся в `compile<T>()`).
 - **Терминал — `.compile()`** (действие, глагол); тип результата — `CompiledQuery`.
 - Типы слотов из модели — ключевое отличие; eq-site проверка (`BaseFilter<TValue>`) — в Плане 3.
@@ -150,21 +150,23 @@ for (const req of incoming) {
 - **A1** — типизация фильтров: `BaseFilter<TValue>` + `V` + `eq/neq/...`. Самый изолированный старт; сразу выплывают кросс-типовые eq в тестах. — ✅ Done (`bbf78dc`): phantom `BaseFilter<TValue>` (`declare readonly _value`), все фильтры объявляют V, `eq/neq/gt/gte/lt/lte` → `V | BaseFilter<V>`; eq-site-тесты в `filters.test.ts` (same-V реф валиден; кросс-тип реф и голый `BaseFilter` → expected-error). Кросс-типовых `eq` в тестах не нашлось (всё уже было typed). Тип-narrowing (голый `BaseFilter` в eq теперь ошибка) — пометка в теле коммита; runtime 0.
 - **A2** — слот-маркер + рендер: `SlotMarker`, `slot()`, `isHoleRef`, `_renderValue`, `slotOrder` в `toSql`, guard «unfilled». — ✅ Done (`528f9f1`): sql-types (HoleRef/SlotDefinition, `toSql` + `slotOrder?`), core `orm/slot.ts` (`SlotMarker<K, V> extends BaseFilter<V>`, плоский `slot()` → `SlotMarker<Name, any>`, `isHoleRef`), sql-pg (`ParamState { p, slotOrder? }`, слот-ветка ПЕРВОЙ в `_renderValue` до field-to-field, dedup по имени, slotOrder в toSql/update/upsert/delete, `assertNoUnfilledSlots` в обоих execute). Ветка-порядок критична (SlotMarker тоже BaseFilter); тип `HoleRef` из sql-types (sql-pg core не импортирует). `CompiledQuery`/`.fill()` — B1/B2.
 - **B1** — `QuerySlots` + `.compile()` (типы, без исполнения): ToDef, `ArrayField`/`.array`, исключение из select-proxy. — ✅ Done (`931aab2`): generic `CompiledQuery<TSlots, TResult>` с `single`/`sqb`, `SqlAdapter.reshape()`, `compile()` с `QuerySlots.assertSlotNames` валидацией, compile.test (flat/typed/invariant/clone-pattern), integration через `createDebugAdapter` + `Model.clear()`.
+- **B3** — `multi.select().compile()` (плоские слоты): `MultiSelectResult<S, T, C>` в `multi.ts` (`toSql`/`go`/`compile<T>()`/`compile(S)`), рантайм `sqb.clone()` → `adapter.toSql` → `MultiQuerySlots.assertSlotNames`, `single: false`. — ✅ Done (`8633bd2`): core `compile-multi.test.ts` (Equal-миррор go(), `single`, `slotOrder`/`text`, immutability, no-adapter, clone-паттерн) + integration `test-project/test/orm/compile-multi.test.ts` (join/include/order-limit/groupBy/join.on/3-table, parity `go()` vs `run(compile()).fill().go()`, переиспользование в цикле) + perf-кейсы 10–16 в `compile-performance.test.ts` (multi join/flat/order+limit/include/groupBy/ON/3-table; compiled 1 render, ×12–74).
+- **B4** — `MultiQuerySlots<T, S>` (типизированные слоты multi): `BaseQuerySlots<S>` в `query-slots.ts` (общие `_seen`/`slot`/`assertSlotNames`), `QuerySlots` и `MultiQuerySlots` наследуют; `push((t: MultiSelectProxy<T>, aggs) => NS)`, `ToDef` переиспользуется. Экспорт из `orm/index.ts` и корневого `index.ts` (value `MultiQuerySlots`, type `MultiSelectResult`). — ✅ Done (`8633bd2`): typed-тесты в core/integration; nullable-поля → flat `compile<T>()` (typed слот требует non-null `~shape`).
 - **B2** — исполнение: `CompiledQuery.fill()` (порядок+валидация), `OrmManager.raw`, integration против PG. — ✅ Done (`931aab2`): `fillCompiled` (замена маркеров по `slotOrder`, валидация missing/extra ключей), `orm.run().fill().go()/sql()`, `single`-unwrap (`rows[0]` при first), `orm.raw()` passthrough, reshape на `PgAdapter`/`TransactionalPgAdapter` + пустой fallback в `createDebugAdapter`, run.test + integration compile-single, compile-performance (builder vs compiled ×12-55, warm-up, scaling where×N).
 - **C1** — тег: `SqlFragment`, интерполяция, перенумерация, dedup, `toString()`, запрет строк-идентификаторов.
 - **C2** — встраивание: select-embed (`.as()`, рендер проекции), order-embed (`.asc/.desc`), `array()` + `in(...)`.
 - **C3** — docs/депрекация: `@deprecated` на `single/multi.toSql()`, `count().sql()`, `exists().sql()`; AGENTS.md (терминалы, Builder Reuse, правила); features.md F2 закрывается.
 
-**Зависимости:** A1 → (A2 → {B1 → B2, C1 → C2}) → C3. A обязателен первым; B и C идут после A2 и частично параллельны. **Отложено**: multi-builder `.compile()`, DML-выражения (`set({ col: sql`...` })`), `ident()`-маркер, `where(sql`...`)`.
+**Зависимости:** A1 → (A2 → {B1 → B2 → {B3 → B4}, C1 → C2}) → C3. A обязателен первым; B и C идут после A2 и частично параллельны. **Отложено**: DML-выражения (`set({ col: sql`...` })`), `ident()`-маркер, `where(sql`...`)`, депрекация `single/multi.toSql()` (C3).
 
 ---
 
 ## Файлы
 
 **Core:**
-- `src/orm/query-slots.ts` (**NEW**) — `QuerySlots`, `ToDef` (маппинг SelectableField/AggregateField/ArrayField → слоты)
+- `src/orm/query-slots.ts` (**NEW**) — `QuerySlots`, `MultiQuerySlots` (B4), `BaseQuerySlots`, `ToDef` (маппинг SelectableField/AggregateField/ArrayField → слоты)
 - `src/orm/builders/single.ts` — `compile<T>()`/`compile(S)`; `@deprecated` на `toSql()`
-- `src/orm/builders/multi.ts` — `@deprecated` на `toSql()`
+- `src/orm/builders/multi.ts` — `MultiSelectResult` + `compile<T>()`/`compile(S)` на `select()`; `@deprecated` на `toSql()` (C3)
 - `src/orm/builders/single.ts` (`count`/`exists`) — `@deprecated` на `.sql()`
 - `src/orm/orm.ts` — `raw()`
 - `src/orm/slot.ts` (**NEW**) — `SlotMarker`, `slot()` (см. План 3)
@@ -183,6 +185,7 @@ for (const req of incoming) {
 - core: unit `query-slots.test.ts` (извлечение имён/типов, включая ArrayField и коммутацию `.array`/`.as`), `compiled-fill.test.ts` (порядок, валидация), тип-тесты (expect-error: eq-отклонение, имя не из Def, тип fill, `select([u.id.array])` запрет)
 - sql-pg: `render-value` (слоты/$N), guard unfilled, select/order-embed, `array()` в `in()`
 - integration: `test-project/test/orm/raw-slots.test.ts` — select с layers против PG; стабильность порядка при перестановке условий; повторный `fill`/переиспользование `CompiledQuery` в цикле
+- multi: core `compile-multi.test.ts` (тип/рантайм), integration `test-project/test/orm/compile-multi.test.ts` (parity + слоты в join.on/include.where), perf-кейсы 10–16 в `compile-performance.test.ts`
 
 ---
 

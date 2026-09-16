@@ -114,6 +114,25 @@ const page = await base.clone().page(2, 10).go(); // base untouched
 
 `clone()` copies the sqb and shares ir/adapter. Aggregate selects are deep-copied (AggregateField.as() mutates alias). Configuration calls (`.where`, `.limit`, `.order`) still mutate the builder in place by design — use `.clone()` when you want to keep the original untouched.
 
+### Compiled Queries (`compile()` / `QuerySlots`)
+
+`compile()` renders SQL **once**; the hot loop only substitutes slot values via `orm.run(c).fill({...}).go()` (zero proxy, zero clone, zero render). Available on `single().compile<T>()`/`compile(S)` and on the multi terminal `query({...}).select(...).compile<T>()`/`compile(S)`. `CompiledQuery.single` marks first()-style unwrap for single; multi is always `single: false`.
+
+```typescript
+const S = new MultiQuerySlots({ u: User, p: Post }).push(t => [t.p.views]);
+const c = app.orm.query({ u: User, p: Post })
+  .join({ left: 'u', right: 'p', on: t => t.u.id.eq(t.p.author) })
+  .where(t => t.p.views.gt(S.slot('views')))
+  .select(t => [t.u.name])
+  .compile(S);
+for (const req of incoming) await app.orm.run(c).fill({ views: req.min }).go();
+```
+
+- `QuerySlots(Model)` / `MultiQuerySlots({ alias: Model })` declare typed slots; `ToDef<S>` maps selectables → `{ name: valueType }`. `assertSlotNames` rejects slotOrder names not declared via `.slot()`.
+- Typed slots need **non-null** `~shape` fields; nullable fields use the flat path: `slot('name')` + `compile<{ name: string | undefined }>()`.
+- Multi slot names are global across aliases — disambiguate same-named columns with `.as('u_id')`.
+- Slots in `include().where()` and `join().on` share the adapter's `paramIndex`/`slotOrder`.
+
 ### Include System
 
 Includes are implemented as `LEFT JOIN LATERAL` with JSON aggregation (in the adapter).
