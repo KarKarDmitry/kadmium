@@ -11,6 +11,11 @@
 import type { SelectableField } from '../ast/selectable';
 import type { FuncField } from '../ast/func-field';
 import type { ArrayField } from '../ast/array-field';
+import type {
+  CompiledQuery,
+  SlotDefinition,
+} from '@karkardmitry/kadmium-sql-types';
+import type { FilterProxy } from './proxy';
 
 /** Любое select-поле конкретной колонки (wildcard для `extends`/параметров). */
 export type AnySelectableField = SelectableField<
@@ -28,3 +33,16 @@ export type AnySelectable = AnySelectableField | AnyFuncField;
 
 /** Массив-слот: wildcard для фантомного `ArrayField`. */
 export type AnyArrayField = ArrayField<unknown, string, string | undefined>;
+
+/** Любой скомпилированный запрос (слоты/результат неизвестны). */
+export type AnyCompiledQuery = CompiledQuery<Record<string, unknown>, unknown>;
+
+/** Featherweight фильтр-прокси: любой ключ → фильтр. */
+export type AnyFilterProxy = FilterProxy<{
+  ['~shape']: Record<string, unknown>;
+}>;
+
+/** Erased контракт QuerySlots/MultiQuerySlots для compile(): runtime-проверка имён. */
+export type SlotNameGuard = {
+  assertSlotNames(slotOrder: readonly SlotDefinition[]): void;
+};

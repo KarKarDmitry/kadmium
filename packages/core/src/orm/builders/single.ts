@@ -21,6 +21,7 @@ import type {
 import type { Evaluate } from '../types/relations';
 import { QuerySlots, type ToDef } from '../query-slots';
 import type { AnyArrayField } from '../ast/array-field';
+import type { SlotNameGuard } from '../types/phantom';
 import { aggregates } from '../field-builders/aggregates';
 import { windowFunctions } from '../field-builders/window-functions';
 
@@ -277,8 +278,11 @@ export class SingleQueryBuilder<
     );
     if (!pkEntry) throw new Error('No primary key field found');
     const [pkName] = pkEntry;
-
-    return this.where((t: any) => t[pkName].eq(id)).first();
+    const filter = this._createFilterProxy();
+    const pkFilter = (
+      filter as unknown as Record<string, { eq(v: typeof id): WhereExpression }>
+    )[pkName];
+    return this.where(() => pkFilter.eq(id)).first();
   }
 
   // ── CREATE ──
@@ -358,7 +362,14 @@ export class SingleQueryBuilder<
     this._materializeSelects(sqb);
     if (this.adapter) {
       const results = await this.adapter.execute(sqb);
-      return this._isFirst ? (results[0] as any) : (results as any);
+      const result: TMode extends 'first'
+        ? Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined
+        : Evaluate<QueryResult<TModel, TSelect, TInclude>>[] = (this._isFirst
+        ? results[0]
+        : results) as unknown as TMode extends 'first'
+        ? Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined
+        : Evaluate<QueryResult<TModel, TSelect, TInclude>>[];
+      return result;
     }
     throw new Error('No adapter configured; cannot execute query.');
   }
@@ -388,7 +399,9 @@ export class SingleQueryBuilder<
       ? Evaluate<QueryResult<TModel, TSelect, TInclude>> | undefined
       : Evaluate<QueryResult<TModel, TSelect, TInclude>>[]
   >;
-  compile(slots?: QuerySlots<TModel, any>): CompiledQuery<any, any> {
+  compile(
+    slots?: SlotNameGuard,
+  ): CompiledQuery<Record<string, unknown>, unknown> {
     const sqb = this.sqb.clone();
     this._materializeSelects(sqb);
     if (!this.adapter)
@@ -401,7 +414,7 @@ export class SingleQueryBuilder<
       slotOrder: slotOrder ?? [],
       single: this._isFirst,
       sqb,
-    } as unknown as CompiledQuery<any, any>;
+    } as unknown as CompiledQuery<Record<string, unknown>, unknown>;
   }
 
   // ── count / exists ──

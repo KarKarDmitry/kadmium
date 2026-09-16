@@ -5,7 +5,6 @@ import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
 import type { ModelIR } from '../../ir/index';
 import type {
-  FilterProxy,
   MultiFilterProxy,
   MultiSelectProxy,
   MultiOrderProxy,
@@ -23,6 +22,7 @@ import type {
 import { aggregates } from '../field-builders/aggregates';
 import { windowFunctions } from '../field-builders/window-functions';
 import type { AnySelectable } from '../types/includes';
+import type { AnyFilterProxy } from '../types/phantom';
 import type { AnyArrayField } from '../ast/array-field';
 import type { MultiQuerySlots, ToDef } from '../query-slots';
 import { buildDebugSql } from './utils';
@@ -205,7 +205,9 @@ export class MultiQueryBuilder<
   include<const C extends MultiIncludeConfig<T>>(
     config: C,
   ): MultiQueryBuilder<T, C> {
-    this._resolveIncludes(config as Record<string, Record<string, any>>);
+    this._resolveIncludes(
+      config as Record<string, Record<string, IncludeConfigValue>>,
+    );
     return this as unknown as MultiQueryBuilder<T, C>;
   }
 
@@ -286,7 +288,7 @@ export class MultiQueryBuilder<
       get: (_, alias: string) => {
         const ir = irs.get(alias);
         if (!ir) throw new Error(`Alias "${alias}" not found in query`);
-        return new Proxy({} as FilterProxy<any>, {
+        return new Proxy({} as AnyFilterProxy, {
           get: (__, field: string) => {
             const fieldIr = ir.fields[field];
             if (!fieldIr)

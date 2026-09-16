@@ -1,4 +1,5 @@
 import type { CompiledQuery } from '@karkardmitry/kadmium-sql-types';
+import type { AnyCompiledQuery } from './types/phantom';
 import { isHoleRef } from './slot';
 
 /** Заполненный компилированный запрос: маркеры слотов заменены значениями. */
@@ -7,12 +8,13 @@ export type FilledCompiled = {
   readonly params: unknown[];
 };
 
-export type ExtractSlots<C> = C extends CompiledQuery<infer S, any> ? S : never;
+export type ExtractSlots<C> =
+  C extends CompiledQuery<infer S, unknown> ? S : never;
 export type ExtractResult<C> =
-  C extends CompiledQuery<any, infer R> ? R : never;
+  C extends CompiledQuery<Record<string, unknown>, infer R> ? R : never;
 
 /** Раннер компилированного запроса: fill(input).go() (План 3, B2). */
-export type CompiledRunner<C extends CompiledQuery<any, any>> = {
+export type CompiledRunner<C extends AnyCompiledQuery> = {
   fill(input: ExtractSlots<C>): {
     /** Выполнить через adapter.raw + adapter.reshape (ноль рендера). */
     go(): Promise<ExtractResult<C>>;

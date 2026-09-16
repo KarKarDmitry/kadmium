@@ -34,12 +34,12 @@ export interface CreateManyOptions {
 
 // ── Helpers ──
 
-function extractFieldNames(
+function extractFieldNames<TModel extends Model>(
   ir: ModelIR,
-  fn: (t: SelectProxy<any>) => readonly SelectableField[],
+  fn: (t: SelectProxy<TModel>) => readonly SelectableField[],
 ): string[] {
   const proxy = createSelectProxy('__upsert', ir);
-  const fields = fn(proxy);
+  const fields = fn(proxy as unknown as SelectProxy<TModel>);
   return fields.map((f) => ir.fields[f.fieldName]?.alias ?? f.fieldName);
 }
 
@@ -56,7 +56,7 @@ export function buildCreateFinalizer<TModel extends Model>(
 
   const _finalize = (): CreateFinalizer<TModel> => ({
     onConflict: (fn) => {
-      sqb.conflictTarget = extractFieldNames(ir, fn as any);
+      sqb.conflictTarget = extractFieldNames(ir, fn);
       return _finalize();
     },
     doNothing: () => {
@@ -85,7 +85,7 @@ export function buildCreateManyFinalizer<TModel extends Model>(
 ): CreateManyFinalizer<TModel> {
   const _finalize = (): CreateManyFinalizer<TModel> => ({
     onConflict: (fn) => {
-      baseSqb.conflictTarget = extractFieldNames(ir, fn as any);
+      baseSqb.conflictTarget = extractFieldNames(ir, fn);
       return _finalize();
     },
     doNothing: () => {
@@ -102,7 +102,7 @@ export function buildCreateManyFinalizer<TModel extends Model>(
     },
     sql: () => {
       // Preview for the first row (batch upsert issues a single multi-row statement)
-      const sqb = new (baseSqb.constructor as any)();
+      const sqb = new (baseSqb.constructor as new () => KadmiumSqb)();
       sqb.operation = 'upsert';
       sqb.upsertData = mappedRows[0];
       sqb.tableContext = new Map(baseSqb.tableContext);

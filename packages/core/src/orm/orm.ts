@@ -3,7 +3,7 @@ import { MultiQueryBuilder } from './builders/multi';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type { CompiledQuery } from '@karkardmitry/kadmium-sql-types';
+import type { AnyCompiledQuery } from './types/phantom';
 import {
   fillCompiled,
   type CompiledRunner,
@@ -130,7 +130,7 @@ export class OrmManager {
    * Ноль рендера на выборке: adapter.raw + adapter.reshape(compiled.sqb, rows).
    * ExecutableSQL не существует — SQL-просмотр через .fill(...).sql().
    */
-  run<C extends CompiledQuery<any, any>>(compiled: C): CompiledRunner<C> {
+  run<C extends AnyCompiledQuery>(compiled: C): CompiledRunner<C> {
     const adapter = this._adapter;
     if (!adapter)
       throw new Error('No SQL adapter configured; cannot run compiled query.');

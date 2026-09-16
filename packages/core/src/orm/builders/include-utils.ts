@@ -3,6 +3,7 @@ import { Relation } from '../field-builders/relation';
 import { toSnakeCase, type ModelIR } from '../../ir/index';
 import type { WhereExpression } from '../ast/where';
 import type { OrderDirection } from '../types/proxy';
+import type { SelectableField } from '../ast/selectable';
 
 /**
  * Runtime-значение конфига одного relation (внутреннее): колбэки принимают
@@ -16,7 +17,7 @@ export type IncludeConfigValue =
       where?: (proxy: any) => WhereExpression | undefined;
       order?: (proxy: any) => OrderDirection[];
       limit?: number;
-      select?: (proxy: any) => readonly any[];
+      select?: (proxy: any) => readonly SelectableField[];
       include?: Record<string, IncludeConfigValue>;
     };
 

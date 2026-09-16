@@ -58,12 +58,12 @@ export class SelectableField<
   as<T extends string>(
     alias: T,
   ): SelectableField<TFieldType, TFieldName, T, TTableAlias> {
-    return new SelectableField(
+    return new SelectableField<TFieldType, TFieldName, T, TTableAlias>(
       this.tableAlias,
       this.fieldName,
       alias,
       this.aggregate,
       this.column,
-    ) as any;
+    );
   }
 }

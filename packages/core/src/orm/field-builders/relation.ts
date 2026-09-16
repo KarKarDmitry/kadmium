@@ -8,7 +8,11 @@ import {
   createOrderProxy,
 } from '../builders/query-proxies';
 import { SelectableField } from '../ast/selectable';
-import { buildRelation, configureRelation } from '../builders/include-utils';
+import {
+  buildRelation,
+  configureRelation,
+  type IncludeConfigValue,
+} from '../builders/include-utils';
 
 /**
  * Relation — runtime класс для include связей.
@@ -110,7 +114,7 @@ export class Relation implements IncludedRelation {
   }
 
   /** Вложенный include через Record config */
-  include(config: Record<string, any>): this {
+  include(config: Record<string, IncludeConfigValue>): this {
     for (const [relationName, relationConfig] of Object.entries(config)) {
       const builder = buildRelation(
         this.internalSqb,
