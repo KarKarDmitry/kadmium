@@ -22,37 +22,30 @@ describe('SingleQueryBuilder — constructor', () => {
 describe('SingleQueryBuilder — where/and/or', () => {
   it('where pushes condition', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => u.name.eq('Alice'));
     expect(b.sqb.wheres.elements.length).toBe(1);
   });
 
   it('and is alias for where', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.and((u: any) => u.name.eq('Alice'));
     expect(b.sqb.wheres.elements.length).toBe(1);
   });
 
   it('or appends an OR step (no auto-grouping)', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => u.name.eq('Alice'));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.or((u: any) => u.name.eq('Bob'));
     expect(b.sqb.wheres.elements.length).toBe(2);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((b.sqb.wheres.elements[1] as any).join).toBe('OR');
   });
 
   it('where accepts and/or expressions as one step', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) =>
       or(u.name.eq('Alice'), and(u.name.eq('Bob'), u.active.eq(true))),
     );
     expect(b.sqb.wheres.elements.length).toBe(1);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const group = (b.sqb.wheres.elements[0] as any).condition as {
       elements: unknown[];
     };
@@ -61,10 +54,8 @@ describe('SingleQueryBuilder — where/and/or', () => {
 
   it('skips undefined expressions (and() with all-empty args)', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => and(u.name.eq('Alice'), undefined));
     expect(b.sqb.wheres.elements.length).toBe(1);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where(() => undefined as any);
     expect(b.sqb.wheres.elements.length).toBe(1);
   });
@@ -98,14 +89,12 @@ describe('SingleQueryBuilder — first', () => {
 describe('SingleQueryBuilder — modifiers', () => {
   it('groupBy pushes to sqb.groupBy', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.groupBy((t: any) => [t.name]);
     expect(b.sqb.groupBy).toContain('name');
   });
 
   it('order pushes to sqb.orders', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((t: any) => [t.name.desc]);
     expect(b.sqb.orders.length).toBe(1);
     expect(b.sqb.orders[0].direction).toBe('desc');
@@ -146,13 +135,10 @@ describe('SingleQueryBuilder — modifiers', () => {
 describe('SingleQueryBuilder — cursor', () => {
   it('pushes expression to sqb.cursor', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((u: any) => [u.id.asc]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.cursor((u: any) => u.id.gt(42));
     expect(b.sqb.cursor.elements.length).toBe(1);
     expect(b.sqb.wheres.elements.length).toBe(0);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((b.sqb.cursor.elements[0] as any).condition).toMatchObject({
       field: 'id',
       column: 'id',
@@ -163,12 +149,9 @@ describe('SingleQueryBuilder — cursor', () => {
 
   it('accepts and/or multi-key expression', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((u: any) => [u.age.asc, u.id.desc]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.cursor((u: any) => or(u.age.gt(30), and(u.age.eq(30), u.id.lt(500))));
     expect(b.sqb.cursor.elements.length).toBe(1);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const group = (b.sqb.cursor.elements[0] as any).condition as {
       elements: unknown[];
     };
@@ -177,7 +160,6 @@ describe('SingleQueryBuilder — cursor', () => {
 
   it('throws without order()', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => b.cursor((u: any) => u.id.gt(42))).toThrow(
       /requires an order/,
     );
@@ -187,9 +169,7 @@ describe('SingleQueryBuilder — cursor', () => {
   it('throws when offset() already set', () => {
     const b = builder();
     b.offset(5);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((u: any) => [u.id.asc]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => b.cursor((u: any) => u.id.gt(42))).toThrow(
       /cannot be combined/,
     );
@@ -197,20 +177,15 @@ describe('SingleQueryBuilder — cursor', () => {
 
   it('throws when called twice', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((u: any) => [u.id.asc]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.cursor((u: any) => u.id.gt(42));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => b.cursor((u: any) => u.id.gt(43))).toThrow(/already set/);
     expect(b.sqb.cursor.elements.length).toBe(1);
   });
 
   it('offset() after cursor throws', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((u: any) => [u.id.asc]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.cursor((u: any) => u.id.gt(42));
     expect(() => b.offset(5)).toThrow(/cannot be combined/);
     expect(b.sqb.offset).toBeNull();
@@ -218,18 +193,14 @@ describe('SingleQueryBuilder — cursor', () => {
 
   it('page() after cursor throws', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((u: any) => [u.id.asc]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.cursor((u: any) => u.id.gt(42));
     expect(() => b.page(2, 10)).toThrow(/cannot be combined/);
   });
 
   it('skips undefined expression (cursor not set)', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.order((u: any) => [u.id.asc]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.cursor(() => undefined as any);
     expect(b.sqb.cursor.elements.length).toBe(0);
     b.offset(5);
@@ -276,7 +247,6 @@ describe('SingleQueryBuilder — having', () => {
     b.having((t: any) => t.total.gt(5));
     b.havingOr((t: any) => t.total.lt(1));
     expect(b.sqb.havings.elements.length).toBe(2);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((b.sqb.havings.elements[1] as any).join).toBe('OR');
   });
 });
@@ -297,7 +267,6 @@ describe('SingleQueryBuilder — findById', () => {
         },
       },
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const b = new SingleQueryBuilder(ir as any);
     expect(() => b.findById(1)).toThrow('No primary key field found');
   });
@@ -313,7 +282,6 @@ describe('SingleQueryBuilder — findById', () => {
 describe('SingleQueryBuilder — create', () => {
   it('throws without adapter', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => b.create({ name: 'Alice' } as any)).toThrow(
       'No adapter configured',
     );
@@ -359,7 +327,6 @@ describe('SingleQueryBuilder — update', () => {
     adapter.execute.mockResolvedValue([]);
     const b = builder(adapter);
     const f = b.update({ name: 'Alice' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.where((u: any) => u.id.eq(1));
     expect(b.sqb.wheres.elements.length).toBe(0);
     await f.go();
@@ -394,14 +361,12 @@ describe('SingleQueryBuilder — update returning', () => {
   it('finalizer has returning directly and after where', () => {
     const f = builder().update({ name: 'Alice' });
     expect(typeof f.returning).toBe('function');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(typeof f.where((u: any) => u.id.eq(1)).returning).toBe('function');
   });
 
   it('returning applies to snapshot, not builder', () => {
     const b = builder();
     const f = b.update({ name: 'Alice' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.returning((u: any) => [u.id]);
     expect(b.sqb.selects).toBeNull();
   });
@@ -425,7 +390,6 @@ describe('SingleQueryBuilder — update returning', () => {
 
   it('returning go throws without adapter', async () => {
     const f = builder().update({ name: 'Alice' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await expect(f.returning((u: any) => [u.id]).go()).rejects.toThrow(
       'No adapter configured',
     );
@@ -436,7 +400,6 @@ describe('SingleQueryBuilder — update returning', () => {
     adapter.execute.mockResolvedValue([{ n: 'Alice' }]);
     const b = builder(adapter);
     const f = b.update({ name: 'new' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await f.returning((u: any) => [u.name.as('n')]).go();
     expect(adapter.execute).toHaveBeenCalledWith(
       expect.objectContaining({ operation: 'update' }),
@@ -449,7 +412,6 @@ describe('SingleQueryBuilder — update returning', () => {
     adapter.execute.mockResolvedValue([{ id: 1, name: 'Alice' }]);
     const b = builder(adapter);
     const f = b.update({ name: 'new' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await f.returning((u: any) => [u.id]).go();
     expect(result).toEqual([{ id: 1 }]);
     expect('name' in result[0]).toBe(false);
@@ -474,14 +436,12 @@ describe('SingleQueryBuilder — delete returning', () => {
   it('finalizer has returning directly and after where', () => {
     const f = builder().delete();
     expect(typeof f.returning).toBe('function');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(typeof f.where((u: any) => u.id.eq(1)).returning).toBe('function');
   });
 
   it('returning applies to snapshot, not builder', () => {
     const b = builder();
     const f = b.delete();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     f.returning((u: any) => [u.id]);
     expect(b.sqb.selects).toBeNull();
   });
@@ -491,7 +451,6 @@ describe('SingleQueryBuilder — delete returning', () => {
     adapter.execute.mockResolvedValue([{ id: 7, name: 'Ghost' }]);
     const b = builder(adapter);
     const f = b.delete();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await f.returning((u: any) => [u.id]).go();
     expect(result).toEqual([{ id: 7 }]);
   });
@@ -569,7 +528,6 @@ describe('SingleQueryBuilder — clone', () => {
   it('returns an independent builder', () => {
     const b = builder();
     const c = b.clone();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     c.where((u: any) => u.name.eq('Alice'));
     c.limit(10);
     expect(b.sqb.wheres.elements.length).toBe(0);
@@ -580,7 +538,6 @@ describe('SingleQueryBuilder — clone', () => {
 
   it('copies state from the source', () => {
     const b = builder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     b.where((u: any) => u.name.eq('Alice'));
     b.first();
     const c = b.clone();
@@ -592,9 +549,7 @@ describe('SingleQueryBuilder — clone', () => {
     const b = builder();
     b.select((_t, { agg }: any) => [agg.count('*').as('total')]);
     const c = b.clone();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (c.sqb.selects![0] as any).as('renamed');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((b.sqb.selects![0] as any).alias).toBe('total');
   });
 

@@ -31,9 +31,16 @@ export default tseslint.config(
   //     '@typescript-eslint/no-empty-object-type': 'off',
   //   },
   // },
+  // Юнит-тесты ядра объявляют модели вручную с минимальными ~shape/~rel/~relInfo.
+  // Полная типизация прокси (FilterProxy/OrderProxy и пр.) требовала бы полноценных
+  // моделей со всеми relations, поэтому в тестах any осознанно разрешён —
+  // inline-дизейблы не нужны.
   {
-    files: ['packages/core/test/orm/query-slots.test.ts'],
-    rules: { '@typescript-eslint/no-unused-vars': 'off' },
+    files: ['packages/core/test/*/**.test.ts'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
   },
   {
     files: ['test-project/**/*.ts'],

@@ -42,7 +42,7 @@ describe('KadmiumSqb', () => {
       join: 'AND',
       condition: { field: 'name', op: '=', value: 'Alice' },
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const nested: any = {
       elements: [
         { join: 'OR', condition: { field: 'age', op: '>', value: 18 } },
@@ -53,14 +53,13 @@ describe('KadmiumSqb', () => {
     const cloned = sqb.clone();
 
     // Mutate original
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (sqb.wheres.elements[0] as any).condition.value = 'Bob';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (sqb.wheres.elements[1] as any).condition.elements[0].condition.value = 25;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((cloned.wheres.elements[0] as any).condition.value).toBe('Alice');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     expect(
       (cloned.wheres.elements[1] as any).condition.elements[0].condition.value,
     ).toBe(18);
@@ -72,7 +71,7 @@ describe('KadmiumSqb', () => {
       join: 'AND',
       condition: { field: 'id', op: '>', value: 42 },
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const nested: any = {
       elements: [
         { join: 'OR', condition: { field: 'age', op: '>', value: 18 } },
@@ -81,14 +80,13 @@ describe('KadmiumSqb', () => {
     sqb.cursor.elements.push({ join: 'AND', condition: nested });
 
     const cloned = sqb.clone();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (sqb.cursor.elements[0] as any).condition.value = 100;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (sqb.cursor.elements[1] as any).condition.elements[0].condition.value = 25;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((cloned.cursor.elements[0] as any).condition.value).toBe(42);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     expect(
       (cloned.cursor.elements[1] as any).condition.elements[0].condition.value,
     ).toBe(18);
@@ -107,13 +105,21 @@ describe('KadmiumSqb', () => {
 
   it('clone copies arrays independently', () => {
     const sqb = new KadmiumSqb();
-    sqb.joins.push({ left: 'u', right: 'p', on: { field: 'id', op: '=', value: 1 } });
+    sqb.joins.push({
+      left: 'u',
+      right: 'p',
+      on: { field: 'id', op: '=', value: 1 },
+    });
     sqb.orders.push({ field: 'name', direction: 'asc' });
     sqb.groupBy.push('name');
 
     const cloned = sqb.clone();
 
-    sqb.joins.push({ left: 'a', right: 'b', on: { field: 'x', op: '=', value: 2 } });
+    sqb.joins.push({
+      left: 'a',
+      right: 'b',
+      on: { field: 'x', op: '=', value: 2 },
+    });
     sqb.orders.push({ field: 'age', direction: 'desc' });
     sqb.groupBy.push('email');
 
@@ -163,9 +169,9 @@ describe('KadmiumSqb', () => {
 
     // Clone should be independent
     expect(cloned.includes[0].internalSqb.wheres.elements).toHaveLength(1);
-    expect(
-      cloned.includes[0].internalSqb.wheres.elements[0].condition,
-    ).toEqual({ field: 'published', op: '=', value: true });
+    expect(cloned.includes[0].internalSqb.wheres.elements[0].condition).toEqual(
+      { field: 'published', op: '=', value: true },
+    );
 
     // Array itself is independent
     cloned.includes.push({

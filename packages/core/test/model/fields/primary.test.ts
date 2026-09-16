@@ -9,11 +9,10 @@ describe('PrimaryFieldBuilder', () => {
   });
 
   it('f.pk has no .unique(), .notNull(), .index() methods', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((f.pk as any).unique).toBeUndefined();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     expect((f.pk as any).notNull).toBeUndefined();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     expect((f.pk as any).index).toBeUndefined();
   });
 

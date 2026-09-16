@@ -31,7 +31,11 @@ describe('diffToHealth', () => {
     const result = diffToHealth(irs, makeDiff());
     expect(result.isHealthy).toBe(true);
     expect(result.issues).toEqual([]);
-    expect(result.summary).toEqual({ tablesMissing: 0, tablesExpected: 2, tablesMatching: 2 });
+    expect(result.summary).toEqual({
+      tablesMissing: 0,
+      tablesExpected: 2,
+      tablesMatching: 2,
+    });
   });
 
   it('reports missing tables', () => {
@@ -57,7 +61,9 @@ describe('diffToHealth', () => {
   it('reports altered columns', () => {
     const result = diffToHealth(irs, makeDiff({ alteredColumns: 1 }));
     expect(result.isHealthy).toBe(false);
-    expect(result.issues).toContain('1 column(s) have type/nullability changes');
+    expect(result.issues).toContain(
+      '1 column(s) have type/nullability changes',
+    );
   });
 
   it('reports missing indexes', () => {
@@ -73,7 +79,10 @@ describe('diffToHealth', () => {
   });
 
   it('multiple issues combined', () => {
-    const result = diffToHealth(irs, makeDiff({ addedTables: 1, addedColumns: 2, alteredColumns: 1 }));
+    const result = diffToHealth(
+      irs,
+      makeDiff({ addedTables: 1, addedColumns: 2, alteredColumns: 1 }),
+    );
     expect(result.isHealthy).toBe(false);
     expect(result.issues.length).toBe(3);
   });

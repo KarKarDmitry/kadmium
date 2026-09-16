@@ -15,7 +15,14 @@ describe('generateModel', () => {
     const ir = makeIr({
       name: 'User',
       fields: {
-        name: { type: 'string', tsType: 'string', alias: 'name', nullable: false, unique: false, index: false },
+        name: {
+          type: 'string',
+          tsType: 'string',
+          alias: 'name',
+          nullable: false,
+          unique: false,
+          index: false,
+        },
       },
     });
     const out = generateModel(ir, 'models/user', [ir]);
@@ -30,7 +37,14 @@ describe('generateModel', () => {
     const ir = makeIr({
       name: 'User',
       fields: {
-        name: { type: 'string', tsType: 'string', alias: 'name', nullable: true, unique: false, index: false },
+        name: {
+          type: 'string',
+          tsType: 'string',
+          alias: 'name',
+          nullable: true,
+          unique: false,
+          index: false,
+        },
       },
     });
     const out = generateModel(ir, 'models/user', [ir]);
@@ -42,7 +56,16 @@ describe('generateModel', () => {
     const postIr = makeIr({
       name: 'Post',
       fields: {
-        authorId: { type: 'ref', tsType: 'User', alias: 'authorId', nullable: false, unique: false, index: false, ref: 'User', relation: 'many-to-one' },
+        authorId: {
+          type: 'ref',
+          tsType: 'User',
+          alias: 'authorId',
+          nullable: false,
+          unique: false,
+          index: false,
+          ref: 'User',
+          relation: 'many-to-one',
+        },
       },
     });
     const out = generateModel(postIr, 'models/post', [userIr, postIr]);
@@ -55,7 +78,17 @@ describe('generateModel', () => {
     const userIr = makeIr({
       name: 'User',
       fields: {
-        posts: { type: 'ref', tsType: 'Post', alias: 'posts', nullable: false, unique: false, index: false, ref: 'Post', relation: 'one-to-many', sourceModel: 'Post' },
+        posts: {
+          type: 'ref',
+          tsType: 'Post',
+          alias: 'posts',
+          nullable: false,
+          unique: false,
+          index: false,
+          ref: 'Post',
+          relation: 'one-to-many',
+          sourceModel: 'Post',
+        },
       },
     });
     const out = generateModel(userIr, 'models/user', [userIr]);
@@ -68,7 +101,16 @@ describe('generateModel', () => {
     const postIr = makeIr({
       name: 'Post',
       fields: {
-        authorId: { type: 'ref', tsType: 'User', alias: 'authorId', nullable: false, unique: false, index: false, ref: 'User', relation: 'many-to-one' },
+        authorId: {
+          type: 'ref',
+          tsType: 'User',
+          alias: 'authorId',
+          nullable: false,
+          unique: false,
+          index: false,
+          ref: 'User',
+          relation: 'many-to-one',
+        },
       },
     });
     const out = generateModel(postIr, 'models/post', [userIr, postIr]);
@@ -79,7 +121,16 @@ describe('generateModel', () => {
     const ir = makeIr({
       name: 'User',
       fields: {
-        parentId: { type: 'ref', tsType: 'User', alias: 'parentId', nullable: true, unique: false, index: false, ref: 'User', relation: 'many-to-one' },
+        parentId: {
+          type: 'ref',
+          tsType: 'User',
+          alias: 'parentId',
+          nullable: true,
+          unique: false,
+          index: false,
+          ref: 'User',
+          relation: 'many-to-one',
+        },
       },
     });
     const out = generateModel(ir, 'models/user', [ir]);
@@ -91,7 +142,16 @@ describe('generateModel', () => {
     const postIr = makeIr({
       name: 'Post',
       fields: {
-        authorId: { type: 'ref', tsType: 'User', alias: 'authorId', nullable: false, unique: false, index: false, ref: 'User', relation: 'many-to-one' },
+        authorId: {
+          type: 'ref',
+          tsType: 'User',
+          alias: 'authorId',
+          nullable: false,
+          unique: false,
+          index: false,
+          ref: 'User',
+          relation: 'many-to-one',
+        },
       },
     });
     const out = generateModel(postIr, 'post', [userIr, postIr]);
@@ -102,7 +162,16 @@ describe('generateModel', () => {
     const postIr = makeIr({
       name: 'Post',
       fields: {
-        authorId: { type: 'ref', tsType: 'User', alias: 'authorId', nullable: false, unique: false, index: false, ref: 'User', relation: 'many-to-one' },
+        authorId: {
+          type: 'ref',
+          tsType: 'User',
+          alias: 'authorId',
+          nullable: false,
+          unique: false,
+          index: false,
+          ref: 'User',
+          relation: 'many-to-one',
+        },
       },
     });
     const out = generateModel(postIr, 'models/post', [postIr]);
@@ -122,7 +191,16 @@ describe('generateModel', () => {
     const postIr = makeIr({
       name: 'Post',
       fields: {
-        authorId: { type: 'ref', tsType: 'User', alias: 'authorId', nullable: true, unique: false, index: false, ref: 'User', relation: 'many-to-one' },
+        authorId: {
+          type: 'ref',
+          tsType: 'User',
+          alias: 'authorId',
+          nullable: true,
+          unique: false,
+          index: false,
+          ref: 'User',
+          relation: 'many-to-one',
+        },
       },
     });
     const out = generateModel(postIr, 'models/post', [userIr, postIr]);
@@ -134,7 +212,16 @@ describe('generateModel', () => {
     const postIr = makeIr({
       name: 'Post',
       fields: {
-        authorId: { type: 'ref', tsType: 'User', alias: 'authorId', nullable: false, unique: false, index: false, ref: 'User', relation: 'many-to-one' },
+        authorId: {
+          type: 'ref',
+          tsType: 'User',
+          alias: 'authorId',
+          nullable: false,
+          unique: false,
+          index: false,
+          ref: 'User',
+          relation: 'many-to-one',
+        },
       },
     });
     const out = generateModel(postIr, 'models/post', [userIr, postIr]);

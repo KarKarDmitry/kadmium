@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { PgAdapter, buildInsertManySql, buildUpsertManySql, unionKeys } from '../src/index';
+import {
+  PgAdapter,
+  buildInsertManySql,
+  buildUpsertManySql,
+  unionKeys,
+} from '../src/index';
 
 describe('DML collection-name validation (S7)', () => {
   // Pool создаётся лениво — запросы не выполняются: assert кидает до query.
@@ -37,19 +42,15 @@ describe('DML column-name validation (S10)', () => {
 
   it('rejects a malicious column name in createMany (insert)', async () => {
     await expect(
-      adapter.createMany('users', [
-        { 'name"; DROP TABLE users; --': 'x' },
-      ]),
+      adapter.createMany('users', [{ 'name"; DROP TABLE users; --': 'x' }]),
     ).rejects.toThrow(/Invalid SQL identifier/);
   });
 
   it('rejects a malicious column name in createMany (upsert)', async () => {
     await expect(
-      adapter.createMany(
-        'users',
-        [{ 'name"; DROP TABLE users; --': 'x' }],
-        { conflictTarget: ['name'] },
-      ),
+      adapter.createMany('users', [{ 'name"; DROP TABLE users; --': 'x' }], {
+        conflictTarget: ['name'],
+      }),
     ).rejects.toThrow(/Invalid SQL identifier/);
   });
 });
@@ -66,7 +67,10 @@ describe('unionKeys (C14)', () => {
 
   it('strips id from keys', () => {
     expect(
-      unionKeys([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }]),
+      unionKeys([
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' },
+      ]),
     ).toEqual(['name']);
   });
 

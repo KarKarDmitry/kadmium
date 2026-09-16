@@ -41,10 +41,7 @@ function where(
   return { field, op, value, alias, column };
 }
 
-function group(
-  join: 'AND' | 'OR',
-  conditions: WhereCondition[],
-): WhereGroup {
+function group(join: 'AND' | 'OR', conditions: WhereCondition[]): WhereGroup {
   return { elements: conditions.map((condition) => ({ join, condition })) };
 }
 

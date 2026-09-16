@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateAll, generateToFile, checkSync } from '../../src/codegen/runner';
+import {
+  generateAll,
+  generateToFile,
+  checkSync,
+} from '../../src/codegen/runner';
 import type { ModelIR } from '../../src/ir/index';
 
 vi.mock('fs', () => ({
@@ -31,7 +35,10 @@ describe('generateAll', () => {
   it('multiple models → declarations concatenated', () => {
     const u = makeIr('User');
     const p = makeIr('Post');
-    const out = generateAll([u, p], { User: 'models/user', Post: 'models/post' });
+    const out = generateAll([u, p], {
+      User: 'models/user',
+      Post: 'models/post',
+    });
     expect(out).toContain("declare module 'models/user'");
     expect(out).toContain("declare module 'models/post'");
   });
@@ -70,29 +77,31 @@ describe('checkSync', () => {
   });
 
   it('file not found → returns false', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (existsSync as any).mockReturnValue(false);
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(checkSync([makeIr('User')], { User: 'models/user' }, 'types.d.ts')).toBe(false);
+    expect(
+      checkSync([makeIr('User')], { User: 'models/user' }, 'types.d.ts'),
+    ).toBe(false);
     error.mockRestore();
   });
 
   it('file outdated → returns false', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (existsSync as any).mockReturnValue(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (readFileSync as any).mockReturnValue('// old content');
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(checkSync([makeIr('User')], { User: 'models/user' }, 'types.d.ts')).toBe(false);
+    expect(
+      checkSync([makeIr('User')], { User: 'models/user' }, 'types.d.ts'),
+    ).toBe(false);
     error.mockRestore();
   });
 
   it('file up to date → returns true', () => {
     const ir = makeIr('User');
     const expected = generateAll([ir], { User: 'models/user' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (existsSync as any).mockReturnValue(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (readFileSync as any).mockReturnValue(expected);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     expect(checkSync([ir], { User: 'models/user' }, 'types.d.ts')).toBe(true);

@@ -76,7 +76,7 @@ describe('Relation — where/order/limit/select', () => {
   it('where pushes condition to internalSqb', () => {
     const sqb = makeSqb();
     const rel = new Relation(sqb, 'posts', makePostIR(), makeFieldIr());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     rel.where((t: any) => t.title.eq('Hello'));
     expect(rel.internalSqb.wheres.elements.length).toBe(1);
   });
@@ -84,7 +84,7 @@ describe('Relation — where/order/limit/select', () => {
   it('order pushes to internalSqb.orders', () => {
     const sqb = makeSqb();
     const rel = new Relation(sqb, 'posts', makePostIR(), makeFieldIr());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     rel.order((t: any) => [t.title.desc]);
     expect(rel.internalSqb.orders.length).toBe(1);
     expect(rel.internalSqb.orders[0].direction).toBe('desc');
@@ -100,7 +100,7 @@ describe('Relation — where/order/limit/select', () => {
   it('select sets internalSqb.selects', () => {
     const sqb = makeSqb();
     const rel = new Relation(sqb, 'posts', makePostIR(), makeFieldIr());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     rel.select((t: any) => [t.title]);
     expect(rel.internalSqb.selects).not.toBeNull();
     expect(rel.internalSqb.selects!.length).toBe(1);
@@ -111,7 +111,12 @@ describe('Relation — include', () => {
   it('pushes nested builder into internalSqb.includes', () => {
     const sqb = makeSqb();
     const userIr = makeUserIR();
-    const rel = new Relation(sqb, 'author', userIr, makeFieldIr({ ref: 'User', foreignKey: 'id' }));
+    const rel = new Relation(
+      sqb,
+      'author',
+      userIr,
+      makeFieldIr({ ref: 'User', foreignKey: 'id' }),
+    );
     rel.include({ posts: true });
     expect(rel.internalSqb.includes.length).toBe(1);
   });

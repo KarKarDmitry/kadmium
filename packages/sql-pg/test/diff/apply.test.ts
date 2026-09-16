@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { DbColumn, SqlAdapter, TransactionalAdapter } from '@karkardmitry/kadmium-sql-types';
+import type {
+  DbColumn,
+  SqlAdapter,
+  TransactionalAdapter,
+} from '@karkardmitry/kadmium-sql-types';
 import { applyDiff, applyDiffTransactional } from '../../src/diff/apply';
 import {
   addEmailIndexOp,
@@ -28,10 +32,12 @@ interface TxProbe {
 }
 
 /** Minimal SqlAdapter whose beginTransaction wraps a MockDdl. */
-function txAdapter(opts: {
-  failOnApply?: (method: string) => boolean;
-  failRollback?: boolean;
-} = {}): TxProbe {
+function txAdapter(
+  opts: {
+    failOnApply?: (method: string) => boolean;
+    failRollback?: boolean;
+  } = {},
+): TxProbe {
   const ddl = new MockDdl(opts.failOnApply);
   const state = { commits: 0, rollbacks: 0 };
   const tx = {
@@ -118,7 +124,10 @@ describe('applyDiff', () => {
     expect(byName.get('addIndex')).toEqual([ops[4].index]);
     expect(byName.get('dropIndex')).toEqual(['idx_posts_legacy']);
     expect(byName.get('addForeignKey')).toEqual([ops[6].fk]);
-    expect(byName.get('dropForeignKey')).toEqual(['fk_posts_category', 'posts']);
+    expect(byName.get('dropForeignKey')).toEqual([
+      'fk_posts_category',
+      'posts',
+    ]);
   });
 
   it('skips drop-table but still reports it as applied', async () => {

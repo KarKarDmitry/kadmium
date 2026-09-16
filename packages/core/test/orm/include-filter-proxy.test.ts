@@ -60,7 +60,6 @@ describe('include: where/order колбэки типизированы (IncludeF
   afterEach(() => Model.clear());
 
   it('where/order/select в include() — типизированные колбэки целевой модели', () => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const b = orm
       .single(User)
       .select((u) => [u.id])

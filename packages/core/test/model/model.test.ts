@@ -133,12 +133,10 @@ describe('Model', () => {
 
   describe('MODEL_MARKER', () => {
     it('is present on Model class', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((Model as any)[MODEL_MARKER]).toBe(true);
     });
 
     it('is present on subclass', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((User as any)[MODEL_MARKER]).toBe(true);
     });
   });

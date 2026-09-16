@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { MultiQueryBuilder } from '../../src/orm/builders/multi';
-import { makeUserIR, makePostIR, makeMockAdapter, type MockAdapter } from './helpers';
+import {
+  makeUserIR,
+  makePostIR,
+  makeMockAdapter,
+  type MockAdapter,
+} from './helpers';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
 function multiBuilder(adapter?: MockAdapter) {
@@ -8,7 +13,11 @@ function multiBuilder(adapter?: MockAdapter) {
     ['u', makeUserIR()],
     ['p', makePostIR()],
   ]);
-  return new MultiQueryBuilder(irs, undefined, adapter as unknown as SqlAdapter);
+  return new MultiQueryBuilder(
+    irs,
+    undefined,
+    adapter as unknown as SqlAdapter,
+  );
 }
 
 describe('MultiQueryBuilder — constructor', () => {
@@ -22,28 +31,32 @@ describe('MultiQueryBuilder — constructor', () => {
 describe('MultiQueryBuilder — where', () => {
   it('pushes condition via MultiFilterProxy', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.where((t: any) => t.u.name.eq('Alice'));
     expect(b.sqb.wheres.elements.length).toBe(1);
   });
 
   it('invalid alias throws', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(() => b.where((t: any) => t.x.name.eq('Alice'))).toThrow('Alias "x" not found');
+
+    expect(() => b.where((t: any) => t.x.name.eq('Alice'))).toThrow(
+      'Alias "x" not found',
+    );
   });
 
   it('invalid field throws', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(() => b.where((t: any) => t.u.nonexistent.eq('Alice'))).toThrow('Field "nonexistent" not found');
+
+    expect(() => b.where((t: any) => t.u.nonexistent.eq('Alice'))).toThrow(
+      'Field "nonexistent" not found',
+    );
   });
 });
 
 describe('MultiQueryBuilder — join', () => {
   it('default direction is inner', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
     expect(b.sqb.joins.length).toBe(1);
     expect(b.sqb.joins[0].direction).toBe('inner');
@@ -51,16 +64,21 @@ describe('MultiQueryBuilder — join', () => {
 
   it('custom direction is stored', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    b.join({ left: 'u', right: 'p', direction: 'left', on: (t: any) => t.u.id.eq(t.p.author) });
+
+    b.join({
+      left: 'u',
+      right: 'p',
+      direction: 'left',
+      on: (t: any) => t.u.id.eq(t.p.author),
+    });
     expect(b.sqb.joins[0].direction).toBe('left');
   });
 
   it('skips a duplicate join of the same pair and direction (C11)', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.join({ left: 'u', right: 'p', on: (t: any) => t.u.name.eq(t.p.title) });
     expect(b.sqb.joins.length).toBe(1);
     expect(b.sqb.joins[0].on).toMatchObject({ field: 'id' });
@@ -68,9 +86,14 @@ describe('MultiQueryBuilder — join', () => {
 
   it('allows the same pair with a different direction (C11)', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    b.join({ left: 'u', right: 'p', direction: 'left', on: (t: any) => t.u.id.eq(t.p.author) });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+    b.join({
+      left: 'u',
+      right: 'p',
+      direction: 'left',
+      on: (t: any) => t.u.id.eq(t.p.author),
+    });
+
     b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
     expect(b.sqb.joins.length).toBe(2);
   });
@@ -79,7 +102,7 @@ describe('MultiQueryBuilder — join', () => {
 describe('MultiQueryBuilder — select', () => {
   it('returns toSql and go', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const result = b.select((t: any) => [t.u.name, t.p.title]);
     expect(typeof result.toSql).toBe('function');
     expect(typeof result.go).toBe('function');
@@ -87,14 +110,14 @@ describe('MultiQueryBuilder — select', () => {
 
   it('go throws without adapter', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const result = b.select((t: any) => [t.u.name]);
     expect(() => result.go()).toThrow('No adapter configured');
   });
 
   it('select applies to a snapshot, not the builder', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.select((t: any) => [t.u.name]);
     expect(b.sqb.selects).toBeNull();
   });
@@ -104,7 +127,7 @@ describe('MultiQueryBuilder — clone', () => {
   it('returns an independent builder', () => {
     const b = multiBuilder();
     const c = b.clone();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     c.where((t: any) => t.u.name.eq('Alice'));
     c.limit(10);
     expect(b.sqb.wheres.elements.length).toBe(0);
@@ -115,7 +138,7 @@ describe('MultiQueryBuilder — clone', () => {
 
   it('copies state from the source', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.where((t: any) => t.u.name.eq('Alice'));
     b.include({ u: { posts: true } });
     const c = b.clone();
@@ -147,7 +170,7 @@ describe('MultiQueryBuilder — modifiers', () => {
 
   it('order', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.order((t: any) => [t.u.name.desc]);
     expect(b.sqb.orders.length).toBe(1);
     expect(b.sqb.orders[0].direction).toBe('desc');
@@ -155,7 +178,7 @@ describe('MultiQueryBuilder — modifiers', () => {
 
   it('groupBy', () => {
     const b = multiBuilder();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     b.groupBy((t: any) => [t.u.name]);
     expect(b.sqb.groupBy).toContain('name');
   });

@@ -30,77 +30,150 @@ const irs = [
 
 describe('pgType', () => {
   it('primary → integer by default', () => {
-    expect(pgType('id', { type: 'primary', nullable: false, unique: true }, [])).toBe('integer');
+    expect(
+      pgType('id', { type: 'primary', nullable: false, unique: true }, []),
+    ).toBe('integer');
   });
 
   it('primary with uuid db_type → uuid', () => {
-    expect(pgType('id', { type: 'primary', nullable: false, unique: true, spec: { db_type: 'uuid' } }, [])).toBe('uuid');
+    expect(
+      pgType(
+        'id',
+        {
+          type: 'primary',
+          nullable: false,
+          unique: true,
+          spec: { db_type: 'uuid' },
+        },
+        [],
+      ),
+    ).toBe('uuid');
   });
 
   it('primary with string db_type → varchar', () => {
-    expect(pgType('id', { type: 'primary', nullable: false, unique: true, spec: { db_type: 'string' } }, [])).toBe('character varying');
+    expect(
+      pgType(
+        'id',
+        {
+          type: 'primary',
+          nullable: false,
+          unique: true,
+          spec: { db_type: 'string' },
+        },
+        [],
+      ),
+    ).toBe('character varying');
   });
 
   it('primary with numeric db_type → numeric', () => {
-    expect(pgType('id', { type: 'primary', nullable: false, unique: true, spec: { db_type: 'numeric' } }, [])).toBe('numeric');
+    expect(
+      pgType(
+        'id',
+        {
+          type: 'primary',
+          nullable: false,
+          unique: true,
+          spec: { db_type: 'numeric' },
+        },
+        [],
+      ),
+    ).toBe('numeric');
   });
 
   it('ref resolves to target PK type', () => {
-    const f: IrField = { type: 'ref', ref: 'User', nullable: false, unique: false };
+    const f: IrField = {
+      type: 'ref',
+      ref: 'User',
+      nullable: false,
+      unique: false,
+    };
     expect(pgType('author', f, irs)).toBe('integer');
   });
 
   it('ref with unknown target falls through', () => {
-    const f: IrField = { type: 'ref', ref: 'Unknown', nullable: false, unique: false };
+    const f: IrField = {
+      type: 'ref',
+      ref: 'Unknown',
+      nullable: false,
+      unique: false,
+    };
     expect(pgType('author', f, irs)).toBe('text');
   });
 
   it('string → varchar', () => {
-    expect(pgType('name', { type: 'string', nullable: false, unique: false }, [])).toBe('character varying');
+    expect(
+      pgType('name', { type: 'string', nullable: false, unique: false }, []),
+    ).toBe('character varying');
   });
 
   it('number → integer', () => {
-    expect(pgType('age', { type: 'number', nullable: false, unique: false }, [])).toBe('integer');
+    expect(
+      pgType('age', { type: 'number', nullable: false, unique: false }, []),
+    ).toBe('integer');
   });
 
   it('int → integer', () => {
-    expect(pgType('count', { type: 'int', nullable: false, unique: false }, [])).toBe('integer');
+    expect(
+      pgType('count', { type: 'int', nullable: false, unique: false }, []),
+    ).toBe('integer');
   });
 
   it('bigint → bigint', () => {
-    expect(pgType('views', { type: 'bigint', nullable: false, unique: false }, [])).toBe('bigint');
+    expect(
+      pgType('views', { type: 'bigint', nullable: false, unique: false }, []),
+    ).toBe('bigint');
   });
 
   it('decimal → numeric', () => {
-    expect(pgType('price', { type: 'decimal', nullable: false, unique: false }, [])).toBe('numeric');
+    expect(
+      pgType('price', { type: 'decimal', nullable: false, unique: false }, []),
+    ).toBe('numeric');
   });
 
   it('float → double precision', () => {
-    expect(pgType('score', { type: 'float', nullable: false, unique: false }, [])).toBe('double precision');
+    expect(
+      pgType('score', { type: 'float', nullable: false, unique: false }, []),
+    ).toBe('double precision');
   });
 
   it('boolean → boolean', () => {
-    expect(pgType('active', { type: 'boolean', nullable: false, unique: false }, [])).toBe('boolean');
+    expect(
+      pgType('active', { type: 'boolean', nullable: false, unique: false }, []),
+    ).toBe('boolean');
   });
 
   it('date → date', () => {
-    expect(pgType('birthday', { type: 'date', nullable: false, unique: false }, [])).toBe('date');
+    expect(
+      pgType('birthday', { type: 'date', nullable: false, unique: false }, []),
+    ).toBe('date');
   });
 
   it('datetime → timestamp', () => {
-    expect(pgType('created', { type: 'datetime', nullable: false, unique: false }, [])).toBe('timestamp without time zone');
+    expect(
+      pgType(
+        'created',
+        { type: 'datetime', nullable: false, unique: false },
+        [],
+      ),
+    ).toBe('timestamp without time zone');
   });
 
   it('time → timestamp', () => {
-    expect(pgType('start', { type: 'time', nullable: false, unique: false }, [])).toBe('timestamp without time zone');
+    expect(
+      pgType('start', { type: 'time', nullable: false, unique: false }, []),
+    ).toBe('timestamp without time zone');
   });
 
   it('uuid → uuid', () => {
-    expect(pgType('token', { type: 'uuid', nullable: false, unique: false }, [])).toBe('uuid');
+    expect(
+      pgType('token', { type: 'uuid', nullable: false, unique: false }, []),
+    ).toBe('uuid');
   });
 
   it('unknown type → text', () => {
-    expect(pgType('x', { type: 'jsonb', nullable: false, unique: false }, [])).toBe('text');
+    expect(
+      pgType('x', { type: 'jsonb', nullable: false, unique: false }, []),
+    ).toBe('text');
   });
 });
 
@@ -152,66 +225,156 @@ describe('normalizePgType', () => {
 
 describe('isPrimaryField', () => {
   it('isPrimary: true → true', () => {
-    expect(isPrimaryField({ type: 'string', nullable: false, unique: false, isPrimary: true })).toBe(true);
+    expect(
+      isPrimaryField({
+        type: 'string',
+        nullable: false,
+        unique: false,
+        isPrimary: true,
+      }),
+    ).toBe(true);
   });
 
   it('type: primary → true', () => {
-    expect(isPrimaryField({ type: 'primary', nullable: false, unique: true })).toBe(true);
+    expect(
+      isPrimaryField({ type: 'primary', nullable: false, unique: true }),
+    ).toBe(true);
   });
 
   it('neither → false', () => {
-    expect(isPrimaryField({ type: 'string', nullable: false, unique: false })).toBe(false);
+    expect(
+      isPrimaryField({ type: 'string', nullable: false, unique: false }),
+    ).toBe(false);
   });
 });
 
 describe('renderDefault', () => {
   it('no default → null', () => {
-    expect(renderDefault({ type: 'string', nullable: false, unique: false })).toBeNull();
+    expect(
+      renderDefault({ type: 'string', nullable: false, unique: false }),
+    ).toBeNull();
   });
 
   it('boolean true', () => {
-    expect(renderDefault({ type: 'boolean', nullable: false, unique: false, spec: { default: true } })).toBe('true');
+    expect(
+      renderDefault({
+        type: 'boolean',
+        nullable: false,
+        unique: false,
+        spec: { default: true },
+      }),
+    ).toBe('true');
   });
 
   it('boolean false', () => {
-    expect(renderDefault({ type: 'boolean', nullable: false, unique: false, spec: { default: 'false' } })).toBe('false');
+    expect(
+      renderDefault({
+        type: 'boolean',
+        nullable: false,
+        unique: false,
+        spec: { default: 'false' },
+      }),
+    ).toBe('false');
   });
 
   it('number default', () => {
-    expect(renderDefault({ type: 'number', nullable: false, unique: false, spec: { default: 42 } })).toBe('42');
+    expect(
+      renderDefault({
+        type: 'number',
+        nullable: false,
+        unique: false,
+        spec: { default: 42 },
+      }),
+    ).toBe('42');
   });
 
   it('string default with single quote escape', () => {
-    expect(renderDefault({ type: 'string', nullable: false, unique: false, spec: { default: "O'Brien" } })).toBe("'O''Brien'");
+    expect(
+      renderDefault({
+        type: 'string',
+        nullable: false,
+        unique: false,
+        spec: { default: "O'Brien" },
+      }),
+    ).toBe("'O''Brien'");
   });
 
   it('string default with backslash escape', () => {
-    expect(renderDefault({ type: 'string', nullable: false, unique: false, spec: { default: 'path\\to\\file' } })).toBe("'path\\\\to\\\\file'");
+    expect(
+      renderDefault({
+        type: 'string',
+        nullable: false,
+        unique: false,
+        spec: { default: 'path\\to\\file' },
+      }),
+    ).toBe("'path\\\\to\\\\file'");
   });
 
   it('string default with backslash and single quote', () => {
-    expect(renderDefault({ type: 'string', nullable: false, unique: false, spec: { default: "it's a \\path" } })).toBe("'it''s a \\\\path'");
+    expect(
+      renderDefault({
+        type: 'string',
+        nullable: false,
+        unique: false,
+        spec: { default: "it's a \\path" },
+      }),
+    ).toBe("'it''s a \\\\path'");
   });
 
   it('uuid default', () => {
-    expect(renderDefault({ type: 'uuid', nullable: false, unique: false, spec: { default: 'abc-123' } })).toBe("'abc-123'");
+    expect(
+      renderDefault({
+        type: 'uuid',
+        nullable: false,
+        unique: false,
+        spec: { default: 'abc-123' },
+      }),
+    ).toBe("'abc-123'");
   });
 
   it('datetime with Date object', () => {
     const d = new Date('2024-01-15T00:00:00.000Z');
-    expect(renderDefault({ type: 'datetime', nullable: false, unique: false, spec: { default: d } })).toBe("'2024-01-15T00:00:00.000Z'");
+    expect(
+      renderDefault({
+        type: 'datetime',
+        nullable: false,
+        unique: false,
+        spec: { default: d },
+      }),
+    ).toBe("'2024-01-15T00:00:00.000Z'");
   });
 
   it('datetime with string', () => {
-    expect(renderDefault({ type: 'datetime', nullable: false, unique: false, spec: { default: '2024-01-15' } })).toBe("'2024-01-15'");
+    expect(
+      renderDefault({
+        type: 'datetime',
+        nullable: false,
+        unique: false,
+        spec: { default: '2024-01-15' },
+      }),
+    ).toBe("'2024-01-15'");
   });
 
   it('datetime with single quote escape', () => {
-    expect(renderDefault({ type: 'datetime', nullable: false, unique: false, spec: { default: "it's now" } })).toBe("'it''s now'");
+    expect(
+      renderDefault({
+        type: 'datetime',
+        nullable: false,
+        unique: false,
+        spec: { default: "it's now" },
+      }),
+    ).toBe("'it''s now'");
   });
 
   it('date with single quote escape', () => {
-    expect(renderDefault({ type: 'date', nullable: false, unique: false, spec: { default: "it's today" } })).toBe("'it''s today'");
+    expect(
+      renderDefault({
+        type: 'date',
+        nullable: false,
+        unique: false,
+        spec: { default: "it's today" },
+      }),
+    ).toBe("'it''s today'");
   });
 });
 
@@ -220,7 +383,13 @@ describe('irToColumns', () => {
     const fields: Record<string, IrField> = {
       id: { type: 'primary', nullable: false, unique: true, isPrimary: true },
       name: { type: 'string', nullable: false, unique: false },
-      posts: { type: 'ref', ref: 'Post', nullable: false, unique: false, sourceModel: 'Post' },
+      posts: {
+        type: 'ref',
+        ref: 'Post',
+        nullable: false,
+        unique: false,
+        sourceModel: 'Post',
+      },
     };
     const cols = irToColumns('users', fields, irs);
     expect(cols.length).toBe(2);
@@ -229,7 +398,12 @@ describe('irToColumns', () => {
 
   it('sets alias as column name', () => {
     const fields: Record<string, IrField> = {
-      is_flagged: { type: 'boolean', nullable: false, unique: false, alias: 'flagged' },
+      is_flagged: {
+        type: 'boolean',
+        nullable: false,
+        unique: false,
+        alias: 'flagged',
+      },
     };
     const cols = irToColumns('t', fields, []);
     expect(cols[0].name).toBe('flagged');
@@ -246,7 +420,13 @@ describe('irToColumns', () => {
 
   it('uuid PK is not autoIncrement', () => {
     const fields: Record<string, IrField> = {
-      id: { type: 'primary', nullable: false, unique: true, isPrimary: true, spec: { db_type: 'uuid' } },
+      id: {
+        type: 'primary',
+        nullable: false,
+        unique: true,
+        isPrimary: true,
+        spec: { db_type: 'uuid' },
+      },
     };
     const cols = irToColumns('t', fields, []);
     expect(cols[0].autoIncrement).toBe(false);
@@ -283,7 +463,13 @@ describe('expectedIndexes', () => {
 
   it('skips sourceModel fields', () => {
     const fields: Record<string, IrField> = {
-      posts: { type: 'ref', ref: 'Post', nullable: false, unique: false, sourceModel: 'Post' },
+      posts: {
+        type: 'ref',
+        ref: 'Post',
+        nullable: false,
+        unique: false,
+        sourceModel: 'Post',
+      },
     };
     expect(expectedIndexes('t', fields).length).toBe(0);
   });
@@ -297,7 +483,13 @@ describe('expectedIndexes', () => {
 
   it('alias used in index name and columns', () => {
     const fields: Record<string, IrField> = {
-      user_id: { type: 'ref', ref: 'User', nullable: false, unique: false, alias: 'user_id' },
+      user_id: {
+        type: 'ref',
+        ref: 'User',
+        nullable: false,
+        unique: false,
+        alias: 'user_id',
+      },
     };
     const idx = expectedIndexes('posts', fields);
     expect(idx[0].name).toBe('idx_posts_user_id');
@@ -319,7 +511,13 @@ describe('expectedForeignKeys', () => {
 
   it('skips sourceModel fields', () => {
     const fields: Record<string, IrField> = {
-      posts: { type: 'ref', ref: 'Post', nullable: false, unique: false, sourceModel: 'Post' },
+      posts: {
+        type: 'ref',
+        ref: 'Post',
+        nullable: false,
+        unique: false,
+        sourceModel: 'Post',
+      },
     };
     expect(expectedForeignKeys('t', fields, irs).length).toBe(0);
   });
@@ -333,7 +531,13 @@ describe('expectedForeignKeys', () => {
 
   it('alias used in FK name', () => {
     const fields: Record<string, IrField> = {
-      user_id: { type: 'ref', ref: 'User', nullable: false, unique: false, alias: 'user_id' },
+      user_id: {
+        type: 'ref',
+        ref: 'User',
+        nullable: false,
+        unique: false,
+        alias: 'user_id',
+      },
     };
     const fks = expectedForeignKeys('posts', fields, irs);
     expect(fks[0].name).toBe('fk_posts_user_id');

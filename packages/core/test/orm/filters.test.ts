@@ -16,19 +16,43 @@ function sqb() {
 describe('StringFilter', () => {
   it('eq', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.eq('Alice')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '=', value: 'Alice' });
+    expect(f.eq('Alice')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: '=',
+      value: 'Alice',
+    });
   });
   it('neq', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.neq('Bob')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '!=', value: 'Bob' });
+    expect(f.neq('Bob')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: '!=',
+      value: 'Bob',
+    });
   });
   it('eq(null) returns IS NULL', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.eq(null as unknown as string)).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'IS NULL', value: null });
+    expect(f.eq(null as unknown as string)).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'IS NULL',
+      value: null,
+    });
   });
   it('neq(null) returns IS NOT NULL', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.neq(null as unknown as string)).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'IS NOT NULL', value: null });
+    expect(f.neq(null as unknown as string)).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'IS NOT NULL',
+      value: null,
+    });
   });
   it('eq(undefined) throws', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
@@ -40,113 +64,269 @@ describe('StringFilter', () => {
   });
   it('gt', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.gt('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '>', value: 'Carol' });
+    expect(f.gt('Carol')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: '>',
+      value: 'Carol',
+    });
   });
   it('gte', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.gte('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '>=', value: 'Carol' });
+    expect(f.gte('Carol')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: '>=',
+      value: 'Carol',
+    });
   });
   it('lt', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.lt('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '<', value: 'Carol' });
+    expect(f.lt('Carol')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: '<',
+      value: 'Carol',
+    });
   });
   it('lte', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.lte('Carol')).toEqual({ alias: 'u', field: 'name', column: undefined, op: '<=', value: 'Carol' });
+    expect(f.lte('Carol')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: '<=',
+      value: 'Carol',
+    });
   });
   it('between returns array', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.between('A', 'M')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'BETWEEN', value: ['A', 'M'] });
+    expect(f.between('A', 'M')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'BETWEEN',
+      value: ['A', 'M'],
+    });
   });
   it('like wraps with %', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.like('Ali')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'LIKE', value: '%Ali%' });
+    expect(f.like('Ali')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'LIKE',
+      value: '%Ali%',
+    });
   });
   it('ilike wraps with %', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.ilike('ali')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'ILIKE', value: '%ali%' });
+    expect(f.ilike('ali')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'ILIKE',
+      value: '%ali%',
+    });
   });
   it('start wraps trailing %', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.start('Al')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'LIKE', value: 'Al%' });
+    expect(f.start('Al')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'LIKE',
+      value: 'Al%',
+    });
   });
   it('istart wraps trailing %', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.istart('al')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'ILIKE', value: 'al%' });
+    expect(f.istart('al')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'ILIKE',
+      value: 'al%',
+    });
   });
   it('end wraps leading %', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.end('ce')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'LIKE', value: '%ce' });
+    expect(f.end('ce')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'LIKE',
+      value: '%ce',
+    });
   });
   it('iend wraps leading %', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.iend('ce')).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'ILIKE', value: '%ce' });
+    expect(f.iend('ce')).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'ILIKE',
+      value: '%ce',
+    });
   });
   it('in returns array', () => {
     const f = new StringFilter(sqb(), 'name', 'u');
-    expect(f.in(['Alice', 'Bob'])).toEqual({ alias: 'u', field: 'name', column: undefined, op: 'IN', value: ['Alice', 'Bob'] });
+    expect(f.in(['Alice', 'Bob'])).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'IN',
+      value: ['Alice', 'Bob'],
+    });
   });
 });
 
 describe('NumberFilter', () => {
   it('eq', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.eq(25)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '=', value: 25 });
+    expect(f.eq(25)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '=',
+      value: 25,
+    });
   });
   it('eq(null) returns IS NULL (cross-filter)', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.eq(null as unknown as number)).toEqual({ alias: 'u', field: 'age', column: undefined, op: 'IS NULL', value: null });
+    expect(f.eq(null as unknown as number)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: 'IS NULL',
+      value: null,
+    });
   });
   it('neq', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.neq(30)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '!=', value: 30 });
+    expect(f.neq(30)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '!=',
+      value: 30,
+    });
   });
   it('gt', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.gt(18)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '>', value: 18 });
+    expect(f.gt(18)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '>',
+      value: 18,
+    });
   });
   it('gte', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.gte(18)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '>=', value: 18 });
+    expect(f.gte(18)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '>=',
+      value: 18,
+    });
   });
   it('lt', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.lt(65)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '<', value: 65 });
+    expect(f.lt(65)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '<',
+      value: 65,
+    });
   });
   it('lte', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.lte(65)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '<=', value: 65 });
+    expect(f.lte(65)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '<=',
+      value: 65,
+    });
   });
   it('between', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.between(18, 65)).toEqual({ alias: 'u', field: 'age', column: undefined, op: 'BETWEEN', value: [18, 65] });
+    expect(f.between(18, 65)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: 'BETWEEN',
+      value: [18, 65],
+    });
   });
   it('in', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
-    expect(f.in([18, 25, 30])).toEqual({ alias: 'u', field: 'age', column: undefined, op: 'IN', value: [18, 25, 30] });
+    expect(f.in([18, 25, 30])).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: 'IN',
+      value: [18, 25, 30],
+    });
   });
 });
 
 describe('BooleanFilter', () => {
   it('eq true', () => {
     const f = new BooleanFilter(sqb(), 'active', 'u');
-    expect(f.eq(true)).toEqual({ alias: 'u', field: 'active', column: undefined, op: '=', value: true });
+    expect(f.eq(true)).toEqual({
+      alias: 'u',
+      field: 'active',
+      column: undefined,
+      op: '=',
+      value: true,
+    });
   });
   it('eq false', () => {
     const f = new BooleanFilter(sqb(), 'active', 'u');
-    expect(f.eq(false)).toEqual({ alias: 'u', field: 'active', column: undefined, op: '=', value: false });
+    expect(f.eq(false)).toEqual({
+      alias: 'u',
+      field: 'active',
+      column: undefined,
+      op: '=',
+      value: false,
+    });
   });
   it('neq', () => {
     const f = new BooleanFilter(sqb(), 'active', 'u');
-    expect(f.neq(true)).toEqual({ alias: 'u', field: 'active', column: undefined, op: '!=', value: true });
+    expect(f.neq(true)).toEqual({
+      alias: 'u',
+      field: 'active',
+      column: undefined,
+      op: '!=',
+      value: true,
+    });
   });
   it('true()', () => {
     const f = new BooleanFilter(sqb(), 'active', 'u');
-    expect(f.true()).toEqual({ alias: 'u', field: 'active', column: undefined, op: '=', value: true });
+    expect(f.true()).toEqual({
+      alias: 'u',
+      field: 'active',
+      column: undefined,
+      op: '=',
+      value: true,
+    });
   });
   it('false()', () => {
     const f = new BooleanFilter(sqb(), 'active', 'u');
-    expect(f.false()).toEqual({ alias: 'u', field: 'active', column: undefined, op: '=', value: false });
+    expect(f.false()).toEqual({
+      alias: 'u',
+      field: 'active',
+      column: undefined,
+      op: '=',
+      value: false,
+    });
   });
 });
 
@@ -156,35 +336,83 @@ describe('DateFilter', () => {
 
   it('eq', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.eq(d1)).toEqual({ alias: 'u', field: 'created', column: undefined, op: '=', value: d1 });
+    expect(f.eq(d1)).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: '=',
+      value: d1,
+    });
   });
   it('neq', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.neq(d1)).toEqual({ alias: 'u', field: 'created', column: undefined, op: '!=', value: d1 });
+    expect(f.neq(d1)).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: '!=',
+      value: d1,
+    });
   });
   it('after', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.after(d1)).toEqual({ alias: 'u', field: 'created', column: undefined, op: '>', value: d1 });
+    expect(f.after(d1)).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: '>',
+      value: d1,
+    });
   });
   it('afterEq', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.afterEq(d1)).toEqual({ alias: 'u', field: 'created', column: undefined, op: '>=', value: d1 });
+    expect(f.afterEq(d1)).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: '>=',
+      value: d1,
+    });
   });
   it('before', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.before(d2)).toEqual({ alias: 'u', field: 'created', column: undefined, op: '<', value: d2 });
+    expect(f.before(d2)).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: '<',
+      value: d2,
+    });
   });
   it('beforeEq', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.beforeEq(d2)).toEqual({ alias: 'u', field: 'created', column: undefined, op: '<=', value: d2 });
+    expect(f.beforeEq(d2)).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: '<=',
+      value: d2,
+    });
   });
   it('between', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.between(d1, d2)).toEqual({ alias: 'u', field: 'created', column: undefined, op: 'BETWEEN', value: [d1, d2] });
+    expect(f.between(d1, d2)).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: 'BETWEEN',
+      value: [d1, d2],
+    });
   });
   it('in', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
-    expect(f.in([d1, d2])).toEqual({ alias: 'u', field: 'created', column: undefined, op: 'IN', value: [d1, d2] });
+    expect(f.in([d1, d2])).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: 'IN',
+      value: [d1, d2],
+    });
   });
 });
 
@@ -192,12 +420,24 @@ describe('addNullable', () => {
   it('adds .null getter', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
     const nf = addNullable(f);
-    expect(nf.null).toEqual({ alias: 'u', field: 'age', column: undefined, op: 'IS NULL', value: null });
+    expect(nf.null).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: 'IS NULL',
+      value: null,
+    });
   });
   it('adds .notNull getter', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
     const nf = addNullable(f);
-    expect(nf.notNull).toEqual({ alias: 'u', field: 'age', column: undefined, op: 'IS NOT NULL', value: null });
+    expect(nf.notNull).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: 'IS NOT NULL',
+      value: null,
+    });
   });
   it('returns object with null and notNull properties', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
@@ -211,12 +451,24 @@ describe('typed V (eq-site)', () => {
   it('same-V field ref compiles', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
     const ref = new NumberFilter(sqb(), 'minAge', 'u');
-    expect(f.eq(ref)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '=', value: ref });
+    expect(f.eq(ref)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '=',
+      value: ref,
+    });
   });
   it('nullable same-V refinery keeps eq validity', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
     const ref = addNullable(new NumberFilter(sqb(), 'minAge', 'u'));
-    expect(f.eq(ref)).toEqual({ alias: 'u', field: 'age', column: undefined, op: '=', value: ref });
+    expect(f.eq(ref)).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: '=',
+      value: ref,
+    });
   });
   it('cross-type field ref is a type error', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');

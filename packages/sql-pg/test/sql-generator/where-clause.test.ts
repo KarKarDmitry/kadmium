@@ -76,9 +76,7 @@ describe('SqlGenerator — _buildWhereGroupSql', () => {
     const g = group([step('AND', where('id', 'IN', [1, 2, 3], 'u'))]);
     const values: unknown[] = [];
     const p = { p: 1 };
-    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe(
-      '"u"."id" = ANY($1)',
-    );
+    expect(gen['_buildWhereGroupSql'](g, values, p)).toBe('"u"."id" = ANY($1)');
     expect(values).toEqual([[1, 2, 3]]);
   });
 

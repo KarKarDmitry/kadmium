@@ -40,7 +40,10 @@ describe('OrmManager — adapter routing', () => {
 
   it('withAdapter routes queries to the override adapter', async () => {
     const orm = new OrmManager(app);
-    await orm.withAdapter(overrideAdapter as unknown as SqlAdapter).single(User).go();
+    await orm
+      .withAdapter(overrideAdapter as unknown as SqlAdapter)
+      .single(User)
+      .go();
 
     expect(overrideAdapter.execute).toHaveBeenCalled();
     expect(globalAdapter.execute).not.toHaveBeenCalled();

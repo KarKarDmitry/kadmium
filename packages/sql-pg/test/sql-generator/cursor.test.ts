@@ -58,7 +58,13 @@ function multiKeyCursor(elements: WhereStep[] = []): WhereStep[] {
       'AND',
       group([
         step('OR', where('name', '>', 'M')),
-        step('OR', group([step('AND', where('name', '=', 'M')), step('AND', where('id', '<', 500))])),
+        step(
+          'OR',
+          group([
+            step('AND', where('name', '=', 'M')),
+            step('AND', where('id', '<', 500)),
+          ]),
+        ),
       ]),
     ),
   ];
@@ -76,7 +82,10 @@ describe('SqlGenerator — toSql: cursor (keyset)', () => {
 
   it('cursor after pure-AND wheres, no extra parens on main', () => {
     const q = sqb({
-      wheres: group([step('AND', where('age', '=', 30)), step('AND', where('active', '=', true))]),
+      wheres: group([
+        step('AND', where('age', '=', 30)),
+        step('AND', where('active', '=', true)),
+      ]),
       cursor: group([step('AND', where('id', '>', 42))]),
     });
     const { text, values } = gen.toSql(q);
@@ -88,7 +97,10 @@ describe('SqlGenerator — toSql: cursor (keyset)', () => {
 
   it('cursor after wheres with OR — main wrapped in parens', () => {
     const q = sqb({
-      wheres: group([step('AND', where('age', '=', 30)), step('OR', where('active', '=', true))]),
+      wheres: group([
+        step('AND', where('age', '=', 30)),
+        step('OR', where('active', '=', true)),
+      ]),
       cursor: group([step('AND', where('id', '>', 42))]),
     });
     const { text, values } = gen.toSql(q);
@@ -112,7 +124,10 @@ describe('SqlGenerator — toSql: cursor (keyset)', () => {
 
   it('OR-composite cursor after wheres with OR — both parenthesized', () => {
     const q = sqb({
-      wheres: group([step('AND', where('age', '=', 30)), step('OR', where('active', '=', true))]),
+      wheres: group([
+        step('AND', where('age', '=', 30)),
+        step('OR', where('active', '=', true)),
+      ]),
       cursor: group(multiKeyCursor()),
     });
     const { text, values } = gen.toSql(q);

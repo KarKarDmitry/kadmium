@@ -41,8 +41,10 @@ function hole(name: string): HoleRef {
 
 describe('SqlGenerator — slot markers', () => {
   const gen = new TestGenerator();
-  const state = (p: number, slotOrder: { name: string; index: number }[] = []) =>
-    ({ p, slotOrder }) as ParamState;
+  const state = (
+    p: number,
+    slotOrder: { name: string; index: number }[] = [],
+  ) => ({ p, slotOrder }) as ParamState;
 
   it('renders a slot as $N and records slotOrder', () => {
     const w = where('id', '=', hole('tenantId'), 'u');
