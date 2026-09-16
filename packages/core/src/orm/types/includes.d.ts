@@ -60,12 +60,12 @@ export type AllFields = { readonly '~allFields': true };
  * Пример: [SelectableField<number, 'id'>, SelectableField<string, 'title'>]
  *   → { id: number; title: string }
  */
-export type FlatFinalResult<S extends readonly any[]> = {
+export type FlatFinalResult<S extends readonly unknown[]> = {
   [E in S[number] as GetFieldName<E>]: GetFieldType<E>;
 };
 
 /** Извлечь return type select callback */
-type ExtractSelectResult<C> = C extends { select: (t: any) => infer R }
+type ExtractSelectResult<C> = C extends { select: (...args: never[]) => infer R }
   ? R
   : never;
 
@@ -158,7 +158,7 @@ type ResolveRelation<M, K extends string, C> = C extends true
 
 /** Вычислить вложенные include (two-pass: raw keys → alias remap) */
 type ResolveIncludes<M, C> =
-  C extends Record<string, any>
+  C extends Record<string, unknown>
     ? Evaluate<
         RemapIncludeAliases<
           {

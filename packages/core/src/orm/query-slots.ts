@@ -18,7 +18,7 @@ import type { SlotDefinition } from '@karkardmitry/kadmium-sql-types';
 import { SlotMarker } from './slot';
 
 /** Извлечение { имя → тип значения } из кортежа selectable/агрегат/массив-слот. */
-export type ToDef<S extends readonly any[]> = {
+export type ToDef<S extends readonly unknown[]> = {
   [Sel in S[number] as GetFieldName<Sel>]: GetFieldType<Sel>;
 };
 

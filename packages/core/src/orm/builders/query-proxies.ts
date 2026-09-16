@@ -79,7 +79,7 @@ export function createOrderProxy<TModel extends Model>(
  * условия рендерятся как `"<alias>" op $n` (без префикса таблицы, т.к. alias='').
  * Несуществующий алиас — ошибка с подсказкой про .as().
  */
-export function createHavingProxy<S extends readonly any[]>(
+export function createHavingProxy<S extends readonly unknown[]>(
   sqb: KadmiumSqb,
   aliases: Set<string>,
 ): HavingProxy<S> {

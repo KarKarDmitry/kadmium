@@ -119,14 +119,14 @@ export type MultiOrderProxy<T extends AliasesMap> = {
  * HavingProxy — типизированный доступ к агрегатным алиасам из SELECT
  * для фильтрации групп (HAVING). Ключи — алиасы агрегатов (.as('cnt')).
  */
-export type HavingProxy<S extends readonly any[]> = {
+export type HavingProxy<S extends readonly unknown[]> = {
   [
     Sel in Extract<S[number], AggregateField<unknown>> as GetFieldName<Sel>
   ]: FieldTypeToFilter<GetFieldType<Sel>>;
 };
 
 /** SELECT-источник для HavingProxy: сам select либо пустой (`never`). */
-export type HavingSource<T> = T extends readonly any[] ? T : never;
+export type HavingSource<T> = T extends readonly unknown[] ? T : never;
 
 // ── Update/Delete finalizer ──
 
@@ -215,13 +215,15 @@ export type MultiRelationProxy<T extends AliasesMap> = {
 
 /** Extracts table alias from a selectable */
 type GetTableAlias<S> =
-  S extends SelectableField<any, any, any, infer TA> ? TA : never;
+  S extends SelectableField<unknown, string, string | undefined, infer TA>
+    ? TA
+    : never;
 
 /** Union of all table aliases in a select array */
-type AllTableAliases<S extends readonly any[]> = GetTableAlias<S[number]>;
+type AllTableAliases<S extends readonly unknown[]> = GetTableAlias<S[number]>;
 
 /** Filter selectable fields that belong to a specific table alias */
-type FieldsForAlias<S extends readonly any[], A extends string> = Extract<
+type FieldsForAlias<S extends readonly unknown[], A extends string> = Extract<
   S[number],
   { tableAlias: A }
 >;
@@ -229,13 +231,13 @@ type FieldsForAlias<S extends readonly any[], A extends string> = Extract<
 /**
  * ObjectForAlias — строит объект для одного table alias.
  */
-type ObjectForAlias<S extends readonly any[], A extends string> = {
+type ObjectForAlias<S extends readonly unknown[], A extends string> = {
   [
     Sel in FieldsForAlias<S, A> as Sel extends SelectableField<
-      any,
+      unknown,
       infer FN,
       infer AL,
-      any
+      string
     >
       ? AL extends string
         ? AL
@@ -243,26 +245,28 @@ type ObjectForAlias<S extends readonly any[], A extends string> = {
           ? FN
           : never
       : never
-  ]: Sel extends SelectableField<infer T, any, any, any> ? T : never;
+  ]: Sel extends SelectableField<infer T, string, string | undefined, string>
+    ? T
+    : never;
 } extends infer O
   ? { [K in keyof O]: O[K] }
   : never;
 
 /** Get the alias/field name from any selectable */
 export type GetFieldName<S> =
-  S extends FuncField<any>
+  S extends FuncField<unknown>
     ? S extends { alias: infer AL }
       ? AL extends string
         ? AL
         : never
       : never
-    : S extends ArrayField<any, infer FN, infer AL>
+    : S extends ArrayField<unknown, infer FN, infer AL>
       ? AL extends string
         ? AL
         : FN extends string
           ? FN
           : never
-      : S extends SelectableField<any, infer FN, infer AL, any>
+      : S extends SelectableField<unknown, infer FN, infer AL, string>
         ? AL extends string
           ? AL
           : FN extends string
@@ -272,13 +276,13 @@ export type GetFieldName<S> =
 
 /** Get the result type from any selectable */
 export type GetFieldType<S> =
-  S extends FuncField<any>
+  S extends FuncField<unknown>
     ? S extends { '~result': infer R }
       ? R
       : never
-    : S extends ArrayField<infer T, any, any>
+    : S extends ArrayField<infer T, string, string | undefined>
       ? T
-      : S extends SelectableField<infer T, any, any, any>
+      : S extends SelectableField<infer T, string, string | undefined, string>
         ? T
         : never;
 
@@ -302,7 +306,7 @@ type ModelForAlias<T extends AliasesMap, A extends keyof T & string> =
  * Агрегаты → на верхнем уровне.
  */
 export type FinalResult<
-  S extends readonly any[],
+  S extends readonly unknown[],
   T extends AliasesMap,
   C extends { [A in keyof T & string]?: IncludeConfig<ModelForAlias<T, A>> } =
     Record<never, never>,
@@ -318,7 +322,7 @@ export type FinalResult<
     >;
 } & {
   [
-    Sel in Extract<S[number], FuncField<any>> as GetFieldName<Sel>
+    Sel in Extract<S[number], FuncField<unknown>> as GetFieldName<Sel>
   ]: GetFieldType<Sel>;
 } extends infer R2
   ? { [K in keyof R2]: R2[K] }
