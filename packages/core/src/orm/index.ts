@@ -19,6 +19,15 @@ export {
   addNullable,
 } from './field-builders/filters';
 export { Relation } from './field-builders/relation';
+export {
+  sql,
+  SqlFragment,
+  SqlSelectable,
+  SqlOrder,
+  shiftSql,
+  isSqlFragment,
+} from './sql-fragment';
+export type { SqlPart } from './sql-fragment';
 export type {
   FilterProxy,
   SelectProxy,
