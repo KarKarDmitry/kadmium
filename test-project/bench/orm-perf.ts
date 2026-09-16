@@ -9,7 +9,7 @@
  *
  * Запуск: npx tsx bench/orm-perf.ts
  */
-import { KadmiumApp, Model, OrmManager } from '@karkardmitry/kadmium-core';
+import { KadmiumApp, OrmManager } from '@karkardmitry/kadmium-core';
 import {
   User as UserModel,
   Post as PostModel,
@@ -164,10 +164,7 @@ async function main() {
   await bench(
     '3. include() to-many — user → posts (10 posts each)',
     async () => {
-      await h.orm
-        .single(UserModel)
-        .include({ posts: true })
-        .go();
+      await h.orm.single(UserModel).include({ posts: true }).go();
     },
   );
 
@@ -261,10 +258,7 @@ async function main() {
     };
 
     // Warmup
-    await h.orm
-      .single(UserModel)
-      .include({ posts: true })
-      .go();
+    await h.orm.single(UserModel).include({ posts: true }).go();
 
     // Benchmark with timing
     const ITERS = 5;
@@ -273,10 +267,7 @@ async function main() {
       sqlGenMs = 0;
       dbExecMs = 0;
       reshapeMs = 0;
-      await h.orm
-        .single(UserModel)
-        .include({ posts: true })
-        .go();
+      await h.orm.single(UserModel).include({ posts: true }).go();
       totals.push({ sql: sqlGenMs, db: dbExecMs, reshape: reshapeMs });
     }
 

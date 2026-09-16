@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Model } from '@karkardmitry/kadmium-core';
-import { makeHarness, MODELS } from './helpers';
+import { makeHarness } from './helpers';
 
 describe('core init + config (no DB)', () => {
   it('registers all models and compiles IR', async () => {

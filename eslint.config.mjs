@@ -43,7 +43,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['test-project/**/*.ts'],
+    files: ['test-project/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
     },

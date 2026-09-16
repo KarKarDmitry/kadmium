@@ -5,6 +5,7 @@
 > Updated 2026-09-07 — verified F1, F6 still resolved. F7 updated. F8 added.
 > Updated 2026-09-08 — F7 resolved via A1 (`b709ad1`).
 > Updated 2026-09-12 — F8 plan re-locked: variant B `{ agg, wf }`, base `FuncField`, Option A (adapter owns rendering). C1–C6 done (resolved).
+> Updated 2026-09-16 — F2 resolved (B1/B2, `931aab2`): `OrmManager.raw()`/`run()`/`transaction()` landed.
 
 ---
 
@@ -101,19 +102,19 @@ orm.single(User).createMany([...]).onConflict(t => [t.email]).go()
 
 ---
 
-## F2: Нет raw() в ORM-слое
+## F2: Нет raw() в ORM-слое ✅
 
 **Важность:** 🟢 Medium
 
 **Краткое описание:** `raw()` доступен только через адаптер (`appCore.sqlAdapter.raw()`). В ORM-слое нет доступа к сырым запросам.
 
-**Статус:** ⬜ Открыто. `raw()` доступен через `appCore.sqlAdapter.raw()`, но не через `orm.single()`. Добавление в OrmManager — минимальный риск.
+**Статус:** ✅ Closed — реализовано в рамках compiled-queries (B1/B2, `931aab2`): прямой `OrmManager.raw<T>(sql, params)` (passthrough на `adapter.raw`, типы строк задаёт вызывающий) закрывает исходную потребность F2. Рядом живут `OrmManager.run(compiled).fill(input).go()` (слот-путь compiled-запросов) и `transaction()` — но именно `raw()` снимает F2.
 
 **Связанные файлы:**
 - `packages/core/src/orm/orm.ts`
 - `packages/sql-types/src/index.ts`
 
-**Коммит:**
+**Коммит:** `931aab2`
 
 ---
 

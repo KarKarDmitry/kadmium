@@ -144,3 +144,28 @@ as(alias: string): SelectableField<...> {
 - `packages/core/src/orm/ast/aggregate.ts:26-29`
 - `packages/core/src/orm/ast/selectable.ts:23-33`
 - `packages/core/src/orm/sqb.ts:103-109` (_cloneSelects)
+
+---
+
+## T7: any-касты в ORM слое — 118 → 12 — ✅ Done (`cd59f04`…`9dd66be`)
+
+**Статус:** ✅ Done. Серия коммитов: `cd59f04` (spike — phantom.d.ts, `AnySelectableField`/`AnyFuncField`, window-functions/aggregates; 118→73), `99cd66b` (`AnySelectable`/`AnyArrayField`; 73→65), `567f06a` (unknown/constraint-ceiling wildcard'ы в условных типах; 65→35), `9dd66be` (`AnyCompiledQuery`/`AnyFilterProxy`/`SlotNameGuard`; 35→12), плюс `e0440bc` (prettier). Гейт каждой: check:type ✓, lint (счётчик падает), core 419, prettier, build + test-project 230.
+
+**Паттерн (канонический остаток):**
+- `orm/types/phantom.d.ts` — erasure-алиасы: `AnySelectableField = SelectableField<unknown, string, string | undefined, string>`, `AnyFuncField = FuncField<unknown>`, `AnySelectable`, `AnyArrayField`, `AnyCompiledQuery = CompiledQuery<Record<string, unknown>, unknown>`, `AnyFilterProxy = FilterProxy<{ ['~shape']: Record<string, unknown> }>`, `SlotNameGuard`.
+- `unknown` подходит только **неограниченным** параметрам (`TFieldType`, `FuncField.TResult`); для constrained (`TFieldName extends string`, `TAlias extends string | undefined`, `TTableAlias extends string`) — верхняя граница constraint'а (`string`, `string | undefined`), иначе `unknown` не проходит constraint.
+- В условных типах (`proxy.d.ts`/`includes.d.ts`): wildcard'ы через unknown/constraint-ceiling, `ExtractSelectResult` через `(...args: never[]) => infer R`, `ResolveIncludes → Record<string, unknown>`, `readonly any[] → readonly unknown[]`.
+- `CompiledQuery` ковариантен (`readonly _slots`/`_result`) → `CompiledQuery<Record<string, unknown>, unknown>` — валидный supertype для impl-кастов перегрузок.
+- Структурные касты — через `as unknown as X`, не `as any` (findById, `go()`).
+
+**Остаток 12 (irreducible, `warn`-инвентарь):**
+
+| Файл | Кол-во | Причина |
+|---|---|---|
+| `builders/single.ts` (impl `select`/`first`) | 2 | сигнатуры реализации overloaded методов (TSelect инвариантен) |
+| `builders/multi.ts` (impl `compile`) | 3 | contextual typing объекта против overloaded `MultiSelectResult` |
+| `field-builders/relation.ts` (`(t: any)`) | 3 | контравариантные колбэки: произвольный типизированный колбэк обязан храниться/вызываться через `any` |
+| `builders/include-utils.ts` (`(proxy: any)`) | 3 | то же — `IncludeConfigValue` (хранение + вызов типизированных колбэков) |
+| `slot.ts` (`SlotMarker<Name, any>`) | 1 | плоский `slot()` осознанно обходит eq-site проверку типа — компромисс за удобство |
+
+**Политика:** остаток остаётся `warn`-инвентарём — inline-disable и ослабление eslint-конфига не допускаются (счётчик и есть метрика).
