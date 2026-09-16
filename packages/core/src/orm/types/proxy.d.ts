@@ -121,7 +121,7 @@ export type MultiOrderProxy<T extends AliasesMap> = {
  */
 export type HavingProxy<S extends readonly any[]> = {
   [
-    Sel in Extract<S[number], AggregateField<any>> as GetFieldName<Sel>
+    Sel in Extract<S[number], AggregateField<unknown>> as GetFieldName<Sel>
   ]: FieldTypeToFilter<GetFieldType<Sel>>;
 };
 

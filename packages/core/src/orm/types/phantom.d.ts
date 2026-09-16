@@ -10,6 +10,7 @@
  */
 import type { SelectableField } from '../ast/selectable';
 import type { FuncField } from '../ast/func-field';
+import type { ArrayField } from '../ast/array-field';
 
 /** Любое select-поле конкретной колонки (wildcard для `extends`/параметров). */
 export type AnySelectableField = SelectableField<
@@ -21,3 +22,9 @@ export type AnySelectableField = SelectableField<
 
 /** Любая функция в SELECT (агрегат/оконная) без вывода результата. */
 export type AnyFuncField = FuncField<unknown>;
+
+/** Любое select-поле: колонка или функция (wildcard). */
+export type AnySelectable = AnySelectableField | AnyFuncField;
+
+/** Массив-слот: wildcard для фантомного `ArrayField`. */
+export type AnyArrayField = ArrayField<unknown, string, string | undefined>;

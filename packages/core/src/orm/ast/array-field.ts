@@ -31,4 +31,4 @@ export class ArrayField<
   }
 }
 
-export type AnyArrayField = ArrayField<any, any, any>;
+export type { AnyArrayField } from '../types/phantom';
