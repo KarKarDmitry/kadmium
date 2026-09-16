@@ -65,7 +65,9 @@ export type FlatFinalResult<S extends readonly unknown[]> = {
 };
 
 /** Извлечь return type select callback */
-type ExtractSelectResult<C> = C extends { select: (...args: never[]) => infer R }
+type ExtractSelectResult<C> = C extends {
+  select: (...args: never[]) => infer R;
+}
   ? R
   : never;
 
