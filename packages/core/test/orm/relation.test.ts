@@ -48,6 +48,22 @@ describe('Relation — constructor', () => {
     expect(rel.childField).toBe('id');
   });
 
+  it('inverse one-to-one stays one-to-one (sourceModel + relation one-to-one)', () => {
+    const sqb = makeSqb();
+    const targetIr = makePostIR();
+    const fieldIr = makeFieldIr({
+      sourceModel: 'Post',
+      relation: 'one-to-one',
+      inverse: 'profile',
+      inverseRelation: 'one-to-one',
+      foreignKey: 'user',
+    });
+    const rel = new Relation(sqb, 'profile', targetIr, fieldIr);
+    expect(rel.relationType).toBe('one-to-one');
+    expect(rel.parentField).toBe('id');
+    expect(rel.childField).toBe('user');
+  });
+
   it('sets internalSqb tableContext value to collection, not name (C9)', () => {
     const sqb = makeSqb();
     const targetIr = makePostIR();
