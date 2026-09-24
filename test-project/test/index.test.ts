@@ -5,11 +5,16 @@ import { makeHarness } from './helpers';
 describe('core init + config (no DB)', () => {
   it('registers all models and compiles IR', async () => {
     const { app } = await makeHarness();
-    expect(app.modelCount).toBe(3);
+    expect(app.modelCount).toBe(8);
     expect(app.allIrs.map((ir) => ir.name).sort()).toEqual([
+      'Bureau',
       'Comment',
+      'Country',
       'Post',
+      'Profile',
+      'Region',
       'User',
+      'UserAccount',
     ]);
     // registry resolve
     expect(Model.resolve('User')).toBeDefined();
@@ -42,8 +47,17 @@ describe('core init + config (no DB)', () => {
   it('loads config from kadmium.config.ts via AppCore.init', async () => {
     const { AppCore } = await import('@karkardmitry/kadmium-core');
     const app = await AppCore.init();
-    expect(app.modelCount).toBe(3);
+    expect(app.modelCount).toBe(8);
     const names = app.allIrs.map((ir) => ir.name).sort();
-    expect(names).toEqual(['Comment', 'Post', 'User']);
+    expect(names).toEqual([
+      'Bureau',
+      'Comment',
+      'Country',
+      'Post',
+      'Profile',
+      'Region',
+      'User',
+      'UserAccount',
+    ]);
   });
 });

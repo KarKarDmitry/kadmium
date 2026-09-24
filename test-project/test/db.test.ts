@@ -26,8 +26,8 @@ describe('db: schema diff + health', () => {
     const { checkHealth } = await import('@karkardmitry/kadmium-sql-pg');
     const health = await checkHealth(h.app.allIrs, h.adapter.ddl);
     expect(health.isHealthy).toBe(true);
-    expect(health.summary.tablesExpected).toBe(3);
-    expect(health.summary.tablesMatching).toBe(3);
+    expect(health.summary.tablesExpected).toBe(8);
+    expect(health.summary.tablesMatching).toBe(8);
   });
 
   it('renderSql returns no-op when clean', async () => {
