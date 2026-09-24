@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { CHECK, BULLET, box } from './format';
 
 const TEMPLATES: Record<string, string> = {
-  'kadmium.config.ts': `import { defineConfig } from 'kadmium';
+  'kadmium.config.ts': `import { defineConfig } from '@karkardmitry/kadmium-core';
 
 export default defineConfig({
   modelSources: ['src/models/**/*.ts'],
@@ -12,7 +12,7 @@ export default defineConfig({
 });
 `,
 
-  'src/models/index.ts': `import { Model } from 'kadmium';
+  'src/models/index.ts': `import { Model } from '@karkardmitry/kadmium-core';
 import { User } from './user';
 
 // Register all application models
@@ -21,7 +21,7 @@ Model.register(User);
 export { User };
 `,
 
-  'src/models/user.ts': `import { Model, f } from 'kadmium';
+  'src/models/user.ts': `import { Model, f } from '@karkardmitry/kadmium-core';
 
 export class User extends Model {
   name = f.string;
@@ -29,7 +29,7 @@ export class User extends Model {
 }
 `,
 
-  'scripts/generate-types.ts': `import { loadCodegenProject, generateToFile } from 'kadmium';
+  'scripts/generate-types.ts': `import { loadCodegenProject, generateToFile } from '@karkardmitry/kadmium-core';
 
 async function main(): Promise<void> {
   const { irs, modelPaths, output } = await loadCodegenProject(process.cwd());
@@ -42,7 +42,7 @@ main().catch((err) => {
 });
 `,
 
-  'scripts/check-types.ts': `import { loadCodegenProject, checkSync } from 'kadmium';
+  'scripts/check-types.ts': `import { loadCodegenProject, checkSync } from '@karkardmitry/kadmium-core';
 
 async function main(): Promise<void> {
   const { irs, modelPaths, output } = await loadCodegenProject(process.cwd());
@@ -140,7 +140,7 @@ export function init(projectDir: string): void {
   );
   console.log('');
   console.log('  Next steps:');
-  console.log('  1. npm install kadmium ts-node');
+  console.log('  1. npm install @karkardmitry/kadmium-core ts-node');
   console.log('  2. npm run generate    — generate augment types');
   console.log('  3. npm run check       — verify types');
   console.log('  4. Define your models  — add files to src/models/');

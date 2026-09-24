@@ -101,4 +101,16 @@ describe('init', () => {
 
     expect(existsSync(join(nested, 'kadmium.config.ts'))).toBe(true);
   });
+
+  it('generated templates import from the real package, not bare "kadmium"', () => {
+    const dir = makeProjectDir();
+    dirs.push(dir);
+
+    init(dir);
+
+    for (const file of TEMPLATES) {
+      const content = readFileSync(join(dir, file), 'utf8');
+      expect(content).not.toMatch(/from 'kadmium'/);
+    }
+  });
 });

@@ -239,4 +239,60 @@ describe('generateModel', () => {
     const out = generateModel(ir, 'models/user', [ir]);
     expect(out).toMatch(/^\/\/ Auto-generated\. Do not edit\.\n/);
   });
+
+  it('relInfo kind for inverse one-to-one is one-to-one, not one-to-many', () => {
+    const profileIr = makeIr({ name: 'Profile', fields: {} });
+    const userIr = makeIr({
+      name: 'User',
+      fields: {
+        profile: {
+          type: 'ref',
+          tsType: 'Profile',
+          alias: 'profile',
+          nullable: true,
+          unique: false,
+          index: false,
+          ref: 'Profile',
+          relation: 'one-to-one',
+          sourceModel: 'Profile',
+          inverse: 'profile',
+          inverseRelation: 'one-to-one',
+          foreignKey: 'user',
+        },
+      },
+    });
+    const out = generateModel(userIr, 'models/user', [userIr, profileIr]);
+    expect(out).toContain("profile: { target: Profile; kind: 'one-to-one' };");
+  });
+
+  it('import path for a multiword target matches its sourceFile basename', () => {
+    const accountIr = makeIr({
+      name: 'UserAccount',
+      fields: {},
+      sourceFile: 'src/models/user-account',
+    });
+    const postIr = makeIr({
+      name: 'Post',
+      fields: {
+        accounts: {
+          type: 'ref',
+          tsType: 'UserAccount',
+          alias: 'accounts',
+          nullable: false,
+          unique: false,
+          index: false,
+          ref: 'UserAccount',
+          relation: 'one-to-many',
+          sourceModel: 'UserAccount',
+        },
+      },
+    });
+    const out = generateModel(postIr, '../src/models/post', [
+      accountIr,
+      postIr,
+    ]);
+    expect(out).toContain(
+      "import { UserAccount } from '../src/models/user-account';",
+    );
+  });
 });
