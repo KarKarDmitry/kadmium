@@ -40,9 +40,15 @@ export function generateModel(
         const dir = modulePath.includes('/')
           ? modulePath.substring(0, modulePath.lastIndexOf('/') + 1)
           : '';
-        importLines.push(
-          `  import { ${name} } from '${dir}${name.toLowerCase()}';`,
-        );
+        const targetPath = other.sourceFile
+          ? (other.sourceFile.startsWith('src/')
+              ? `../${other.sourceFile}`
+              : other.sourceFile
+            )
+              .replace(/\\/g, '/')
+              .replace(/\.ts$/, '')
+          : `${dir}${name.charAt(0).toLowerCase() + name.slice(1)}`;
+        importLines.push(`  import { ${name} } from '${targetPath}';`);
       }
     }
   }
@@ -79,11 +85,12 @@ export function generateModel(
     lines.push(`  ['~relInfo']: {`);
     for (const [name, field] of refs) {
       const target = field.sourceModel ?? field.ref ?? 'unknown';
-      const kind = field.sourceModel
-        ? 'one-to-many'
-        : field.relation === 'one-to-one'
+      const kind =
+        field.relation === 'one-to-one'
           ? 'one-to-one'
-          : 'many-to-one';
+          : field.sourceModel
+            ? 'one-to-many'
+            : 'many-to-one';
       lines.push(`    ${name}: { target: ${target}; kind: '${kind}' };`);
     }
     lines.push(`  };`);
