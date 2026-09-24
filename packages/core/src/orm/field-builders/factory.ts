@@ -50,6 +50,7 @@ function createBaseFilter(
 ): BaseFilter {
   switch (ir.type) {
     case 'string':
+    case 'uuid':
       return new StringFilter(sqb, field, alias, column);
     case 'number':
     case 'primary':

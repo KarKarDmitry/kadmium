@@ -135,6 +135,6 @@ describe('SqlGenerator — toSql: delete', () => {
       selects: [selectable('u', 'id'), aggregate('count', 'total')],
     });
     const { text } = gen.toSql(q);
-    expect(text).toContain('RETURNING "u"."id", COUNT(*) AS "total"');
+    expect(text).toContain('RETURNING "u"."id" AS "id", COUNT(*) AS "total"');
   });
 });

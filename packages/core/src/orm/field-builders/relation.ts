@@ -42,14 +42,15 @@ export class Relation implements IncludedRelation {
 
     let parentField = fieldIr?.foreignKey ?? '';
     let childField = 'id';
+    const isInverse = !!fieldIr?.sourceModel;
     const relationType: 'one-to-one' | 'one-to-many' | 'many-to-one' =
-      fieldIr?.sourceModel
-        ? 'one-to-many'
-        : fieldIr?.relation === 'one-to-one'
-          ? 'one-to-one'
+      fieldIr?.relation === 'one-to-one'
+        ? 'one-to-one'
+        : isInverse
+          ? 'one-to-many'
           : 'many-to-one';
 
-    if (relationType === 'one-to-many') {
+    if (isInverse) {
       parentField = 'id';
       childField = fieldIr?.foreignKey ?? '';
     }

@@ -272,7 +272,7 @@ export abstract class SqlGenerator {
         const inner =
           sel.fieldName === '*'
             ? '*'
-            : `"${sel.tableAlias}"."${sel.fieldName}"`;
+            : `"${sel.tableAlias}"."${sel.column ?? sel.fieldName}"`;
         aggAliases.set(sel.alias, `${sel.func.toUpperCase()}(${inner})`);
       }
     }
@@ -667,9 +667,7 @@ export abstract class SqlGenerator {
     if (sel.kind === 'sql-item')
       return this._renderSqlItem(sel, values, paramIndex);
     const col = sel.column ?? sel.fieldName;
-    return sel.alias
-      ? `"${sel.tableAlias}"."${col}" AS "${sel.alias}"`
-      : `"${sel.tableAlias}"."${col}"`;
+    return `"${sel.tableAlias}"."${col}" AS "${sel.alias ?? sel.fieldName}"`;
   }
 
   /** Рендер sql-фрагмента в SELECT: локальные $1..$N сдвигаются на текущий paramIndex. */
