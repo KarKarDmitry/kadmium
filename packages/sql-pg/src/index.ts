@@ -132,13 +132,21 @@ class TransactionalPgAdapter
       transaction?: boolean;
       conflictTarget?: string[];
       doNothing?: boolean;
+      /** DO UPDATE SET-выражения для ON CONFLICT (F) */
+      setData?: Record<string, unknown>;
     },
   ): Promise<Record<string, unknown>[]> {
     // Already in a transaction — ignore options.transaction
     const conflictTarget = options?.conflictTarget ?? [];
     const builder = conflictTarget.length
       ? (name: string, batch: Record<string, unknown>[]) =>
-          buildUpsertManySql(name, batch, conflictTarget, !!options?.doNothing)
+          buildUpsertManySql(
+            name,
+            batch,
+            conflictTarget,
+            !!options?.doNothing,
+            options?.setData ?? null,
+          )
       : buildInsertManySql;
     return createManyRows(
       (t, v) => this.client.query(t, v),
@@ -212,6 +220,8 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       transaction?: boolean;
       conflictTarget?: string[];
       doNothing?: boolean;
+      /** DO UPDATE SET-выражения для ON CONFLICT (F) */
+      setData?: Record<string, unknown>;
     },
   ): Promise<Record<string, unknown>[]> {
     if (rows.length === 0) return [];
@@ -221,7 +231,13 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     const conflictTarget = options?.conflictTarget ?? [];
     const builder = conflictTarget.length
       ? (name: string, batch: Record<string, unknown>[]) =>
-          buildUpsertManySql(name, batch, conflictTarget, !!options?.doNothing)
+          buildUpsertManySql(
+            name,
+            batch,
+            conflictTarget,
+            !!options?.doNothing,
+            options?.setData ?? null,
+          )
       : buildInsertManySql;
     if (!needsTransaction) {
       return createManyRows(

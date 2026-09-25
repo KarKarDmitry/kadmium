@@ -32,6 +32,7 @@ export interface MockAdapter {
         transaction?: boolean;
         conflictTarget?: string[];
         doNothing?: boolean;
+        setData?: Record<string, unknown>;
       },
     ) => Promise<Record<string, unknown>[]>
   >;

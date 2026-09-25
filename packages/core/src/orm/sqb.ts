@@ -59,6 +59,8 @@ export class KadmiumSqb {
   public updateData: Record<string, unknown> | null = null;
   /** Data for UPSERT operations */
   public upsertData: Record<string, unknown> | null = null;
+  /** DO UPDATE SET-выражения для ON CONFLICT (F): ключ → значение или SqlValue */
+  public upsertSetData: Record<string, unknown> | null = null;
   /** Column(s) for ON CONFLICT clause */
   public conflictTarget: string[] | null = null;
   /** ON CONFLICT DO NOTHING instead of DO UPDATE */
@@ -83,6 +85,7 @@ export class KadmiumSqb {
     c.groupBy = [...this.groupBy];
     c.updateData = this.updateData ? { ...this.updateData } : null;
     c.upsertData = this.upsertData ? { ...this.upsertData } : null;
+    c.upsertSetData = this.upsertSetData ? { ...this.upsertSetData } : null;
     c.conflictTarget = this.conflictTarget ? [...this.conflictTarget] : null;
     c.doNothing = this.doNothing;
     return c;

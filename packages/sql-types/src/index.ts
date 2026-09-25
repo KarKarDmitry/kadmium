@@ -35,6 +35,14 @@ export interface WhereFragment {
 
 export type WhereExpression = WhereCondition | WhereGroup | WhereFragment;
 
+/** DML-значение по sql-фрагменту (F): скомпилированный текст + локальные $N. */
+export interface SqlValueFragment {
+  readonly kind: 'sql-value';
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
+}
+
 export interface SelectableField {
   readonly kind: 'selectable';
   readonly tableAlias: string;
@@ -155,6 +163,8 @@ export interface ReadonlySqb {
   readonly updateData: Record<string, unknown> | null;
   /** Data for UPSERT operations */
   readonly upsertData: Record<string, unknown> | null;
+  /** DO UPDATE SET-выражения для ON CONFLICT (F): ключ → значение или sql-фрагмент */
+  readonly upsertSetData: Record<string, unknown> | null;
   /** Column(s) for ON CONFLICT clause */
   readonly conflictTarget: string[] | null;
   /** ON CONFLICT DO NOTHING instead of DO UPDATE */
@@ -251,6 +261,8 @@ export interface SqlAdapter {
       conflictTarget?: string[];
       /** ON CONFLICT DO NOTHING instead of DO UPDATE */
       doNothing?: boolean;
+      /** DO UPDATE SET-выражения для ON CONFLICT (F): ключ → значение или sql-фрагмент */
+      setData?: Record<string, unknown>;
     },
   ): Promise<Record<string, unknown>[]>;
 

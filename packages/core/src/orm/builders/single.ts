@@ -4,6 +4,7 @@ import { SelectableField } from '../ast/selectable';
 import type { ModelIR } from '../../ir/index';
 import {
   toSqlCondition,
+  toSqlValue,
   type SqlFragment,
   type SqlOrder,
 } from '../sql-fragment';
@@ -36,6 +37,14 @@ export interface SqlPreviewTerminal<TExec> {
   /** @deprecated Используйте `.compile()`; SQL-preview — `.compile().sql()`. */
   sql(): string;
 }
+
+/**
+ * Данные DML: объект значений или коллбэк с типизированным proxy (F),
+ * чтобы внутри sql-фрагмента ссылаться на колонку: `sql`${p.views} + 1``.
+ */
+export type DmlData<TModel extends { ['~shape']: Record<string, unknown> }> =
+  | Record<string, unknown>
+  | ((p: FilterProxy<TModel>) => Record<string, unknown>);
 
 /** Инструменты select/first callback: агрегаты и оконные функции (c F8). */
 const selectTools: SelectTools = {
@@ -348,14 +357,14 @@ export class SingleQueryBuilder<
   // ── CREATE ──
 
   create(
-    data: Record<string, unknown>,
+    data: DmlData<TModel>,
   ): import('./upsert-helpers').CreateFinalizer<TModel> {
     if (!this.adapter) throw new Error('No adapter configured; cannot create.');
     return buildCreateFinalizer<TModel>(
       this.sqb.clone(),
       this.adapter,
       this.ir,
-      this._mapAliases(data),
+      this._mapData(data),
     );
   }
 
@@ -369,11 +378,12 @@ export class SingleQueryBuilder<
       return {
         onConflict: () => this.createMany(data, options),
         doNothing: () => this.createMany(data, options),
+        set: () => this.createMany(data, options),
         go: () => Promise.resolve([]),
         sql: () => '',
       };
     }
-    const mapped = data.map((row) => this._mapAliases(row));
+    const mapped = data.map((row) => this._mapData(row));
     return buildCreateManyFinalizer<TModel>(
       this.sqb.clone(),
       this.adapter,
@@ -385,10 +395,10 @@ export class SingleQueryBuilder<
 
   // ── UPDATE / DELETE ──
 
-  update(data: Record<string, unknown>): UpdateFinalizer<TModel> {
+  update(data: DmlData<TModel>): UpdateFinalizer<TModel> {
     const sqb = this.sqb.clone();
     sqb.operation = 'update';
-    sqb.updateData = this._mapAliases(data);
+    sqb.updateData = this._mapData(data);
     return buildWriteFinalizer<TModel>(
       sqb,
       this.adapter,
@@ -514,11 +524,13 @@ export class SingleQueryBuilder<
 
   // ── private ──
 
-  /** Маппинг ключей данных на алиасы колонок */
-  private _mapAliases(data: Record<string, unknown>): Record<string, unknown> {
+  /** Маппинг ключей данных на алиасы колонок + нормализация значений (SqlFragment → SqlValue) */
+  private _mapData(input: DmlData<TModel>): Record<string, unknown> {
+    const data =
+      typeof input === 'function' ? input(this._createFilterProxy()) : input;
     const mapped: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(data)) {
-      mapped[this.ir.fields[k]?.alias ?? k] = v;
+      mapped[this.ir.fields[k]?.alias ?? k] = toSqlValue(v);
     }
     return mapped;
   }

@@ -7,7 +7,11 @@ import type {
   IncludedRelation,
   ReadonlySqb,
 } from '@karkardmitry/kadmium-sql-types';
-import { renderConflictClause } from './sql-generator';
+import {
+  renderConflictClause,
+  renderValueCell,
+  type ParamState,
+} from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
 import { assertSqlIdentifier } from './ddl-validate';
 import { maxBatchRows } from './batch';
@@ -42,10 +46,11 @@ export function buildInsertSql(
   const keys = Object.keys(data);
   for (const k of keys) assertSqlIdentifier(k, 'column name');
   const columns = keys.map((k) => `"${k}"`).join(', ');
-  const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-  const values = keys.map((key) => data[key]);
+  const values: unknown[] = [];
+  const paramIndex: ParamState = { p: 1 };
+  const cells = keys.map((k) => renderValueCell(data[k], values, paramIndex));
   const text =
-    `INSERT INTO "${collectionName}" (${columns}) VALUES (${placeholders}) RETURNING *`
+    `INSERT INTO "${collectionName}" (${columns}) VALUES (${cells.join(', ')}) RETURNING *`
       .trim()
       .replace(/\s+/g, ' ');
   return { text, values };
@@ -72,10 +77,10 @@ export function buildInsertManySql(
   for (const k of keys) assertSqlIdentifier(k, 'column name');
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
+  const paramIndex: ParamState = { p: 1 };
   const valuePlaceholders = rows.map((row) => {
-    const placeholders = keys.map((_, i) => `$${values.length + i + 1}`);
-    values.push(...keys.map((k) => row[k]));
-    return `(${placeholders.join(', ')})`;
+    const cells = keys.map((k) => renderValueCell(row[k], values, paramIndex));
+    return `(${cells.join(', ')})`;
   });
   const text =
     `INSERT INTO "${collectionName}" (${columns}) VALUES ${valuePlaceholders.join(', ')} RETURNING *`
@@ -89,6 +94,7 @@ export function buildUpsertManySql(
   rows: Record<string, unknown>[],
   conflictTarget: string[],
   doNothing: boolean,
+  setMap: Record<string, unknown> | null = null,
 ): { text: string; values: unknown[] } {
   if (rows.length === 0)
     throw new Error('createMany requires at least one row');
@@ -97,12 +103,19 @@ export function buildUpsertManySql(
   for (const k of keys) assertSqlIdentifier(k, 'column name');
   const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
+  const paramIndex: ParamState = { p: 1 };
   const valuePlaceholders = rows.map((row) => {
-    const placeholders = keys.map((_, i) => `$${values.length + i + 1}`);
-    values.push(...keys.map((k) => row[k]));
-    return `(${placeholders.join(', ')})`;
+    const cells = keys.map((k) => renderValueCell(row[k], values, paramIndex));
+    return `(${cells.join(', ')})`;
   });
-  const onConflict = renderConflictClause(keys, conflictTarget, doNothing);
+  const onConflict = renderConflictClause(
+    keys,
+    conflictTarget,
+    doNothing,
+    setMap,
+    values,
+    paramIndex,
+  );
   const text =
     `INSERT INTO "${collectionName}" (${columns}) VALUES ${valuePlaceholders.join(', ')}${onConflict} RETURNING *`
       .trim()

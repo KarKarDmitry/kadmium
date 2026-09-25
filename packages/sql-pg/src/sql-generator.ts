@@ -18,6 +18,7 @@ import type {
   SqlSelectItem,
   OrderFragmentStep,
   OrderStep,
+  SqlValueFragment,
 } from '@karkardmitry/kadmium-sql-types';
 import { assertSqlIdentifier } from './ddl-validate';
 
@@ -36,6 +37,15 @@ function isOrderFragmentStep(o: OrderStep): o is OrderFragmentStep {
 /** Duck-typed guard WHERE-предиката по фрагменту (E). */
 function isWhereFragment(e: WhereExpression): e is WhereFragment {
   return (e as { kind?: string }).kind === 'sql-condition';
+}
+
+/** Duck-typed guard DML-значения по фрагменту (F). */
+export function isSqlValueFragment(v: unknown): v is SqlValueFragment {
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    (v as { kind?: string }).kind === 'sql-value'
+  );
 }
 
 /**
@@ -78,21 +88,63 @@ interface SqlIdentifierRef {
 /**
  * ON CONFLICT (target) DO UPDATE/NOTHING для INSERT.
  * Обновляются все ключи, кроме входящих в conflictTarget.
+ * setMap (F) заменяет набор UPDATE-колонок с явными выражениями/значениями.
  */
 export function renderConflictClause(
   keys: string[],
   conflictTarget: string[],
   doNothing: boolean,
+  setMap: Record<string, unknown> | null,
+  values: unknown[],
+  paramIndex: ParamState,
 ): string {
   const target = conflictTarget.map((c) => `"${c}"`).join(', ');
   if (doNothing) return ` ON CONFLICT (${target}) DO NOTHING`;
-  const updateCols = keys
-    .filter((k) => !conflictTarget.includes(k))
-    .map((k) => `"${k}" = EXCLUDED."${k}"`)
-    .join(', ');
-  return updateCols
-    ? ` ON CONFLICT (${target}) DO UPDATE SET ${updateCols}`
+  const setEntries: [string, unknown][] =
+    setMap && Object.keys(setMap).length > 0
+      ? Object.entries(setMap)
+      : keys
+          .filter((k) => !conflictTarget.includes(k))
+          .map((k) => [k, undefined] as [string, undefined]);
+  const parts = setEntries.map(([k, setValue]) => {
+    assertSqlIdentifier(k, 'column name');
+    const expr =
+      setValue !== undefined
+        ? renderValueCell(setValue, values, paramIndex)
+        : `EXCLUDED."${k}"`;
+    return `"${k}" = ${expr}`;
+  });
+  return parts.length
+    ? ` ON CONFLICT (${target}) DO UPDATE SET ${parts.join(', ')}`
     : ` ON CONFLICT (${target}) DO NOTHING`;
+}
+
+/**
+ * DML-ячейка для одного ключа (F): значение-фрагмент → сдвинутый текст
+ * с конкатенацией values/slotOrder, иначе параметр $N.
+ */
+export function renderValueCell(
+  value: unknown,
+  values: unknown[],
+  paramIndex: ParamState,
+): string {
+  if (isSqlValueFragment(value)) {
+    const start = paramIndex.p;
+    const text = shiftParameters(value.text, start - 1);
+    values.push(...(value.values as unknown[]));
+    paramIndex.p += value.values.length;
+    for (const s of value.slotOrder ?? []) {
+      if (!paramIndex.slotOrder?.some((os) => os.name === s.name)) {
+        paramIndex.slotOrder?.push({
+          name: s.name,
+          index: start - 1 + s.index,
+        });
+      }
+    }
+    return text;
+  }
+  values.push(value);
+  return `$${paramIndex.p++}`;
 }
 
 /** Whitelist операторов сравнения, интерполируемых в SQL (S5: runtime guard против SQL-инъекций). */
@@ -1013,8 +1065,7 @@ export abstract class SqlGenerator {
     const setClause = Object.keys(data)
       .map((key) => {
         assertSqlIdentifier(key, 'column name');
-        values.push(data[key]);
-        return `"${key}" = $${paramIndex.p++}`;
+        return `"${key}" = ${renderValueCell(data[key], values, paramIndex)}`;
       })
       .join(', ');
 
@@ -1062,10 +1113,7 @@ export abstract class SqlGenerator {
     const values: unknown[] = [];
     const paramIndex: ParamState = { p: 1, slotOrder: [] };
     const placeholders = keys
-      .map((k) => {
-        values.push(data[k]);
-        return `$${paramIndex.p++}`;
-      })
+      .map((k) => renderValueCell(data[k], values, paramIndex))
       .join(', ');
 
     let onConflict = '';
@@ -1074,6 +1122,9 @@ export abstract class SqlGenerator {
         keys,
         sqb.conflictTarget,
         sqb.doNothing,
+        sqb.upsertSetData,
+        values,
+        paramIndex,
       );
     }
 

@@ -169,6 +169,36 @@ export function toSqlCondition(
 }
 
 /**
+ * DML-значение по sql-фрагменту (F): прекомпилированный opaque-лист для
+ * update/create/createMany/onConflict.set. Рендер сдвигает локальные $1..$N
+ * на текущий paramIndex адаптера (см. sql-pg renderValueCell).
+ */
+export class SqlValue {
+  readonly kind = 'sql-value' as const;
+  /** Текст фрагмента с локальными $1..$N (сдвигается на текущий paramIndex адаптера). */
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
+
+  constructor(readonly fragment: SqlFragment) {
+    const values: unknown[] = [];
+    const slotOrder: SlotDefinition[] = [];
+    const text = renderFragment(fragment.segments, fragment.parts, values, {
+      p: 1,
+      slotOrder,
+    });
+    this.text = text;
+    this.values = values;
+    this.slotOrder = slotOrder;
+  }
+}
+
+/** Нормализовать DML-значение: SqlFragment → SqlValue, иначе без изменений. */
+export function toSqlValue(v: unknown): unknown {
+  return isSqlFragment(v) ? new SqlValue(v) : v;
+}
+
+/**
  * Массив-значение: один PG-параметр ($N), сериализуется node-pg как массив.
  * Создаётся array([...]); потребляется .in() (→ = ANY($1)) и sql-тегом.
  */

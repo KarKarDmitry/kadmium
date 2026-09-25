@@ -27,6 +27,8 @@ export {
   SqlOrder,
   SqlCondition,
   toSqlCondition,
+  SqlValue,
+  toSqlValue,
   ArrayValue,
   array,
   shiftSql,
