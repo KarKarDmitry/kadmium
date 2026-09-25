@@ -6,6 +6,7 @@
 > Updated 2026-09-08 — F7 resolved via A1 (`b709ad1`).
 > Updated 2026-09-12 — F8 plan re-locked: variant B `{ agg, wf }`, base `FuncField`, Option A (adapter owns rendering). C1–C6 done (resolved).
 > Updated 2026-09-16 — F2 resolved (B1/B2, `931aab2`): `OrmManager.raw()`/`run()`/`transaction()` landed.
+> Updated 2026-09-25 — C-блок sql-тега закрыт: C1 тег (`bf0e406`), C2 select-embed/overloads/array()/order-embed (`5699286`/`8f954d7`/`59afe1c`/`59e11b4`), C3 `@deprecated` toSql (`952a3a5`).
 
 ---
 

@@ -142,7 +142,7 @@ orm.single(User)
 
 **Статус:** ⬜ Запланирован (отложен до отдельного этапа; оценка сложности — в `plans/compiled-queries.md`). Разблокирует отложенное из Плана 1: «`sql()` (raw-фрагменты, как в Drizzle) — отдельный этап, в этот срез не входит».
 
-Слот-маркер уже реализован: `SlotMarker`/`slot()`/`isHoleRef` + рендер `slotOrder` (A2, `528f9f1`). Реализовано: `SqlFragment`/тег (C1, `bf0e406`), select-embed + перегрузки select (C2, `5699286`/`8f954d7`), `array()`/`ArrayValue` (C2, `59afe1c`), order-embed (`.asc/.desc`, C2, `59e11b4`). Осталось: депрекация `toSql` (C3). Полный статус строк A/B — в `plans/compiled-queries.md`.
+Слот-маркер уже реализован: `SlotMarker`/`slot()`/`isHoleRef` + рендер `slotOrder` (A2, `528f9f1`). Реализовано: `SqlFragment`/тег (C1, `bf0e406`), select-embed + перегрузки select (C2, `5699286`/`8f954d7`), `array()`/`ArrayValue` (C2, `59afe1c`), order-embed (`.asc/.desc`, C2, `59e11b4`). C3 (депрекация `toSql()`) — `` @deprecated `` на `single/multi.toSql()`, `count().sql()`, `exists().sql()` (терминал `SqlPreviewTerminal`). Полный статус строк A/B — в `plans/compiled-queries.md`.
 
 **Что такое `sql` (позиционирование, снимает смешение «компилятор vs SQL»):**
 ```

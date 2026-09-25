@@ -105,12 +105,14 @@ Runtime `Proxy` objects provide type-safe field access:
 
 ### Builder Reuse (`clone()`)
 
-Terminals (`go`, `toSql`, `count`, `exists`, `update`, `delete`, `create`, `createMany`, multi `select`) operate on a **snapshot clone**, so calling them never mutates the builder. To branch a configured builder into multiple queries, use `.clone()`:
+Terminals (`go`, `count`, `exists`, `update`, `delete`, `create`, `createMany`, multi `select`) operate on a **snapshot clone**, so calling them never mutates the builder. To branch a configured builder into multiple queries, use `.clone()`:
 
 ```typescript
 const base = app.orm.single(User).where(t => t.name.eq('Alice'));
 const page = await base.clone().page(2, 10).go(); // base untouched
 ```
+
+`toSql()` (and `count().sql()` / `exists().sql()`) are `@deprecated` — debug-only; use `.compile()` (below), its SQL preview is `.compile().sql()`.
 
 `clone()` copies the sqb and shares ir/adapter. Aggregate selects are deep-copied (AggregateField.as() mutates alias). Configuration calls (`.where`, `.limit`, `.order`) still mutate the builder in place by design — use `.clone()` when you want to keep the original untouched.
 
