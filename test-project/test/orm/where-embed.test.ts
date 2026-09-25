@@ -111,9 +111,7 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
       })
       .first()
       .go();
-    const titles = (alice?.posts ?? []).map(
-      (p: { title: string }) => p.title,
-    );
+    const titles = (alice?.posts ?? []).map((p) => p.title);
     expect(titles).toEqual(['Hello Postgres']);
   });
 

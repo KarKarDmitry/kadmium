@@ -63,23 +63,21 @@ describe('order — sql-фрагмент в ORDER BY против PG', () => {
           select: (p) => [p.title],
         },
       })
-      .first(undefined)
+      .first()
       .go();
     const posts = alice?.posts ?? [];
-    expect(posts.map((p: { title: string }) => p.title)).toEqual([
-      'Hello Postgres',
-      'Draft Post',
-    ]);
+    expect(posts.map((p) => p.title)).toEqual(['Hello Postgres', 'Draft Post']);
   });
 
   it('multi: ORDER BY фрагментом по полю другой таблицы', async () => {
     // posts sorted by (views * 2) desc: p1(20), p3(10), p2(0)
     const rows = await h.orm
-      .query({ p: PostModel })
+      .query({ u: UserModel, p: PostModel })
+      .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .order((t) => [sql<number>`("p"."views" * ${2})`.desc])
       .select((t) => [t.p.title])
       .go();
-    expect(rows.map((r) => r.title)).toEqual([
+    expect(rows.map((r) => r.p.title)).toEqual([
       'Hello Postgres',
       'Bob Writes',
       'Draft Post',
