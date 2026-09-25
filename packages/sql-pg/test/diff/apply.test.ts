@@ -20,6 +20,7 @@ import {
   dropPostsOp,
   MockDdl,
 } from './fixtures';
+import { AddColumnOp, AddForeignKeyOp, AddIndexOp } from '../../src/diff';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -117,13 +118,18 @@ describe('applyDiff', () => {
     await applyDiff(diff(ops), ddl);
 
     const byName = new Map(ddl.calls.map((c) => [c.method, c.args]));
-    expect(byName.get('addColumn')).toEqual(['posts', ops[0].column]);
+    expect(byName.get('addColumn')).toEqual([
+      'posts',
+      (ops[0] as AddColumnOp).column,
+    ]);
     expect(byName.get('dropColumn')).toEqual(['posts', 'legacy']);
     expect(byName.get('alterType')).toEqual(['posts', 'author', 'integer']);
     expect(byName.get('alterNullable')).toEqual(['users', 'name', false]);
-    expect(byName.get('addIndex')).toEqual([ops[4].index]);
+    expect(byName.get('addIndex')).toEqual([(ops[4] as AddIndexOp).index]);
     expect(byName.get('dropIndex')).toEqual(['idx_posts_legacy']);
-    expect(byName.get('addForeignKey')).toEqual([ops[6].fk]);
+    expect(byName.get('addForeignKey')).toEqual([
+      (ops[6] as AddForeignKeyOp).fk,
+    ]);
     expect(byName.get('dropForeignKey')).toEqual([
       'fk_posts_category',
       'posts',

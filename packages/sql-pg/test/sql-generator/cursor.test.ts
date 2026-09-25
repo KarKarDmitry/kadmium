@@ -24,6 +24,7 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
     offset: null,
     groupBy: [],
     updateData: null,
+    upsertSetData: null,
     upsertData: null,
     conflictTarget: null,
     doNothing: false,
@@ -52,7 +53,7 @@ function group(elements: WhereStep[]): WhereGroup {
 }
 
 /** Стандартный multi-key курсор: or(name > M, and(name = M, id < 500)) */
-function multiKeyCursor(elements: WhereStep[] = []): WhereStep[] {
+function multiKeyCursor(): WhereStep[] {
   return [
     step(
       'AND',

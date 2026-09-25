@@ -16,7 +16,7 @@ const irs = [
     fields: {
       id: { type: 'primary', nullable: false, unique: true, isPrimary: true },
       name: { type: 'string', nullable: false, unique: false },
-    },
+    } as Record<string, IrField>,
   },
   {
     name: 'Post',
@@ -24,7 +24,7 @@ const irs = [
       id: { type: 'primary', nullable: false, unique: true, isPrimary: true },
       title: { type: 'string', nullable: false, unique: false },
       author: { type: 'ref', ref: 'User', nullable: false, unique: false },
-    },
+    } as Record<string, IrField>,
   },
 ];
 

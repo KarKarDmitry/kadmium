@@ -24,6 +24,7 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
     offset: null,
     groupBy: [],
     updateData: null,
+    upsertSetData: null,
     upsertData: null,
     conflictTarget: null,
     doNothing: false,
@@ -191,12 +192,11 @@ describe('SqlGenerator — toSql: includes', () => {
       tableContext: new Map([['pp', 'posts']]),
       selects: [
         {
-          kind: 'field',
+          kind: 'selectable',
           tableAlias: 'pp',
           fieldName: 'id',
           alias: undefined,
           column: 'id',
-          toSql: () => '"pp"."id" AS "id"',
         },
       ],
     });

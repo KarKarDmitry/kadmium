@@ -26,6 +26,7 @@ function sqb(overrides: Partial<ReadonlySqb>): ReadonlySqb {
     groupBy: [],
     updateData: null,
     upsertData: null,
+    upsertSetData: null,
     conflictTarget: null,
     doNothing: false,
     ...overrides,

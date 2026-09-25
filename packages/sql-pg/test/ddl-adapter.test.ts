@@ -549,6 +549,7 @@ describe('PgDdlAdapter', () => {
           refTable: 'users',
           refColumns: ['id'],
           onDelete: 'CASCADE',
+          // @ts-expect-error нужно проверить что onUpdate не пройдет
           onUpdate: 'NO ACTION; DROP TABLE users; --',
         }),
       ).rejects.toThrow();
