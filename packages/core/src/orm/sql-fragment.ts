@@ -18,7 +18,8 @@ export type SqlPart =
   | SqlFragment
   | CompiledQuery<Record<string, unknown>, unknown>
   | SqlFieldRef
-  | ArrayValue<unknown>;
+  | ArrayValue<unknown>
+  | IdentMarker;
 
 /** Объект, который рендерится в идентификатор колонки: SelectableField, BaseFilter. */
 export interface SqlFieldRef {
@@ -241,6 +242,40 @@ export function isCompiledQuery(
   );
 }
 
+/**
+ * Динамический SQL-идентификатор (G): валидируется при конструировании и
+ * рендерится цитируемым `"name"` в текст фрагмента (не параметром). Единственный
+ * путь runtime-строки в имена колонок/таблиц — строка в теге всегда параметр.
+ */
+export class IdentMarker {
+  readonly kind = 'ident' as const;
+  constructor(readonly name: string) {}
+}
+
+export function isIdentMarker(v: unknown): v is IdentMarker {
+  return (
+    !!v && typeof v === 'object' && (v as { kind?: string }).kind === 'ident'
+  );
+}
+
+/** Unquoted SQL-идентификатор (Postgres), как assertSqlIdentifier в sql-pg. */
+const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const MAX_IDENTIFIER_LENGTH = 63;
+
+/** Динамическое имя колонки/таблицы: fail-fast валидация, цитируемый рендер. */
+export function ident(name: string): IdentMarker {
+  if (
+    name.length === 0 ||
+    name.length > MAX_IDENTIFIER_LENGTH ||
+    !IDENTIFIER_RE.test(name)
+  ) {
+    throw new Error(
+      `Invalid SQL identifier for dynamic identifier: ${JSON.stringify(name)}`,
+    );
+  }
+  return new IdentMarker(name);
+}
+
 function renderFragment(
   segments: readonly string[],
   parts: readonly SqlPart[],
@@ -288,6 +323,10 @@ function renderPart(
   if (arrayValues) {
     values.push(arrayValues);
     return `$${paramIndex.p++}`;
+  }
+
+  if (isIdentMarker(part)) {
+    return `"${part.name}"`;
   }
 
   if (
@@ -343,6 +382,7 @@ function renderDebug(
 
 function debugPart(part: SqlPart): string {
   if (part === null) return 'null';
+  if (isIdentMarker(part)) return `"${part.name}"`;
   if (typeof part === 'object' && isSqlFragment(part))
     return renderDebug(part.segments, part.parts);
   if (typeof part === 'object' && isCompiledQuery(part))

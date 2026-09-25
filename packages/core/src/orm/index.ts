@@ -31,6 +31,9 @@ export {
   toSqlValue,
   ArrayValue,
   array,
+  ident,
+  IdentMarker,
+  isIdentMarker,
   shiftSql,
   isSqlFragment,
 } from './sql-fragment';

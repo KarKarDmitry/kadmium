@@ -22,6 +22,8 @@ export {
   SqlOrder,
   ArrayValue,
   array,
+  ident,
+  IdentMarker,
   isSqlFragment,
   shiftSql,
 } from './orm';
