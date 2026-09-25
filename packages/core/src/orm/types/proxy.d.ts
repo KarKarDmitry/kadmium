@@ -327,7 +327,10 @@ export type FinalResult<
     >;
 } & {
   [
-    Sel in Extract<S[number], FuncField<unknown>> as GetFieldName<Sel>
+    Sel in Extract<
+      S[number],
+      FuncField<unknown> | SqlSelectable<unknown, string>
+    > as GetFieldName<Sel>
   ]: GetFieldType<Sel>;
 } extends infer R2
   ? { [K in keyof R2]: R2[K] }

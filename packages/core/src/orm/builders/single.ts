@@ -127,17 +127,31 @@ export class SingleQueryBuilder<
   select<S extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
   ): SingleQueryBuilder<TModel, S, TInclude, TMode>;
+  /** Готовый список select-элементов (в т.ч. sql-фрагменты с .as()). */
+  select<S extends readonly AnySelectable[]>(
+    items: S,
+  ): SingleQueryBuilder<TModel, S, TInclude, TMode>;
+  /** Один select-элемент (в т.ч. sql-фрагмент с .as()). */
+  select<S extends AnySelectable>(
+    item: S,
+  ): SingleQueryBuilder<TModel, [S], TInclude, TMode>;
   select(
     fn?:
       | ((t: SelectProxy<TModel>) => SelectableField[])
-      | ((t: SelectProxy<TModel>, a: SelectTools) => AnySelectable[]),
+      | ((t: SelectProxy<TModel>, a: SelectTools) => AnySelectable[])
+      | readonly AnySelectable[]
+      | AnySelectable,
   ): any {
     if (!fn) {
       this.sqb.selects = this._buildAllSelects();
-    } else {
+    } else if (typeof fn === 'function') {
       this.sqb.selects = [
         ...fn(this._createSelectProxy(), selectTools),
       ] as AnySelectableField[];
+    } else if (Array.isArray(fn)) {
+      this.sqb.selects = [...fn] as AnySelectableField[];
+    } else {
+      this.sqb.selects = [fn] as AnySelectableField[];
     }
     return this;
   }
@@ -159,15 +173,29 @@ export class SingleQueryBuilder<
   first<S extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<TModel>, tools: SelectTools) => S,
   ): SingleQueryBuilder<TModel, S, TInclude, 'first'>;
+  /** first() — готовый список select-элементов. */
+  first<S extends readonly AnySelectable[]>(
+    items: S,
+  ): SingleQueryBuilder<TModel, S, TInclude, 'first'>;
+  /** first() — один select-элемент. */
+  first<S extends AnySelectable>(
+    item: S,
+  ): SingleQueryBuilder<TModel, [S], TInclude, 'first'>;
   first(
     fn?:
       | ((t: SelectProxy<TModel>) => SelectableField[])
-      | ((t: SelectProxy<TModel>, a: SelectTools) => AnySelectable[]),
+      | ((t: SelectProxy<TModel>, a: SelectTools) => AnySelectable[])
+      | readonly AnySelectable[]
+      | AnySelectable,
   ): any {
-    if (fn) {
+    if (fn && typeof fn === 'function') {
       this.sqb.selects = [
         ...fn(this._createSelectProxy(), selectTools),
       ] as AnySelectableField[];
+    } else if (Array.isArray(fn)) {
+      this.sqb.selects = [...fn] as AnySelectableField[];
+    } else if (fn) {
+      this.sqb.selects = [fn] as AnySelectableField[];
     } else {
       this.sqb.selects = this._buildAllSelects();
     }

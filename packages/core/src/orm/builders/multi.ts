@@ -164,20 +164,39 @@ export class MultiQueryBuilder<
 
   select<const S extends readonly AnySelectable[]>(
     fn: (t: MultiSelectProxy<T>, tools: SelectTools) => S,
-  ): MultiSelectResult<S, T, TInclude> {
+  ): MultiSelectResult<S, T, TInclude>;
+  select<const S extends readonly AnySelectable[]>(
+    items: S,
+  ): MultiSelectResult<S, T, TInclude>;
+  select<const S extends AnySelectable>(
+    item: S,
+  ): MultiSelectResult<[S], T, TInclude>;
+  select(
+    source:
+      | ((
+          t: MultiSelectProxy<T>,
+          tools: SelectTools,
+        ) => readonly AnySelectable[])
+      | readonly AnySelectable[]
+      | AnySelectable,
+  ): MultiSelectResult<readonly AnySelectable[], T, TInclude> {
     const sqb = this.sqb.clone();
-    sqb.selects = [
-      ...fn(this._createSelectProxy(), {
-        agg: aggregates,
-        wf: windowFunctions,
-      }),
-    ] as AnySelectableField[];
-    const result: MultiSelectResult<S, T, TInclude> = {
+    const items =
+      typeof source === 'function'
+        ? source(this._createSelectProxy(), {
+            agg: aggregates,
+            wf: windowFunctions,
+          })
+        : Array.isArray(source)
+          ? source
+          : [source];
+    sqb.selects = [...items] as AnySelectableField[];
+    const result: MultiSelectResult<readonly AnySelectable[], T, TInclude> = {
       toSql: () => this._toSqlFrom(sqb),
       go: () => {
         if (this.adapter) {
           return this.adapter.execute(sqb) as Promise<
-            FinalResult<S, T, TInclude>[]
+            FinalResult<readonly AnySelectable[], T, TInclude>[]
           >;
         }
         throw new Error('No adapter configured; cannot execute query.');
