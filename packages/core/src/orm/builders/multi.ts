@@ -60,6 +60,10 @@ export interface MultiSelectResult<
   T extends AliasesMap,
   C extends MultiIncludeConfig<T> = Record<never, never>,
 > {
+  /**
+   * @deprecated Используйте `.compile()` — он возвращает CompiledQuery с
+   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().sql()`.
+   */
   toSql(): string;
   go(): Promise<FinalResult<S, T, C>[]>;
   compile<
@@ -264,6 +268,9 @@ export class MultiQueryBuilder<
 
   // ── toSql ──
 
+  /**
+   * @deprecated Используйте `.compile()` — SQL-preview для дебага — `.compile().sql()`.
+   */
   toSql(): string {
     return this._toSqlFrom(this.sqb.clone());
   }

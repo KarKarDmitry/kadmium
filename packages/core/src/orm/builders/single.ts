@@ -26,6 +26,13 @@ import type { SlotNameGuard } from '../types/phantom';
 import { aggregates } from '../field-builders/aggregates';
 import { windowFunctions } from '../field-builders/window-functions';
 
+/** Терминал count()/exists() с SQL-превью. */
+export interface SqlPreviewTerminal<TExec> {
+  go(): Promise<TExec>;
+  /** @deprecated Используйте `.compile()`; SQL-preview — `.compile().sql()`. */
+  sql(): string;
+}
+
 /** Инструменты select/first callback: агрегаты и оконные функции (c F8). */
 const selectTools: SelectTools = {
   agg: aggregates,
@@ -402,6 +409,10 @@ export class SingleQueryBuilder<
     throw new Error('No adapter configured; cannot execute query.');
   }
 
+  /**
+   * @deprecated Используйте `.compile()` — он возвращает CompiledQuery с
+   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().sql()`.
+   */
   toSql(): string {
     return this._toSqlFrom(this.sqb.clone());
   }
@@ -447,10 +458,7 @@ export class SingleQueryBuilder<
 
   // ── count / exists ──
 
-  count(): {
-    go: () => Promise<number>;
-    sql: () => string;
-  } {
+  count(): SqlPreviewTerminal<number> {
     const sqb = this.sqb.clone();
     sqb.selects = [aggregates.count('*').as('count')];
     return {
@@ -464,10 +472,7 @@ export class SingleQueryBuilder<
     };
   }
 
-  exists(): {
-    go: () => Promise<boolean>;
-    sql: () => string;
-  } {
+  exists(): SqlPreviewTerminal<boolean> {
     const sqb = this.sqb.clone();
     sqb.limit = 1;
     this._materializeSelects(sqb);
