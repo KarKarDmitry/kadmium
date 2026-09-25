@@ -15,6 +15,18 @@ export { QuerySlots, MultiQuerySlots } from './orm';
 export type { WhereExpression } from './orm';
 
 export {
+  sql,
+  SqlFragment,
+  SqlSelectable,
+  SqlOrder,
+  isSqlFragment,
+  shiftSql,
+} from './orm';
+export type { SqlPart } from './orm';
+export { SelectableField } from './orm';
+export { ArrayField } from './orm';
+
+export {
   AppCore,
   KadmiumApp,
   ModuleSlot,

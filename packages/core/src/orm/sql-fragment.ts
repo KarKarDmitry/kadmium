@@ -5,6 +5,7 @@ import type {
 } from '@karkardmitry/kadmium-sql-types';
 import { KadmiumSqb } from './sqb';
 import { isHoleRef, SlotMarker } from './slot';
+import { fillCompiled, type FilledCompiled } from './compiled-query';
 
 export type SqlPart =
   | string
@@ -37,11 +38,21 @@ export function sql<T = unknown>(
 
 export class SqlFragment<T = unknown> {
   readonly kind = 'sql' as const;
+  /** type-only бренд результата — инферирует Promise<T[]> в orm.raw(fragment) */
+  declare readonly '~result': T;
 
   constructor(
     readonly segments: readonly string[],
     readonly parts: readonly SqlPart[],
   ) {}
+
+  /**
+   * Заполнить слоты и получить { text, params } для orm.raw.
+   * Валидация missing/extra ключей — как в fillCompiled.
+   */
+  fill<TSlots extends Record<string, unknown>>(input: TSlots): FilledCompiled {
+    return fillCompiled(this.compile(), input);
+  }
 
   as<A extends string>(alias: A): SqlSelectable<T, A> {
     return new SqlSelectable<T, A>(this, alias);

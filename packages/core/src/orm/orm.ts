@@ -8,7 +8,9 @@ import {
   fillCompiled,
   type CompiledRunner,
   type ExtractResult,
+  type FilledCompiled,
 } from './compiled-query';
+import { isSqlFragment, type SqlFragment } from './sql-fragment';
 
 /**
  * OrmManager — менеджер ORM-запросов, привязанный к AppCore.
@@ -154,15 +156,45 @@ export class OrmManager {
 
   /**
    * Плоский raw-доступ без reshape (План 3, B2).
-   * Компактная обёртка над adapter.raw — типы строк задаёт вызывающий.
+   * Типы строк задаёт вызывающий; результат не сворачивается (всегда массив).
+   * Принимает три формы:
+   *   orm.raw(sql`SELECT * FROM user WHERE active`)          — фрагмент целиком
+   *   orm.raw(sql`... ${S.slot('v')}`.fill({ v: 5 }))        — фрагмент со слотами
+   *   orm.raw('SELECT ... $1', [5])                          — text + params
    */
-  raw<T = Record<string, unknown>>(
-    sql: string,
+  raw<TResult = Record<string, unknown>>(
+    sql: string | SqlFragment<TResult> | FilledCompiled,
     params?: unknown[],
-  ): Promise<T[]> {
+  ): Promise<TResult[]> {
     const adapter = this._adapter;
     if (!adapter)
       throw new Error('No SQL adapter configured; cannot run raw SQL.');
-    return adapter.raw<T>(sql, params);
+
+    if (isSqlFragment(sql)) {
+      const c = sql.compile();
+      if (c.slotOrder.length > 0)
+        throw new Error(
+          `Unfilled slot(s): ${c.slotOrder
+            .map((s) => s.name)
+            .join(', ')}. Use .fill({...}).`,
+        );
+      return adapter.raw<TResult>(c.text, c.values as unknown[]);
+    }
+
+    if (
+      typeof sql === 'object' &&
+      sql !== null &&
+      'text' in sql &&
+      'params' in sql
+    ) {
+      return adapter.raw<TResult>(sql.text, sql.params);
+    }
+
+    if (typeof sql !== 'string')
+      throw new Error(
+        'Invalid argument to raw(): expected SqlFragment, { text, params } or a SQL string.',
+      );
+
+    return adapter.raw<TResult>(sql, params);
   }
 }
