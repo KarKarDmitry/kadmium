@@ -25,6 +25,8 @@ export {
   SqlFragment,
   SqlSelectable,
   SqlOrder,
+  SqlCondition,
+  toSqlCondition,
   ArrayValue,
   array,
   shiftSql,

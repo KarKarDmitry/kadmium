@@ -6,6 +6,7 @@ import type {
   DateFilter,
 } from '../field-builders/filters';
 import type { WhereExpression } from '../ast/where';
+import type { SqlFragment } from '../sql-fragment';
 import type { SelectableField } from '../ast/selectable';
 import type { ArrayField } from '../ast/array-field';
 import type { AggregateField } from '../ast/aggregate';
@@ -141,7 +142,11 @@ export interface UpdateFinalizer<
     go: () => Promise<FlatFinalResult<S>[]>;
     sql: () => string;
   };
-  where(clause: (t: FilterProxy<TModel>) => WhereExpression | undefined): {
+  where(
+    clause: (
+      t: FilterProxy<TModel>,
+    ) => WhereExpression | SqlFragment | undefined,
+  ): {
     returning<S extends readonly AnySelectable[]>(
       fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
     ): {

@@ -1,8 +1,12 @@
 import { KadmiumSqb, type AnySelectableField, orderToStep } from '../sqb';
-import type { WhereExpression } from '../ast/where';
+import type { CursorWhereExpression, WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import type { ModelIR } from '../../ir/index';
-import type { SqlOrder } from '../sql-fragment';
+import {
+  toSqlCondition,
+  type SqlFragment,
+  type SqlOrder,
+} from '../sql-fragment';
 import type {
   FilterProxy,
   SelectProxy,
@@ -103,27 +107,36 @@ export class SingleQueryBuilder<
   // Линейная последовательность шагов: скобок/групп на уровне API нет.
   // Вложенные структуры — только через and()/or() выражения.
 
-  where(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
+  where(
+    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
+  ): this {
     this._pushWhere('AND', fn);
     return this;
   }
 
-  and(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
+  and(
+    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
+  ): this {
     return this.where(fn);
   }
 
-  or(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
+  or(
+    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
+  ): this {
     this._pushWhere('OR', fn);
     return this;
   }
 
   private _pushWhere(
     join: 'AND' | 'OR',
-    fn: (t: FilterProxy<TModel>) => WhereExpression | undefined,
+    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
   ): void {
     const expression = fn(this._createFilterProxy());
     if (expression !== undefined) {
-      this.sqb.wheres.elements.push({ join, condition: expression });
+      this.sqb.wheres.elements.push({
+        join,
+        condition: toSqlCondition(expression),
+      });
     }
   }
 
@@ -222,7 +235,9 @@ export class SingleQueryBuilder<
 
   /** Фильтр по агрегатным алиасам (HAVING). Алиасы — из select()/.as(). */
   having(
-    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereExpression | undefined,
+    fn: (
+      t: HavingProxy<HavingSource<TSelect>>,
+    ) => WhereExpression | SqlFragment | undefined,
   ): this {
     this._pushHaving('AND', fn);
     return this;
@@ -230,7 +245,9 @@ export class SingleQueryBuilder<
 
   /** OR-шаг для HAVING (линейная последовательность, как where/or). */
   havingOr(
-    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereExpression | undefined,
+    fn: (
+      t: HavingProxy<HavingSource<TSelect>>,
+    ) => WhereExpression | SqlFragment | undefined,
   ): this {
     this._pushHaving('OR', fn);
     return this;
@@ -238,13 +255,18 @@ export class SingleQueryBuilder<
 
   private _pushHaving(
     join: 'AND' | 'OR',
-    fn: (t: HavingProxy<HavingSource<TSelect>>) => WhereExpression | undefined,
+    fn: (
+      t: HavingProxy<HavingSource<TSelect>>,
+    ) => WhereExpression | SqlFragment | undefined,
   ): void {
     const expression = fn(
       createHavingProxy(this.sqb, this._aggregateAliases()),
     );
     if (expression !== undefined) {
-      this.sqb.havings.elements.push({ join, condition: expression });
+      this.sqb.havings.elements.push({
+        join,
+        condition: toSqlCondition(expression),
+      });
     }
   }
 
@@ -262,8 +284,11 @@ export class SingleQueryBuilder<
   /**
    * Keyset-пагинация: продолжить выборку с ключевой позиции.
    * Семантически WHERE-условие, рендерится отдельным AND-членом в скобках.
+   * Только поля-условия — sql-фрагменты тут не принимаются (keyset по order()).
    */
-  cursor(fn: (t: FilterProxy<TModel>) => WhereExpression | undefined): this {
+  cursor(
+    fn: (t: FilterProxy<TModel>) => CursorWhereExpression | undefined,
+  ): this {
     if (this.sqb.orders.length === 0) {
       throw new Error(
         'cursor() requires an order: call .order() before .cursor().',

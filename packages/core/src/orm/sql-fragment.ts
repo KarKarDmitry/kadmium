@@ -6,6 +6,7 @@ import type {
 import { KadmiumSqb } from './sqb';
 import { isHoleRef, SlotMarker } from './slot';
 import { fillCompiled, type FilledCompiled } from './compiled-query';
+import type { WhereExpression } from './ast/where';
 
 export type SqlPart =
   | string
@@ -133,6 +134,38 @@ export class SqlOrder<D extends 'asc' | 'desc'> {
     this.slotOrder = slotOrder;
     this.direction = direction;
   }
+}
+
+/**
+ * WHERE-предикат по sql-фрагменту (E): прекомпилированный opaque-лист.
+ * Рендер сдвигает локальные $1..$N на текущий paramIndex адаптера; скобки —
+ * по политике P1 (hasSiblings ⇒ parens, см. sql-pg).
+ */
+export class SqlCondition {
+  readonly kind = 'sql-condition' as const;
+  /** Текст фрагмента с локальными $1..$N (сдвигается на текущий paramIndex адаптера). */
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
+
+  constructor(readonly fragment: SqlFragment) {
+    const values: unknown[] = [];
+    const slotOrder: SlotDefinition[] = [];
+    const text = renderFragment(fragment.segments, fragment.parts, values, {
+      p: 1,
+      slotOrder,
+    });
+    this.text = text;
+    this.values = values;
+    this.slotOrder = slotOrder;
+  }
+}
+
+/** Нормализовать фрагмент до листа WhereExpression (SqlFragment → SqlCondition). */
+export function toSqlCondition(
+  e: WhereExpression | SqlFragment,
+): WhereExpression {
+  return isSqlFragment(e) ? new SqlCondition(e) : e;
 }
 
 /**

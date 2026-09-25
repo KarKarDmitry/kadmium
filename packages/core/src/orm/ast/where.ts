@@ -8,6 +8,8 @@
  * parens там, где op ребёнка отличается от контекста, см. sql-pg).
  */
 
+import type { SqlCondition } from '../sql-fragment';
+
 export type WhereCondition = {
   alias?: string;
   /** Имя свойства (ключ результата / типизация) */
@@ -21,14 +23,17 @@ export type WhereCondition = {
 /** Шаг последовательности: с каким join присоединяется условие */
 export type WhereStep = {
   join: 'AND' | 'OR';
-  condition: WhereCondition | WhereGroup;
+  condition: WhereCondition | WhereGroup | SqlCondition;
 };
 
 export type WhereGroup = {
   elements: WhereStep[];
 };
 
-export type WhereExpression = WhereCondition | WhereGroup;
+export type WhereExpression = WhereCondition | WhereGroup | SqlCondition;
+
+/** LIKE WhereExpression, но без sql-фрагментов (например, cursor() — keyset только по полям). */
+export type CursorWhereExpression = WhereCondition | WhereGroup;
 
 export function createWhereGroup(): WhereGroup {
   return { elements: [] };

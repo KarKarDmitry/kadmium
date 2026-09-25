@@ -3,7 +3,7 @@ import { Relation } from '../field-builders/relation';
 import { toSnakeCase, type ModelIR } from '../../ir/index';
 import type { WhereExpression } from '../ast/where';
 import type { OrderDirection } from '../types/proxy';
-import type { SqlOrder } from '../sql-fragment';
+import type { SqlFragment, SqlOrder } from '../sql-fragment';
 import type { SelectableField } from '../ast/selectable';
 
 /**
@@ -15,7 +15,7 @@ export type IncludeConfigValue =
   | boolean
   | {
       alias?: string;
-      where?: (proxy: any) => WhereExpression | undefined;
+      where?: (proxy: any) => WhereExpression | SqlFragment | undefined;
       order?: (proxy: any) => OrderDirection[] | SqlOrder<'asc' | 'desc'>[];
       limit?: number;
       select?: (proxy: any) => readonly SelectableField[];

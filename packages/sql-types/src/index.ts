@@ -18,14 +18,22 @@ export interface WhereCondition {
 /** Шаг последовательности: с каким join присоединяется условие */
 export interface WhereStep {
   join: 'AND' | 'OR';
-  condition: WhereCondition | WhereGroup;
+  condition: WhereCondition | WhereGroup | WhereFragment;
 }
 
 export interface WhereGroup {
   elements: WhereStep[];
 }
 
-export type WhereExpression = WhereCondition | WhereGroup;
+/** WHERE-предикат по sql-фрагменту (E): скомпилированный текст + локальные $N. */
+export interface WhereFragment {
+  readonly kind: 'sql-condition';
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
+}
+
+export type WhereExpression = WhereCondition | WhereGroup | WhereFragment;
 
 export interface SelectableField {
   readonly kind: 'selectable';

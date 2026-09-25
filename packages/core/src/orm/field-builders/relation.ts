@@ -2,7 +2,11 @@ import { KadmiumSqb, type IncludedRelation, orderToStep } from '../sqb';
 import type { WhereExpression } from '../ast/where';
 import type { FieldIR, ModelIR } from '../../ir/index';
 import type { OrderDirection } from '../types/proxy';
-import type { SqlOrder } from '../sql-fragment';
+import {
+  toSqlCondition,
+  type SqlFragment,
+  type SqlOrder,
+} from '../sql-fragment';
 import {
   createFilterProxy,
   createSelectProxy,
@@ -76,7 +80,7 @@ export class Relation implements IncludedRelation {
     return this;
   }
 
-  where(fn: (t: any) => WhereExpression | undefined): this {
+  where(fn: (t: any) => WhereExpression | SqlFragment | undefined): this {
     const proxy = createFilterProxy(
       this.alias,
       this.targetIr,
@@ -86,7 +90,7 @@ export class Relation implements IncludedRelation {
     if (expression !== undefined) {
       this.internalSqb.wheres.elements.push({
         join: 'AND',
-        condition: expression,
+        condition: toSqlCondition(expression),
       });
     }
     return this;

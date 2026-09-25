@@ -9,6 +9,7 @@ import type {
 } from '../types/proxy';
 import { aggregates } from '../field-builders/aggregates';
 import { buildDebugSql } from './utils';
+import { toSqlCondition } from '../sql-fragment';
 
 type Model = { ['~shape']: Record<string, unknown> };
 
@@ -76,7 +77,10 @@ export function buildWriteFinalizer<TModel extends Model>(
     where: (clause) => {
       const expression = clause(createFilterProxy());
       if (expression !== undefined) {
-        sqb.wheres.elements.push({ join: 'AND', condition: expression });
+        sqb.wheres.elements.push({
+          join: 'AND',
+          condition: toSqlCondition(expression),
+        });
       }
       return { returning, go, sql };
     },

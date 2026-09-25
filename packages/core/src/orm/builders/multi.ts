@@ -3,7 +3,11 @@ import type { WhereCondition, WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
-import type { SqlOrder } from '../sql-fragment';
+import {
+  toSqlCondition,
+  type SqlFragment,
+  type SqlOrder,
+} from '../sql-fragment';
 import type { ModelIR } from '../../ir/index';
 import type {
   MultiFilterProxy,
@@ -115,27 +119,36 @@ export class MultiQueryBuilder<
   // ── where ──
   // Линейная последовательность шагов; группы — только выражениями (and/or).
 
-  where(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
+  where(
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
+  ): this {
     this._pushWhere('AND', fn);
     return this;
   }
 
-  and(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
+  and(
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
+  ): this {
     return this.where(fn);
   }
 
-  or(fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined): this {
+  or(
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
+  ): this {
     this._pushWhere('OR', fn);
     return this;
   }
 
   private _pushWhere(
     join: 'AND' | 'OR',
-    fn: (t: MultiFilterProxy<T>) => WhereExpression | undefined,
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
   ): void {
     const expression = fn(this._createFilterProxy());
     if (expression !== undefined) {
-      this.sqb.wheres.elements.push({ join, condition: expression });
+      this.sqb.wheres.elements.push({
+        join,
+        condition: toSqlCondition(expression),
+      });
     }
   }
 

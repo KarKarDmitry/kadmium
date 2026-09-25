@@ -7,6 +7,7 @@ import type {
   WhereCondition,
   WhereGroup,
   WhereExpression,
+  WhereFragment,
   SelectItem,
   AggregateSelectable,
   WindowSelectable,
@@ -30,6 +31,11 @@ export function isHoleRef(v: unknown): v is HoleRef {
 /** Duck-typed guard шага ORDER BY по фрагменту (C2). */
 function isOrderFragmentStep(o: OrderStep): o is OrderFragmentStep {
   return (o as { kind?: string }).kind === 'fragment';
+}
+
+/** Duck-typed guard WHERE-предиката по фрагменту (E). */
+function isWhereFragment(e: WhereExpression): e is WhereFragment {
+  return (e as { kind?: string }).kind === 'sql-condition';
 }
 
 /**
@@ -219,6 +225,14 @@ export abstract class SqlGenerator {
     contextJoin: 'AND' | 'OR',
     hasSiblings: boolean,
   ): string {
+    if (isWhereFragment(expression)) {
+      return this._renderWhereFragment(
+        expression,
+        values,
+        paramIndex,
+        hasSiblings,
+      );
+    }
     if (!('elements' in expression)) {
       const col = expression.column ?? expression.field;
       const left = expression.alias
@@ -916,6 +930,32 @@ export abstract class SqlGenerator {
       }
     }
     return `${text} ${step.direction.toUpperCase()}`;
+  }
+
+  /**
+   * Рендер WHERE-предиката по sql-фрагменту (E): opaque-лист, локальные $1..$N
+   * сдвигаются на текущий paramIndex. Скобки — политика P1: фрагмент с
+   * соседями в группе (hasSiblings) оборачивается, одиночный — без скобок.
+   */
+  private _renderWhereFragment(
+    step: WhereFragment,
+    values: unknown[],
+    paramIndex: ParamState,
+    hasSiblings: boolean,
+  ): string {
+    const start = paramIndex.p;
+    const text = shiftParameters(step.text, start - 1);
+    for (const v of step.values) values.push(v);
+    paramIndex.p = start + step.values.length;
+    for (const s of step.slotOrder) {
+      if (
+        paramIndex.slotOrder &&
+        !paramIndex.slotOrder.some((os) => os.name === s.name)
+      ) {
+        paramIndex.slotOrder.push({ name: s.name, index: start - 1 + s.index });
+      }
+    }
+    return hasSiblings ? `(${text})` : text;
   }
 
   private _buildOrderByClause(
