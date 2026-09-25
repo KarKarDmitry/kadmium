@@ -123,7 +123,7 @@ for (const req of incoming) {
 - **Терминал — `.compile()`** (действие, глагол); тип результата — `CompiledQuery`.
 - Типы слотов из модели — ключевое отличие; eq-site проверка (`BaseFilter<TValue>`) — в Плане 3.
 - **`.toSql()` депрекейтится**: публичные `single.toSql()`, `multi.toSql()`, `count().sql()`, `exists().sql()` получают `@deprecated` «только для отладки; используйте `.compile()`» — в одном из под-коммитов ниже. Внутренности (`_toSqlFrom`, `buildDebugSql`, `adapter.toSql`, AST-`toSql()`) не трогаем.
-- **select/order-встраивание** (`sql<T>...`.as()`, `sql`...`.asc/.desc`) — в v1 (строки C/D таблицы Плана 3). `where(sql`...`)`/`having(sql`...`)` — **не вводим**.
+- **select/order/where-встраивание** (`sql<T>...`.as()`, `sql`...`.asc/.desc`, `where(sql`...`)`/`having(sql`...`)` + выражения `and()/or()`) — в v1 (строки C/D/E таблицы Плана 3; where-embed — `d578a5c`).
 
 ---
 
@@ -157,7 +157,7 @@ for (const req of incoming) {
 - **C2** — встраивание: select-embed (`.as()`, рендер проекции), order-embed (`.asc/.desc`), `array()` + `in(...)`. — ✅ Done (`5699286` select-embed, `8f954d7` перегрузки select, `59afe1c` array(), `59e11b4` order-embed).
 - **C3** — docs/депрекация: `@deprecated` на `single/multi.toSql()`, `count().sql()`, `exists().sql()`; AGENTS.md (терминалы, Builder Reuse, правила); features.md F2 закрывается. — ✅ Done (`952a3a5`): `@deprecated` на `single/multi.toSql()`, на `.sql()` в `count()/exists()` (терминал `SqlPreviewTerminal`); остальное — план ниже.
 
-**Зависимости:** A1 → (A2 → {B1 → B2 → {B3 → B4}, C1 → C2}) → C3. A обязателен первым; B и C идут после A2 и частично параллельны. **Отложено**: DML-выражения (`set({ col: sql`...` })`), `ident()`-маркер, `where(sql`...`)`.
+**Зависимости:** A1 → (A2 → {B1 → B2 → {B3 → B4}, C1 → C2}) → C3. A обязателен первым; B и C идут после A2 и частично параллельны. **Отложено**: DML-выражения (`set({ col: sql`...` })`), `ident()`-маркер. (`where(sql`...`)` — реализовано, E `d578a5c`.)
 
 ---
 

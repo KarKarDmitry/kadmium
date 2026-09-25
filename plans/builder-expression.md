@@ -140,7 +140,9 @@ orm.single(User)
 
 ## План 3: `sql()` / `sql` ``-фрагменты + `slot()`-параметры (raw-выражения)
 
-**Статус:** ✅ Реализовано (C-блок + A/B из `plans/compiled-queries.md`): слот-маркер `SlotMarker`/`slot()`/`isHoleRef` + `slotOrder` (A2, `528f9f1`), `QuerySlots`/`compile()`/`fill()`/`orm.raw` (B1/B2 `931aab2`, B3/B4 `8633bd2`), `sql`-тег `SqlFragment` (C1, `bf0e406`), select-embed + перегрузки select (C2, `5699286`/`8f954d7`), `array()`/`ArrayValue` (C2, `59afe1c`), order-embed `.asc/.desc` в ORDER BY, включая include-LATERAL (C2, `59e11b4`), депрекация `toSql()`/`count().sql()`/`exists().sql()` (C3, `952a3a5`). Разблокирует отложенное из Плана 1: «`sql()` (raw-фрагменты, как в Drizzle) — отдельный этап, в этот срез не входит».
+**Статус:** ✅ Реализовано (C-блок + A/B из `plans/compiled-queries.md`): слот-маркер `SlotMarker`/`slot()`/`isHoleRef` + `slotOrder` (A2, `528f9f1`), `QuerySlots`/`compile()`/`fill()`/`orm.raw` (B1/B2 `931aab2`, B3/B4 `8633bd2`), `sql`-тег `SqlFragment` (C1, `bf0e406`), select-embed + перегрузки select (C2, `5699286`/`8f954d7`), `array()`/`ArrayValue` (C2, `59afe1c`), order-embed `.asc/.desc` в ORDER BY, включая include-LATERAL (C2, `59e11b4`), депрекация `toSql()`/`count().sql()`/`exists().sql()` (C3, `952a3a5`), **where-embed** (E, `d578a5c`). Разблокирует отложенное из Плана 1: «`sql()` (raw-фрагменты, как в Drizzle) — отдельный этап, в этот срез не входит».
+
+Where-embed (E) — решение **B1**: голый фрагмент в `where/and/or/having/havingOr` и выражениях `and()/or()`, роль выводится из контекста; прекомпилированный opaque-лист `SqlCondition {kind:'sql-condition', text, values, slotOrder}` (по паттерну `SqlOrder`). Скобки — **P1**: фрагмент оборачивается `(...)` только при наличии соседей по непосредственной группе (`hasSiblings`); рендер в sql-pg (`_renderWhereFragment`): сдвиг локальных `$N` на текущий `paramIndex`, push values, slotOrder со смещением + dedup. `HAVING` включено; `cursor()` — только типизированные выражения (type-level narrowing, без runtime-guard). Вне scope: `join().on`, `groupBy`, DML (F), `ident()` (G).
 
 Слот-маркер — `SlotMarker`/`slot()`/`isHoleRef` (A2, `528f9f1`). Полный статус строк A/B — в `plans/compiled-queries.md`.
 
@@ -168,7 +170,7 @@ Raw-путь:     sql`...` (тег) → SqlFragment                             
 | | 4. Билдер во фрагменте (CTE/EXISTS-подзапрос) | `sql`WITH s AS (${scoped}) ...`` | ✅ v1 |
 | C — проекция | 5. Функции/выражения как колонки | `select(t => [t.id, sql<number>`EXTRACT(YEAR FROM ${t.createdAt})`.as('year')])` | ✅ v1 (гарантировано) |
 | D — порядок | 6. ORDER/GROUP BY по выражению | `.order(t => [sql`similarity(...)`.desc, t.createdAt.asc])` | ✅ v1 |
-| E — предикаты | 7. `where(sql`...`)` / raw-условия | — | ⛔ сознательно НЕ вводим (рвёт композицию Плана 1; чинится топ-уровнем + слотами) |
+| E — предикаты | 7. `where(sql`...`)` / raw-условия | `.where(t => or(u.active.eq(true), sql`"User"."age" > 30`))`, `.having(() => sql`COUNT(*) > 1`)` | ✅ v1 (`d578a5c`, B1+P1) |
 | F — DML | 8. `set({ col: sql`views + 1` })`, `create({ at: sql`now()` })`, onConflict SET | — | 🔵 отдельным этапом |
 | G — идентификаторы | 9. Динамические имена | `sql`SELECT ${ident('col')} FROM ${ident('tbl')}`` | 🔵 маркер `ident()` + `assertSqlIdentifier` (S10); 🔵 или позже |
 | H — вспомогательное | 10. `sql<T>`, `.as()`, `.asc/.desc`, `toString()`, `array([...])` | — | ✅ v1 (toString — debug-only) |
