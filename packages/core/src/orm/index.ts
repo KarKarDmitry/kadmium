@@ -25,6 +25,8 @@ export {
   SqlFragment,
   SqlSelectable,
   SqlOrder,
+  ArrayValue,
+  array,
   shiftSql,
   isSqlFragment,
 } from './sql-fragment';

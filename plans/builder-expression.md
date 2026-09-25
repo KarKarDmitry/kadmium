@@ -142,7 +142,7 @@ orm.single(User)
 
 **Статус:** ⬜ Запланирован (отложен до отдельного этапа; оценка сложности — в `plans/compiled-queries.md`). Разблокирует отложенное из Плана 1: «`sql()` (raw-фрагменты, как в Drizzle) — отдельный этап, в этот срез не входит».
 
-Слот-маркер уже частично реализован: `SlotMarker`/`slot()`/`isHoleRef` + рендер `slotOrder` (A2, `528f9f1`) — см. строки A2/B1/B2 в `compiled-queries.md`. Осталось: `SqlFragment`/тег (C1), встраивание + `array()` (C2), депрекация `toSql` (C3).
+Слот-маркер уже реализован: `SlotMarker`/`slot()`/`isHoleRef` + рендер `slotOrder` (A2, `528f9f1`). Реализовано: `SqlFragment`/тег (C1, `bf0e406`), select-embed + перегрузки select (C2, `5699286`/`8f954d7`), `array()`/`ArrayValue` (C2, см. ниже). Осталось: order-embed (`.asc/.desc`) и депрекация `toSql` (C3). Полный статус строк A/B — в `plans/compiled-queries.md`.
 
 **Что такое `sql` (позиционирование, снимает смешение «компилятор vs SQL»):**
 ```
@@ -232,16 +232,17 @@ const q = sql`
 - `sql`...``.asc/.desc` — сортировка по выражению; принимается order-proxy'ем.
 - Массивы в теге — **НЕ раскрываются** (см. `array()` ниже); подзапросы — только явным встраиванием билдера.
 
-### `array([...])` — массив-значение (companion-выражение, не тег)
+### `array([...])` — массив-значение (companion-выражение, не тег) ✅
 
 Массивы вынесены из тега в отдельное value-выражение — параметр как полноправное значение:
 
 ```ts
-t.id.in(array([1, 2, 3]))      // IN ($1); params: [[1,2,3]] — node-pg сериализует JS-массив
+t.id.in(array([1, 2, 3]))      // = ANY($1); params: [[1,2,3]] — node-pg сериализует JS-массив
 ```
 
-- `array(...)` → маркер `ArrayValue<T>` → рендерится как очередной параметр.
+- `array(...)` → маркер `ArrayValue<T>` → рендерится как очередной параметр (и в `sql`-теге, и через `.in()`).
 - `.in()` расширяется: `in(vals: T[] | ArrayValue<T> | BaseFilter<T>)` — принимает и литерал, и `array(...)`, и слот (см. ниже `ArrayField`), т.е. `t.id.in(S.slot('ids'))`.
+- **Реализовано:** `ArrayValue` + `array()` в `sql-fragment.ts`; `.in()` разворачивает `ArrayValue` обратно в голый массив — `WhereCondition` идентичен `.in([...])`. Рендер IN и так шёл через один параметр `= ANY($1)` (см. План 2), поэтому `array()` — тонкая обёртка для читаемости. Тесты: core (`filters.test.ts`, `sql-fragment.test.ts`) + integration `test-project/test/orm/array-in.test.ts` (parity против PG).
 - Объекты/даты в любом value-слое сериализуются единым value-encoder адаптера (не `String()`).
 
 ### Контракт (sql-types, type-only)

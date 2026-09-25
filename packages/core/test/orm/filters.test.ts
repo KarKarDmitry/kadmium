@@ -7,6 +7,7 @@ import {
   addNullable,
 } from '../../src/orm/field-builders/filters';
 import { BaseFilter } from '../../src/orm/field-builders/base-filter';
+import { array } from '../../src/orm/sql-fragment';
 import { makeSqb } from './helpers';
 
 function sqb() {
@@ -182,6 +183,21 @@ describe('StringFilter', () => {
       value: ['Alice', 'Bob'],
     });
   });
+  it('in accepts array([...]) — unwraps to the same plain array', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    expect(f.in(array(['Alice', 'Bob']))).toEqual({
+      alias: 'u',
+      field: 'name',
+      column: undefined,
+      op: 'IN',
+      value: ['Alice', 'Bob'],
+    });
+  });
+  it('in rejects array([...]) of the wrong value type', () => {
+    const f = new StringFilter(sqb(), 'name', 'u');
+    // @ts-expect-error — числа не легальны в string-фильтре даже через array()
+    f.in(array([1, 2]));
+  });
 });
 
 describe('NumberFilter', () => {
@@ -268,6 +284,16 @@ describe('NumberFilter', () => {
   it('in', () => {
     const f = new NumberFilter(sqb(), 'age', 'u');
     expect(f.in([18, 25, 30])).toEqual({
+      alias: 'u',
+      field: 'age',
+      column: undefined,
+      op: 'IN',
+      value: [18, 25, 30],
+    });
+  });
+  it('in accepts array([...]) — unwraps to the same plain array', () => {
+    const f = new NumberFilter(sqb(), 'age', 'u');
+    expect(f.in(array([18, 25, 30]))).toEqual({
       alias: 'u',
       field: 'age',
       column: undefined,
@@ -407,6 +433,16 @@ describe('DateFilter', () => {
   it('in', () => {
     const f = new DateFilter(sqb(), 'created', 'u');
     expect(f.in([d1, d2])).toEqual({
+      alias: 'u',
+      field: 'created',
+      column: undefined,
+      op: 'IN',
+      value: [d1, d2],
+    });
+  });
+  it('in accepts array([...]) — unwraps to the same plain array', () => {
+    const f = new DateFilter(sqb(), 'created', 'u');
+    expect(f.in(array([d1, d2]))).toEqual({
       alias: 'u',
       field: 'created',
       column: undefined,

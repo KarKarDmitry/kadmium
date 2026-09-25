@@ -1,5 +1,25 @@
 import { BaseFilter } from './base-filter';
+import type { ArrayValue } from '../sql-fragment';
 import type { WhereCondition } from '../ast/where';
+
+/** Является ли значение ArrayValue (kind-маркер, как isSqlFragment). */
+function isArrayValue<T>(
+  v: T[] | ArrayValue<T> | BaseFilter<T[]>,
+): v is ArrayValue<T> {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    !Array.isArray(v) &&
+    (v as { kind?: string }).kind === 'array-value'
+  );
+}
+
+/** Развернуть ArrayValue[<T>] обратно в массив; литерал/слот — как есть. */
+function unwrapArrayValue<T>(
+  v: T[] | ArrayValue<T> | BaseFilter<T[]>,
+): T[] | BaseFilter<T[]> {
+  return isArrayValue(v) ? (v.values as T[]) : v;
+}
 
 export class StringFilter extends BaseFilter<string> {
   eq(val: string | BaseFilter<string>): WhereCondition {
@@ -41,8 +61,10 @@ export class StringFilter extends BaseFilter<string> {
   iend(val: string): WhereCondition {
     return this.clause('ILIKE', `%${val}`);
   }
-  in(vals: string[] | BaseFilter<string[]>): WhereCondition {
-    return this.clause('IN', vals);
+  in(
+    vals: string[] | ArrayValue<string> | BaseFilter<string[]>,
+  ): WhereCondition {
+    return this.clause('IN', unwrapArrayValue(vals));
   }
 }
 
@@ -68,8 +90,10 @@ export class NumberFilter extends BaseFilter<number> {
   between(a: number, b: number): WhereCondition {
     return this.clause('BETWEEN', [a, b]);
   }
-  in(vals: number[] | BaseFilter<number[]>): WhereCondition {
-    return this.clause('IN', vals);
+  in(
+    vals: number[] | ArrayValue<number> | BaseFilter<number[]>,
+  ): WhereCondition {
+    return this.clause('IN', unwrapArrayValue(vals));
   }
 }
 
@@ -110,8 +134,8 @@ export class DateFilter extends BaseFilter<Date> {
   between(a: Date, b: Date): WhereCondition {
     return this.clause('BETWEEN', [a, b]);
   }
-  in(vals: Date[] | BaseFilter<Date[]>): WhereCondition {
-    return this.clause('IN', vals);
+  in(vals: Date[] | ArrayValue<Date> | BaseFilter<Date[]>): WhereCondition {
+    return this.clause('IN', unwrapArrayValue(vals));
   }
 }
 

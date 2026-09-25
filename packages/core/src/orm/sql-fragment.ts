@@ -16,7 +16,8 @@ export type SqlPart =
   | SlotMarker
   | SqlFragment
   | CompiledQuery<Record<string, unknown>, unknown>
-  | SqlFieldRef;
+  | SqlFieldRef
+  | ArrayValue<unknown>;
 
 /** Объект, который рендерится в идентификатор колонки: SelectableField, BaseFilter. */
 export interface SqlFieldRef {
@@ -118,6 +119,29 @@ export class SqlOrder<D extends 'asc' | 'desc'> {
   ) {}
 }
 
+/**
+ * Массив-значение: один PG-параметр ($N), сериализуется node-pg как массив.
+ * Создаётся array([...]); потребляется .in() (→ = ANY($1)) и sql-тегом.
+ */
+export class ArrayValue<T> {
+  readonly kind = 'array-value' as const;
+
+  constructor(readonly values: readonly T[]) {}
+}
+
+/** Обернуть массив в один параметр — companion-выражение для .in() и sql`...`. */
+export function array<T>(values: readonly T[]): ArrayValue<T> {
+  return new ArrayValue(values);
+}
+
+function unwrapArrayValuePart(part: SqlPart): readonly unknown[] | undefined {
+  return typeof part === 'object' &&
+    part !== null &&
+    (part as { kind?: string }).kind === 'array-value'
+    ? (part as ArrayValue<unknown>).values
+    : undefined;
+}
+
 export function isSqlFragment(v: unknown): v is SqlFragment {
   return (
     !!v && typeof v === 'object' && (v as { kind?: unknown }).kind === 'sql'
@@ -181,6 +205,12 @@ function renderPart(
     return inlineCompiled(part, values, paramIndex);
   }
 
+  const arrayValues = unwrapArrayValuePart(part);
+  if (arrayValues) {
+    values.push(arrayValues);
+    return `$${paramIndex.p++}`;
+  }
+
   if (
     typeof part === 'object' &&
     part !== null &&
@@ -240,5 +270,7 @@ function debugPart(part: SqlPart): string {
     return part.text + ` [${(part.values ?? []).join(', ')}]`;
   if (typeof part === 'object' && 'getIdentifierForSql' in part)
     return (part as SqlFieldRef).getIdentifierForSql();
+  const arrayValues = unwrapArrayValuePart(part);
+  if (arrayValues) return `[${arrayValues.join(', ')}]`;
   return String(part);
 }

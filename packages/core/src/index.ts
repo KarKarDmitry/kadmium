@@ -20,6 +20,8 @@ export {
   SqlFragment,
   SqlSelectable,
   SqlOrder,
+  ArrayValue,
+  array,
   isSqlFragment,
   shiftSql,
 } from './orm';

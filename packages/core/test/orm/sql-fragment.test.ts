@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   sql,
   SqlFragment,
+  array,
   isSqlFragment,
   shiftSql,
 } from '../../src/orm/sql-fragment';
@@ -102,6 +103,13 @@ describe('sql — compile() rendering', () => {
     const c = outer.compile();
     expect(c.text).toBe('x AND a = $1 AND y = $2');
     expect(c.values).toEqual([1, 2]);
+  });
+
+  it('renders array([...]) as a single parameter', () => {
+    const c = sql`id = ANY(${array([1, 2, 3])})`.compile();
+    expect(c.text).toBe('id = ANY($1)');
+    expect(c.values).toEqual([[1, 2, 3]]);
+    expect(c.slotOrder).toEqual([]);
   });
 
   it('renumbers nested fragment with offset', () => {
