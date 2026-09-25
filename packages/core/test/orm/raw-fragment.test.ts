@@ -40,14 +40,14 @@ describe('orm.raw — форма «фрагмент целиком»', () => {
 
   it('рендерит фрагмент без слотов и идёт в adapter.raw', async () => {
     adapter.raw.mockResolvedValue([{ id: 1 }]);
-    const rows = await orm.raw(sql<{ id: number }>`SELECT id FROM "user"`);
+    const rows = await orm.raw(sql<{ id: number }>`SELECT id FROM "user"`).go();
     expect(rows).toEqual([{ id: 1 }]);
     expect(adapter.raw).toHaveBeenCalledWith('SELECT id FROM "user"', []);
   });
 
   it('инлайнит field-идентификатор в текст', async () => {
     const field = { getIdentifierForSql: () => '"u"."id"' };
-    await orm.raw(sql<{ id: number }>`SELECT ${field} FROM "user"`);
+    await orm.raw(sql<{ id: number }>`SELECT ${field} FROM "user"`).go();
     expect(adapter.raw).toHaveBeenCalledWith('SELECT "u"."id" FROM "user"', []);
   });
 
@@ -58,11 +58,11 @@ describe('orm.raw — форма «фрагмент целиком»', () => {
     expect(adapter.raw).not.toHaveBeenCalled();
   });
 
-  it('типизируется через sql<T>: orm.raw(sql<Row>) → Promise<Row[]>', async () => {
+  it('типизируется через sql<T>: orm.raw(sql<Row>).go() → Promise<Row[]>', async () => {
     const typed = sql<{ id: number; name: string }>`SELECT * FROM "user"`;
-    const rows = await orm.raw(typed);
+    const rows = await orm.raw(typed).go();
     // @ts-expect-error — TResult инферируется из sql<T>
-    const bad: Promise<{ nope: string }[]> = orm.raw(typed);
+    const bad: Promise<{ nope: string }[]> = orm.raw(typed).go();
     void bad;
     expect(rows).toEqual([]);
   });
@@ -87,7 +87,7 @@ describe('orm.raw — форма «фрагмент со слотами чере
     adapter.raw.mockResolvedValue([{ id: 7 }]);
     const filled =
       sql`SELECT * FROM "user" WHERE tenant_id = ${slot('v')}`.fill({ v: 5 });
-    const rows = await orm.raw(filled);
+    const rows = await orm.raw(filled).go();
     expect(rows).toEqual([{ id: 7 }]);
     expect(adapter.raw).toHaveBeenCalledWith(
       'SELECT * FROM "user" WHERE tenant_id = $1',
@@ -105,7 +105,7 @@ describe('orm.raw — форма «фрагмент со слотами чере
   });
 
   it('типизируется явным generic для формы .fill()', async () => {
-    const rows = await orm.raw<{ id: number }>(sql`SELECT id`.fill({}));
+    const rows = await orm.raw<{ id: number }>(sql`SELECT id`.fill({})).go();
     expect(rows).toEqual([]);
   });
 });
@@ -127,7 +127,7 @@ describe('orm.raw — форма «text + params» и регресс', () => {
 
   it('работает как раньше: (sql, params)', async () => {
     adapter.raw.mockResolvedValue([{ x: 1 }]);
-    const rows = await orm.raw('SELECT $1', [1]);
+    const rows = await orm.raw('SELECT $1', [1]).go();
     expect(rows).toEqual([{ x: 1 }]);
     expect(adapter.raw).toHaveBeenCalledWith('SELECT $1', [1]);
   });
@@ -148,5 +148,32 @@ describe('orm.raw — форма «text + params» и регресс', () => {
     expect(() => noAdapter.raw(sql`SELECT 1`)).toThrow(
       /No SQL adapter configured/,
     );
+  });
+});
+
+describe('orm.raw — runner: превью .sql() и отсутствие исполнения без .go()', () => {
+  let app: AppCore;
+  let adapter: ReturnType<typeof makeMockAdapter>;
+  let orm: OrmManager;
+
+  beforeEach(() => {
+    Model.clear();
+    app = new AppCore();
+    app.register([User]);
+    adapter = makeMockAdapter();
+    orm = makeOrm(app, adapter);
+  });
+
+  afterEach(() => Model.clear());
+
+  it('.sql() — превью без обращения к adapter', () => {
+    const runner = orm.raw('SELECT $1', [5]);
+    expect(runner.sql()).toBe('SQL: SELECT $1\nVALUES: [5]');
+    expect(adapter.raw).not.toHaveBeenCalled();
+  });
+
+  it('не исполняет до .go(): вызов raw() не дёргает adapter', () => {
+    orm.raw('SELECT 1');
+    expect(adapter.raw).not.toHaveBeenCalled();
   });
 });

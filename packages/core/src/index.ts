@@ -8,6 +8,7 @@ export type { ModelIR, FieldIR, FieldType, RelationType } from './ir/index';
 export { compileModel } from './model/compile';
 
 export { OrmManager } from './orm/orm';
+export type { RawRunner } from './orm';
 
 export { and, or } from './orm';
 export { slot, SlotMarker } from './orm';

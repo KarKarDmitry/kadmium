@@ -23,6 +23,14 @@ export type CompiledRunner<C extends AnyCompiledQuery> = {
   };
 };
 
+/** Раннер raw-запроса: orm.raw(...).go() — терминал без reshape (всегда массив). */
+export type RawRunner<TResult> = {
+  /** Выполнить через adapter.raw (типы строк задаёт вызывающий). */
+  go(): Promise<TResult[]>;
+  /** SQL-preview: "SQL: …\nVALUES: […]". */
+  sql(): string;
+};
+
 /**
  * Заменить маркеры слотов значениями (План 3, B2).
  * Валидация: лишний/недостающий ключ → throw с именами. Раскладка по slotOrder

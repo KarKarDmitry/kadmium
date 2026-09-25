@@ -38,7 +38,7 @@ export function sql<T = unknown>(
 
 export class SqlFragment<T = unknown> {
   readonly kind = 'sql' as const;
-  /** type-only бренд результата — инферирует Promise<T[]> в orm.raw(fragment) */
+  /** type-only бренд результата — инферирует Promise<T[]> в orm.raw(fragment).go() */
   declare readonly '~result': T;
 
   constructor(

@@ -194,7 +194,7 @@ describe('orm.run / orm.raw — runtime', () => {
   it('raw() — сквозной вызов adapter.raw с параметрами', async () => {
     adapter.raw.mockResolvedValue([{ x: 1 }]);
     await expect(
-      orm.raw<{ x: number }>('SELECT $1', [1]),
+      orm.raw<{ x: number }>('SELECT $1', [1]).go(),
     ).resolves.toStrictEqual([{ x: 1 }]);
     expect(adapter.raw).toHaveBeenCalledWith('SELECT $1', [1]);
   });
