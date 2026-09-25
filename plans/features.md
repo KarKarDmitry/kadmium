@@ -52,7 +52,7 @@ select((u, { agg, wf }) => [
 - `sql-pg` — единственный рендерер: `FUNC(inner[, $N…]) OVER (PARTITION BY … ORDER BY … ROWS BETWEEN …) AS "alias"`, `argValues` → `values.push` (параметризация)
 - `toSql()` **убирается из sql-types-контракта** (`SelectableField`/`AggregateSelectable`) — прецедент: адаптер уже рендерит поля из структуры, `SelectableField.toSql()` мёртв
 - Разный диалект СУБД (квотинг, `$N`/`?`/`@p1`, `NULLS`, фреймы `GROUPS`) живёт в адаптере; окно сам по себе — SQL:2003, портируем
-- **Не** используем `sql\`\`Fragment (F2) — deferred; фрагментный примитив (если появится) — в sql-types, не core
+- `sql`-фрагменты (F2) — реализованы в core (`SqlFragment`/тег, C1 `bf0e406`): select-embed (`.as()`), order-embed (`.asc/.desc`), `array()`; `where(sql`...`)` **не вводим**, предикаты остаются моделью-путём
 - `GetFieldType<FuncField<infer T>> → T` — как с `avg`; `GetFieldName` → alias; HAVING-прокси остаётся на `AggregateField`
 
 **Изменения (коммиты):**
