@@ -781,7 +781,7 @@ export abstract class SqlGenerator {
     if (!sqb.selects || sqb.selects.length === 0) {
       return `"${mainTableAlias}".*`;
     }
-    const isMultiTable = sqb.tableContext.size > 1;
+    const isMultiTable = sqb.isMulti === true || sqb.tableContext.size > 1;
     return sqb.selects
       .map((sel) => {
         // AggregateField (count/sum/avg/min/max)

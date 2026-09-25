@@ -42,6 +42,8 @@ export type JoinOptions = {
  */
 export class KadmiumSqb {
   public operation: 'select' | 'update' | 'delete' | 'upsert' = 'select';
+  /** multi-запрос: результат вложен под алиасы (см. sql-types ReadonlySqb.isMulti) */
+  public isMulti: boolean = false;
   public tableContext: Map<string, string> = new Map(); // alias → table name
   public wheres: WhereGroup = createWhereGroup();
   /** HAVING условия (агрегатные алиасы без префикса таблицы) */
@@ -72,6 +74,7 @@ export class KadmiumSqb {
   clone(): KadmiumSqb {
     const c = new KadmiumSqb();
     c.operation = this.operation;
+    c.isMulti = this.isMulti;
     c.tableContext = new Map(this.tableContext);
     c.wheres = this._cloneWhereGroup(this.wheres);
     c.havings = this._cloneWhereGroup(this.havings);

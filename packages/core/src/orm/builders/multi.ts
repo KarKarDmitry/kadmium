@@ -99,6 +99,7 @@ export class MultiQueryBuilder<
     this.irLookup = irLookup ?? (() => undefined);
     this.adapter = adapter ?? null;
     this.sqb = new KadmiumSqb();
+    this.sqb.isMulti = true;
 
     for (const [alias, ir] of irs) {
       this.sqb.tableContext.set(alias, ir.collection);

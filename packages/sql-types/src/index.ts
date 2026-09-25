@@ -147,6 +147,13 @@ export interface IncludedRelation {
 
 export interface ReadonlySqb {
   readonly operation: 'select' | 'update' | 'delete' | 'upsert';
+  /**
+   * Маркер multi-запроса (MultiQueryBuilder). Дискриминатор вложенного
+   * reshape и prefix-алиасинга колонок (`"alias.field"`): любой multi,
+   * включая single-alias (`query({ u: User })`), вложен под алиас; single
+   * всегда плоский. Выставляется в core, не меняется в рантайме.
+   */
+  readonly isMulti?: boolean;
   readonly tableContext: ReadonlyMap<string, string>;
   readonly wheres: WhereGroup;
   readonly havings: WhereGroup;

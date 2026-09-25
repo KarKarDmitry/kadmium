@@ -211,6 +211,15 @@ export function finalizeRows(
   sqb: ReadonlySqb,
 ): Record<string, unknown>[] {
   const unpacked = unpackIncludes(rows, sqb.includes);
-  if (sqb.operation !== 'select' || sqb.tableContext.size <= 1) return unpacked;
+  const isMulti =
+    sqb.isMulti === true || (sqb.tableContext && sqb.tableContext.size > 1);
+  if (
+    sqb.operation !== 'select' ||
+    !isMulti ||
+    !sqb.selects ||
+    sqb.selects.length === 0
+  ) {
+    return unpacked;
+  }
   return ResultReshaper.reshape(unpacked, sqb.selects || [], [...sqb.includes]);
 }
