@@ -59,6 +59,13 @@ For multi-table SELECT queries, `ResultReshaper.reshape()` transforms flat PG ro
 → { u: { id: 1, name: "Alice" }, p: { title: "Post" } }
 ```
 
+**Вложенность обязательна для всех multi-запросов** — включая one-алиасные (`query({ u })`), с `isMulti`-флагом из контракта:
+
+- **Дискриминатор** — `sqb.isMulti === true || sqb.tableContext.size > 1`. Single-запросы никогда не вкладываются: их селекты с `tableAlias` (single тоже ставит алиас на селекты) падают на корень как есть.
+- **Гейт в `sql-generator.ts`** — `isMultiTable` решает, алиасить ли колонки префиксом (`"u"."name" AS "u.name"`) и строить ли составные ключи для внутреннего SQL.
+- **Гейт в `helpers.ts` (`finalizeRows`)** — reshape применяется только при `operation === 'select' && (isMulti || size > 1) && selects?.length > 0`. Иначе — строки как есть (`unpackIncludes` делается всегда).
+- Дизъюнкция с `size > 1` сохраняет обратную совместимость: вручную собранный `ReadonlySqb` с несколькими таблицами (внешние адаптеры, unit-тесты) ведёт себя как multi и без явного флага; для one-алиасного multi флаг обязателен (кладет его `MultiQueryBuilder` в core).
+
 ## Global Side Effects
 
 ```typescript

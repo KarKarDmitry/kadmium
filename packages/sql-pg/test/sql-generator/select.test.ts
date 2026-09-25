@@ -101,6 +101,24 @@ describe('SqlGenerator — toSql: select', () => {
     expect(text).toContain('SELECT "u"."name" AS "name"');
   });
 
+  it('single-alias multi (isMulti, size 1) uses table-qualified alias', () => {
+    const q = sqb({
+      isMulti: true,
+      tableContext: new Map([['u', 'users']]),
+      selects: [selectable('u', 'name')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('SELECT "u"."name" AS "u.name"');
+  });
+
+  it('single query stays flat even with tableAlias on selects', () => {
+    const q = sqb({
+      selects: [selectable('User', 'name')],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('SELECT "User"."name" AS "name"');
+  });
+
   it('select on multi-table uses table-qualified alias', () => {
     const q = sqb({
       tableContext: new Map([

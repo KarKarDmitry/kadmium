@@ -26,6 +26,11 @@ describe('MultiQueryBuilder — constructor', () => {
     expect(b.sqb.tableContext.get('u')).toBe('users');
     expect(b.sqb.tableContext.get('p')).toBe('posts');
   });
+
+  it('marks sqb as multi (isMulti=true)', () => {
+    const b = multiBuilder();
+    expect(b.sqb.isMulti).toBe(true);
+  });
 });
 
 describe('MultiQueryBuilder — where', () => {

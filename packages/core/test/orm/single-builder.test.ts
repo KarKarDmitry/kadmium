@@ -308,6 +308,11 @@ describe('SingleQueryBuilder — update', () => {
     expect(b.sqb.updateData).toBeNull();
   });
 
+  it('single builder is not multi (isMulti=false)', () => {
+    const b = builder();
+    expect(b.sqb.isMulti).toBe(false);
+  });
+
   it('finalizer has where/go/sql', () => {
     const b = builder();
     const f = b.update({ name: 'Alice' });

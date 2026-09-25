@@ -82,6 +82,9 @@ describe('select — sql-фрагмент в SELECT против PG', () => {
       ])
       .go();
 
+    // single-alias multi: selectable-поля вложены под алиас
+    const names = rows.map((r) => r.u.name).sort();
+    expect(names).toEqual(['Alice', 'Carol']);
     const upper: string[] = rows.map((r) => r.upper_name).sort();
     expect(upper).toEqual(['ALICE', 'CAROL']);
   });

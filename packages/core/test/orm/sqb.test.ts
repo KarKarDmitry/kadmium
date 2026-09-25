@@ -5,6 +5,7 @@ describe('KadmiumSqb', () => {
   it('default state', () => {
     const sqb = new KadmiumSqb();
     expect(sqb.operation).toBe('select');
+    expect(sqb.isMulti).toBe(false);
     expect(sqb.tableContext.size).toBe(0);
     expect(sqb.wheres).toEqual({ elements: [] });
     expect(sqb.cursor).toEqual({ elements: [] });
@@ -34,6 +35,15 @@ describe('KadmiumSqb', () => {
     expect(cloned.tableContext.get('u')).toBe('users');
     expect(cloned.limit).toBe(10);
     expect(cloned.groupBy).toEqual(['name']);
+  });
+
+  it('clone copies isMulti flag', () => {
+    const multi = new KadmiumSqb();
+    multi.isMulti = true;
+    const cloned = multi.clone();
+    expect(cloned.isMulti).toBe(true);
+    multi.isMulti = false;
+    expect(cloned.isMulti).toBe(true);
   });
 
   it('clone deep-copies wheres', () => {
