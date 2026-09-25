@@ -275,6 +275,13 @@ describe('sql — .asc / .desc', () => {
     expect(f.desc.direction).toBe('desc');
     expect(f.desc.fragment).toBe(f);
   });
+
+  it('compiles text/values/slotOrder at construction', () => {
+    const f = sql`(age * ${2})`;
+    expect(f.desc.text).toBe('(age * $1)');
+    expect(f.desc.values).toEqual([2]);
+    expect(f.desc.slotOrder).toEqual([]);
+  });
 });
 
 describe('isSqlFragment', () => {

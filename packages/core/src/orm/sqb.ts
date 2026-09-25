@@ -3,7 +3,10 @@ import { createWhereGroup } from './ast/where';
 import type { SelectableField } from './ast/selectable';
 import { AggregateField } from './ast/aggregate';
 import type { WindowField } from './ast/window-field';
-import type { SqlSelectable } from './sql-fragment';
+import type { SqlSelectable, SqlOrder } from './sql-fragment';
+import type { OrderStep } from '@karkardmitry/kadmium-sql-types';
+import type { OrderDirection } from './types/proxy';
+import type { ModelIR } from '../ir/index';
 
 /** Поле в SELECT: обычное, агрегатное, оконная функция (F8) или sql-фрагмент (C2). */
 export type AnySelectableField =
@@ -11,7 +14,6 @@ export type AnySelectableField =
   | AggregateField
   | WindowField
   | SqlSelectable<unknown, string>;
-import type { ModelIR } from '../ir/index';
 
 /** Тип связи для include */
 export type IncludedRelation = {
@@ -47,12 +49,7 @@ export class KadmiumSqb {
   public selects: AnySelectableField[] | null = null;
   public joins: JoinOptions[] = [];
   public includes: IncludedRelation[] = [];
-  public orders: {
-    field: string;
-    column?: string;
-    tableAlias?: string;
-    direction: 'asc' | 'desc';
-  }[] = [];
+  public orders: OrderStep[] = [];
   public limit: number | null = null;
   public offset: number | null = null;
   /** Cursor-based пагинация: позиция рендерится AND-членом в WHERE */
@@ -129,4 +126,28 @@ export class KadmiumSqb {
       internalSqb: inc.internalSqb.clone(),
     }));
   }
+}
+
+/**
+ * Преобразовать OrderDirection | SqlOrder в шаг ORDER BY (OrderStep).
+ * Дискриминация по kind (как isSqlFragment) — без instanceof из sql-fragment,
+ * чтобы не создавать runtime-цикл sqb → sql-fragment.
+ */
+export function orderToStep(
+  d: OrderDirection | SqlOrder<'asc' | 'desc'>,
+): OrderStep {
+  return (d as { kind?: string }).kind === 'sql-order'
+    ? {
+        kind: 'fragment',
+        text: (d as SqlOrder<'asc' | 'desc'>).text,
+        values: (d as SqlOrder<'asc' | 'desc'>).values,
+        slotOrder: (d as SqlOrder<'asc' | 'desc'>).slotOrder,
+        direction: (d as SqlOrder<'asc' | 'desc'>).direction,
+      }
+    : {
+        field: (d as OrderDirection).fieldName,
+        column: (d as OrderDirection).column,
+        tableAlias: (d as OrderDirection).tableAlias,
+        direction: (d as OrderDirection).direction,
+      };
 }

@@ -1,8 +1,9 @@
-import { KadmiumSqb, type AnySelectableField } from '../sqb';
+import { KadmiumSqb, type AnySelectableField, orderToStep } from '../sqb';
 import type { WhereCondition, WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
+import type { SqlOrder } from '../sql-fragment';
 import type { ModelIR } from '../../ir/index';
 import type {
   MultiFilterProxy,
@@ -250,14 +251,13 @@ export class MultiQueryBuilder<
     return this;
   }
 
-  order(fn: (t: MultiOrderProxy<T>) => OrderDirection[]): this {
+  order(
+    fn: (
+      t: MultiOrderProxy<T>,
+    ) => (OrderDirection | SqlOrder<'asc' | 'desc'>)[],
+  ): this {
     for (const d of fn(this._createOrderProxy())) {
-      this.sqb.orders.push({
-        field: d.fieldName,
-        column: d.column,
-        tableAlias: d.tableAlias,
-        direction: d.direction,
-      });
+      this.sqb.orders.push(orderToStep(d));
     }
     return this;
   }

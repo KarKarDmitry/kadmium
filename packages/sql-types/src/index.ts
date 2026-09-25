@@ -85,6 +85,26 @@ export interface WindowSelectable {
 export type SelectItem =
   SelectableField | AggregateSelectable | WindowSelectable | SqlSelectItem;
 
+/** ORDER BY по обычной колонке: "alias"."column" DIR. */
+export interface OrderColumnStep {
+  field: string;
+  column?: string;
+  tableAlias?: string;
+  direction: 'asc' | 'desc';
+}
+
+/** ORDER BY по sql-фрагменту (C2): скомпилированный текст + локальные $N. */
+export interface OrderFragmentStep {
+  kind: 'fragment';
+  text: string;
+  values: readonly unknown[];
+  slotOrder: readonly SlotDefinition[];
+  direction: 'asc' | 'desc';
+}
+
+/** Шаг ORDER BY: колонка или фрагмент. */
+export type OrderStep = OrderColumnStep | OrderFragmentStep;
+
 export interface JoinOptions {
   left: string;
   right: string;
@@ -119,12 +139,7 @@ export interface ReadonlySqb {
   readonly selects: readonly SelectItem[] | null;
   readonly joins: readonly JoinOptions[];
   readonly includes: readonly IncludedRelation[];
-  readonly orders: readonly {
-    field: string;
-    column?: string;
-    tableAlias?: string;
-    direction: 'asc' | 'desc';
-  }[];
+  readonly orders: readonly OrderStep[];
   readonly limit: number | null;
   readonly offset: number | null;
   readonly groupBy: readonly string[];

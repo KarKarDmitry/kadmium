@@ -1,7 +1,8 @@
-import { KadmiumSqb, type AnySelectableField } from '../sqb';
+import { KadmiumSqb, type AnySelectableField, orderToStep } from '../sqb';
 import type { WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import type { ModelIR } from '../../ir/index';
+import type { SqlOrder } from '../sql-fragment';
 import type {
   FilterProxy,
   SelectProxy,
@@ -240,14 +241,13 @@ export class SingleQueryBuilder<
     }
   }
 
-  order(fn: (t: OrderProxy<TModel>) => OrderDirection[]): this {
+  order(
+    fn: (
+      t: OrderProxy<TModel>,
+    ) => (OrderDirection | SqlOrder<'asc' | 'desc'>)[],
+  ): this {
     for (const d of fn(this._createOrderProxy())) {
-      this.sqb.orders.push({
-        field: d.fieldName,
-        column: d.column,
-        tableAlias: d.tableAlias,
-        direction: d.direction,
-      });
+      this.sqb.orders.push(orderToStep(d));
     }
     return this;
   }

@@ -15,6 +15,8 @@ import type {
   HoleRef,
   SlotDefinition,
   SqlSelectItem,
+  OrderFragmentStep,
+  OrderStep,
 } from '@karkardmitry/kadmium-sql-types';
 import { assertSqlIdentifier } from './ddl-validate';
 
@@ -23,6 +25,11 @@ export function isHoleRef(v: unknown): v is HoleRef {
   return (
     !!v && typeof v === 'object' && (v as { kind?: unknown }).kind === 'slot'
   );
+}
+
+/** Duck-typed guard шага ORDER BY по фрагменту (C2). */
+function isOrderFragmentStep(o: OrderStep): o is OrderFragmentStep {
+  return (o as { kind?: string }).kind === 'fragment';
 }
 
 /**
@@ -313,11 +320,7 @@ export abstract class SqlGenerator {
 
   protected _buildSubqueryModifiers(
     alias: string,
-    orders: readonly {
-      field: string;
-      column?: string;
-      direction: 'asc' | 'desc';
-    }[],
+    orders: readonly OrderStep[],
     limit: number | null,
     offset: number | null,
     values: unknown[],
@@ -326,7 +329,13 @@ export abstract class SqlGenerator {
     const parts: string[] = [];
     if (orders.length > 0) {
       parts.push(
-        `ORDER BY ${orders.map((o) => `"${alias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`).join(', ')}`,
+        `ORDER BY ${orders
+          .map((o) =>
+            isOrderFragmentStep(o)
+              ? this._renderOrderFragmentStep(o, values, paramIndex)
+              : `"${alias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
+          )
+          .join(', ')}`,
       );
     }
     if (limit !== null) {
@@ -545,7 +554,12 @@ export abstract class SqlGenerator {
     let havingClause = '';
     const havingSql = this._buildHavingClause(sqb, values, paramIndex);
     if (havingSql) havingClause = `HAVING ${havingSql}`;
-    const orderByClause = this._buildOrderByClause(sqb, mainTableAlias);
+    const orderByClause = this._buildOrderByClause(
+      sqb,
+      mainTableAlias,
+      values,
+      paramIndex,
+    );
     const paginationClause = this._buildPaginationClause(
       sqb,
       values,
@@ -883,15 +897,39 @@ export abstract class SqlGenerator {
       .join(', ')}`;
   }
 
+  /** Рендер sql-фрагмента в ORDER BY: локальные $1..$N сдвигаются на текущий paramIndex. */
+  private _renderOrderFragmentStep(
+    step: OrderFragmentStep,
+    values: unknown[],
+    paramIndex: ParamState,
+  ): string {
+    const start = paramIndex.p;
+    const text = shiftParameters(step.text, start - 1);
+    for (const v of step.values) values.push(v);
+    paramIndex.p = start + step.values.length;
+    for (const s of step.slotOrder) {
+      if (
+        paramIndex.slotOrder &&
+        !paramIndex.slotOrder.some((os) => os.name === s.name)
+      ) {
+        paramIndex.slotOrder.push({ name: s.name, index: start - 1 + s.index });
+      }
+    }
+    return `${text} ${step.direction.toUpperCase()}`;
+  }
+
   private _buildOrderByClause(
     sqb: ReadonlySqb,
     mainTableAlias: string,
+    values: unknown[],
+    paramIndex: ParamState,
   ): string {
     if (sqb.orders.length === 0) return '';
     return `ORDER BY ${sqb.orders
-      .map(
-        (o) =>
-          `"${o.tableAlias ?? mainTableAlias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
+      .map((o) =>
+        isOrderFragmentStep(o)
+          ? this._renderOrderFragmentStep(o, values, paramIndex)
+          : `"${o.tableAlias ?? mainTableAlias}"."${o.column ?? o.field}" ${o.direction.toUpperCase()}`,
       )
       .join(', ')}`;
   }

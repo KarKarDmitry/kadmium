@@ -1,5 +1,6 @@
 import type { WhereExpression } from '../ast/where';
 import type { SelectableField } from '../ast/selectable';
+import type { SqlOrder } from '../sql-fragment';
 import type {
   OrderDirection,
   GetFieldName,
@@ -107,7 +108,9 @@ type IncludeRelationConfig<M, K extends string> =
       where?: (
         t: IncludeFilterProxy<RelTarget<M, K>>,
       ) => WhereExpression | undefined;
-      order?: (t: IncludeOrderProxy<RelTarget<M, K>>) => OrderDirection[];
+      order?: (
+        t: IncludeOrderProxy<RelTarget<M, K>>,
+      ) => OrderDirection[] | SqlOrder<'asc' | 'desc'>[];
       limit?: number;
       include?: IncludeConfig<RelTarget<M, K>>;
     };

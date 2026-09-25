@@ -112,11 +112,27 @@ export class SqlSelectable<T, A extends string> {
 
 export class SqlOrder<D extends 'asc' | 'desc'> {
   readonly kind = 'sql-order' as const;
+  /** Текст фрагмента с локальными $1..$N (сдвигается на текущий paramIndex адаптера). */
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
+  readonly direction: D;
 
   constructor(
     readonly fragment: SqlFragment<unknown>,
-    readonly direction: D,
-  ) {}
+    direction: D,
+  ) {
+    const values: unknown[] = [];
+    const slotOrder: SlotDefinition[] = [];
+    const text = renderFragment(fragment.segments, fragment.parts, values, {
+      p: 1,
+      slotOrder,
+    });
+    this.text = text;
+    this.values = values;
+    this.slotOrder = slotOrder;
+    this.direction = direction;
+  }
 }
 
 /**
