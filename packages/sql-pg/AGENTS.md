@@ -40,6 +40,7 @@ PostgreSQL-specific:
 - **`RETURNING *`** — on UPDATE/DELETE
 - **`COALESCE(json_agg(subq), '[]'::json)`** — empty array for one-to-many
 - **Window functions** — `_renderWindow` renders `FUNC(field, $N…) OVER (PARTITION BY … ORDER BY … ROWS BETWEEN …)`, args → `values.push`; rank-family requires ORDER BY (enforced at render)
+- **DML expression values** — a `sql`-fragment *value* in update/create/createMany/`onConflict().set()` renders via `renderValueCell`: duck-typed `isSqlValueFragment` (`kind:'sql-value'`) → `shiftParameters` local `$1..$N` onto the current `paramIndex`, concatenate `values`, shift+dedup `slotOrder`; anything else → `$${paramIndex.p++}` param. `renderConflictClause(keys, conflictTarget, doNothing, setMap, values, paramIndex)` — `doNothing` wins; default SET is `EXCLUDED."k"` for every non-target key, or the explicit `setMap` (F, `204e91d`)
 
 ## Include System
 

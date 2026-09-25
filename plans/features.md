@@ -7,6 +7,7 @@
 > Updated 2026-09-12 — F8 plan re-locked: variant B `{ agg, wf }`, base `FuncField`, Option A (adapter owns rendering). C1–C6 done (resolved).
 > Updated 2026-09-16 — F2 resolved (B1/B2, `931aab2`): `OrmManager.raw()`/`run()`/`transaction()` landed.
 > Updated 2026-09-25 — C-блок sql-тега закрыт: C1 тег (`bf0e406`), C2 select-embed/overloads/array()/order-embed (`5699286`/`8f954d7`/`59afe1c`/`59e11b4`), C3 `@deprecated` toSql (`952a3a5`).
+> Updated 2026-09-25 — DML-выражения (F из builder-expression, `204e91d`): sql-фрагменты в update/create/createMany + `onConflict().set()`.
 
 ---
 
@@ -52,7 +53,7 @@ select((u, { agg, wf }) => [
 - `sql-pg` — единственный рендерер: `FUNC(inner[, $N…]) OVER (PARTITION BY … ORDER BY … ROWS BETWEEN …) AS "alias"`, `argValues` → `values.push` (параметризация)
 - `toSql()` **убирается из sql-types-контракта** (`SelectableField`/`AggregateSelectable`) — прецедент: адаптер уже рендерит поля из структуры, `SelectableField.toSql()` мёртв
 - Разный диалект СУБД (квотинг, `$N`/`?`/`@p1`, `NULLS`, фреймы `GROUPS`) живёт в адаптере; окно сам по себе — SQL:2003, портируем
-- `sql`-фрагменты (F2) — реализованы в core (`SqlFragment`/тег, C1 `bf0e406`): select-embed (`.as()`), order-embed (`.asc/.desc`), `array()`, `where(sql`...`)`/`having(sql`...`)` + `and()/or()`-выражения (E, `d578a5c`) — предикаты моделью-путём плюс raw-условия топ-уровнем
+- `sql`-фрагменты (F2) — реализованы в core (`SqlFragment`/тег, C1 `bf0e406`): select-embed (`.as()`), order-embed (`.asc/.desc`), `array()`, `where(sql`...`)`/`having(sql`...`)` + `and()/or()`-выражения (E, `d578a5c`), **DML-значения** `update/create/createMany` + `onConflict().set()` (F, `204e91d`) — предикаты моделью-путём плюс raw-условия топ-уровнем и raw-выражения в значениях
 - `GetFieldType<FuncField<infer T>> → T` — как с `avg`; `GetFieldName` → alias; HAVING-прокси остаётся на `AggregateField`
 
 **Изменения (коммиты):**

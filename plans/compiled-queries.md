@@ -157,7 +157,7 @@ for (const req of incoming) {
 - **C2** — встраивание: select-embed (`.as()`, рендер проекции), order-embed (`.asc/.desc`), `array()` + `in(...)`. — ✅ Done (`5699286` select-embed, `8f954d7` перегрузки select, `59afe1c` array(), `59e11b4` order-embed).
 - **C3** — docs/депрекация: `@deprecated` на `single/multi.toSql()`, `count().sql()`, `exists().sql()`; AGENTS.md (терминалы, Builder Reuse, правила); features.md F2 закрывается. — ✅ Done (`952a3a5`): `@deprecated` на `single/multi.toSql()`, на `.sql()` в `count()/exists()` (терминал `SqlPreviewTerminal`); остальное — план ниже.
 
-**Зависимости:** A1 → (A2 → {B1 → B2 → {B3 → B4}, C1 → C2}) → C3. A обязателен первым; B и C идут после A2 и частично параллельны. **Отложено**: DML-выражения (`set({ col: sql`...` })`), `ident()`-маркер. (`where(sql`...`)` — реализовано, E `d578a5c`.)
+**Зависимости:** A1 → (A2 → {B1 → B2 → {B3 → B4}, C1 → C2}) → C3. A обязателен первым; B и C идут после A2 и частично параллельны. **Отложено**: `ident()`-маркер. (`where(sql`...`)` — E `d578a5c`; DML-выражения — F `204e91d`.)
 
 ---
 
