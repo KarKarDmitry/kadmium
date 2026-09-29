@@ -1,6 +1,6 @@
 import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/multi';
-import type { SingleConfigHandle, MultiConfigHandle } from './builders/handles';
+import type { DmlConfigHandle, MultiConfigHandle } from './builders/handles';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
@@ -63,13 +63,13 @@ export class OrmManager {
       ['~rel']: Record<string, unknown>;
       ['~relInfo']: Record<string, unknown>;
     },
-  >(modelClass: { new (): TModel }, ir?: ModelIR): SingleConfigHandle<TModel> {
+  >(modelClass: { new (): TModel }, ir?: ModelIR): DmlConfigHandle<TModel> {
     const compiled = ir ?? this._irFor(modelClass);
     return new SingleQueryBuilder<TModel>(
       compiled,
       this._irLookup,
       this._adapter,
-    ) as unknown as SingleConfigHandle<TModel>;
+    ) as unknown as DmlConfigHandle<TModel>;
   }
 
   /**

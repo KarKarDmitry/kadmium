@@ -5,6 +5,8 @@ export { MultiQueryBuilder } from './builders/multi';
 export type { MultiSelectResult } from './builders/multi';
 export type {
   SingleShared,
+  SingleDml,
+  DmlConfigHandle,
   SingleConfigHandle,
   SingleOrderingBranch,
   SingleCursorBranch,

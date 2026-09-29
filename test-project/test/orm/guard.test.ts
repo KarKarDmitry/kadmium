@@ -22,6 +22,14 @@ import { resetAndSeed } from '../fixtures';
  * Модульные тесты самих функций — в packages/core/test/orm/guards.test.ts
  * (там же проверки чистого AST без БД). Здесь — сквозной путь через
  * реальный Postgres: важно, что гард ловит ДО похода в базу.
+ *
+ * Два уровня одной границы. limit/offset/page/order/cursor сужены НА ТИПАХ
+ * (DmlConfigHandle теряет DML после этих шагов), поэтому такие вызовы
+ * помечены `@ts-expect-error`: он не просто глушит ошибку, а падает сам,
+ * если сужение когда-нибудь откатят. Runtime-гард при этом остаётся —
+ * это defense-in-depth для JS, динамических алиасов и обхода типов.
+ * groupBy намеренно НЕ сужен (`groupBy(): this` в SingleShared), поэтому
+ * его кейсы — только рантайм-проверки.
  */
 
 let h: Harness;
@@ -42,21 +50,25 @@ async function countPosts(): Promise<number> {
 
 describe('guards: DML + limit/offset (самая дорогая ошибка)', () => {
   it('delete(): limit(1) бросает, а не удаляет все подходящие строки', () => {
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).limit(1).delete()).toThrow(
       /limit\(\)\/page\(\)\/offset\(\) is not supported with delete\(\)/,
     );
   });
 
   it('delete(): page() и offset() ловятся тем же гардом', () => {
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).page(1, 10).delete()).toThrow(
       /not supported with delete\(\)/,
     );
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).offset(5).delete()).toThrow(
       /not supported with delete\(\)/,
     );
   });
 
   it('update(): limit(1) бросает', () => {
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).limit(1).update({ views: 1 })).toThrow(
       /limit\(\)\/page\(\)\/offset\(\) is not supported with update\(\)/,
     );
@@ -64,18 +76,22 @@ describe('guards: DML + limit/offset (самая дорогая ошибка)', 
 
   it('create()/createMany(): limit и page бросают', () => {
     const data = { title: 'x', content: 'y', author: 1 };
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).limit(1).create(data)).toThrow(
       /not supported with create\(\)/,
     );
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).page(1, 5).createMany([data])).toThrow(
       /not supported with create\(\)/,
     );
   });
 
   it('сообщение объясняет, почему шаг потерялся, и что делать', () => {
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).limit(1).delete()).toThrow(
       /PostgreSQL UPDATE\/DELETE\/INSERT have no LIMIT — the adapter drops it silently\./,
     );
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).limit(1).delete()).toThrow(
       /Narrow the rows with where\(\) instead/,
     );
@@ -83,9 +99,12 @@ describe('guards: DML + limit/offset (самая дорогая ошибка)', 
 
   it('гард срабатывает до обращения к БД: данные не тронуты', async () => {
     const before = await countPosts();
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).limit(1).delete()).toThrow();
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => h.orm.single(PostModel).offset(2).delete()).toThrow();
     expect(() =>
+      // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
       h.orm.single(PostModel).limit(1).update({ views: 0 }),
     ).toThrow();
     expect(await countPosts()).toBe(before);
@@ -98,6 +117,7 @@ describe('guards: DML + limit/offset (самая дорогая ошибка)', 
       .select((p) => [p.views])
       .go();
     expect(() =>
+      // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
       h.orm.single(PostModel).limit(1).update({ views: -1 }),
     ).toThrow();
     const [after] = await h.orm
@@ -115,6 +135,7 @@ describe('guards: DML + order/cursor', () => {
       h.orm
         .single(PostModel)
         .order((p) => [p.views.desc])
+        // @ts-expect-error DML сужен на типах: order не рендерится в DML
         .update({ views: 1 }),
     ).toThrow(/order\(\)\/cursor\(\) is not supported with update\(\)/);
   });
@@ -125,6 +146,7 @@ describe('guards: DML + order/cursor', () => {
         .single(PostModel)
         .order((p) => [p.id.asc])
         .cursor((p) => p.id.gt(0))
+        // @ts-expect-error DML сужен на типах: cursor не рендерится в DML
         .update({ views: 1 }),
     ).toThrow(/order\(\)\/cursor\(\) is not supported with update\(\)/);
   });
@@ -134,6 +156,7 @@ describe('guards: DML + order/cursor', () => {
       h.orm
         .single(PostModel)
         .order((p) => [p.id.asc])
+        // @ts-expect-error DML сужен на типах: order не рендерится в DML
         .delete(),
     ).toThrow(/not supported with delete\(\)/);
   });
@@ -144,12 +167,14 @@ describe('guards: DML + order/cursor', () => {
       h.orm
         .single(PostModel)
         .order((p) => [p.id.asc])
+        // @ts-expect-error DML сужен на типах: order не рендерится в DML
         .create(data),
     ).toThrow(/not supported with create\(\)/);
     expect(() =>
       h.orm
         .single(PostModel)
         .order((p) => [p.id.asc])
+        // @ts-expect-error DML сужен на типах: order не рендерится в DML
         .createMany([data]),
     ).toThrow(/not supported with create\(\)/);
   });
@@ -359,11 +384,13 @@ describe('guards: граница с терминалами и prepared-кана�
     // Строка ниже — место, где написано несовместимое. Если бы гард ждал
     // go()/execute(), ошибка всплыла бы позже и в другом стеке.
     const builder = h.orm.single(PostModel).limit(1);
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => builder.delete()).toThrow(/not supported with delete\(\)/);
   });
 
   it('clone() не снимает гард: копия билдера проверяется так же', () => {
     const base = h.orm.single(PostModel).limit(1);
+    // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
     expect(() => base.clone().delete()).toThrow(
       /not supported with delete\(\)/,
     );
@@ -375,6 +402,7 @@ describe('guards: граница с терминалами и prepared-кана�
         .single(PostModel)
         .where((p) => p.title.eq('Hello Postgres'))
         .limit(1)
+        // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
         .delete(),
     ).toThrow(/not supported with delete\(\)/);
   });
@@ -382,12 +410,14 @@ describe('guards: граница с терминалами и prepared-кана�
   it('returning() и upsert-путь не обходят гард', () => {
     // returning() — это шаг финализатора после update(), гард уже сработал выше.
     expect(() =>
+      // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
       h.orm.single(PostModel).limit(1).update({ views: 1 }),
     ).toThrow();
     expect(() =>
       h.orm
         .single(CommentModel)
         .limit(1)
+        // @ts-expect-error DML сужен на типах: шаг не рендерится в DML
         .create({ text: 'x', post: null, user: null }),
     ).toThrow(/not supported with create\(\)/);
   });

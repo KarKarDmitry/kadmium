@@ -52,11 +52,12 @@ type Mode = 'many' | 'first';
 > = Mo extends 'first'
   ? Evaluate<QueryResult<M, S, I>> | undefined
   : Evaluate<QueryResult<M, S, I>>[];
-/** * SingleShared — методы, нейтральные к single-состоянию: вернут `this` — * текущую ветку. Полиморфный this на типе-значении разрешается в ту ветку, * на которой метод вызван, поэтому cursor не «протекает» из OrderingBranch * в конфиг, а where/limit остаются на всех ветках. */ export interface SingleShared<
+/** * SingleShared — методы, нейтральные к single-состоянию: вернут `this` — * текущую ветку. Полиморфный this на типе-значении разрешается в ту ветку, * на которой метод вызван, поэтому cursor не «протекает» из OrderingBranch * в конфиг, а where остаётся на всех ветках. * * Параметр `L` — тип возврата limit(). Он вынесен из `this` намеренно: * limit() не рендерится в DML, поэтому из конфиг-ветки он должен уводить * в ветку БЕЗ DML-методов. Переопределить `limit(): this` потомком нельзя * (TS2430: `this` может быть инстанцирован подтипом, а DmlConfigHandle — * подтип SingleConfigHandle), поэтому каждая ветка объявляет `L` явно: * конфиг → голый конфиг, ordering/cursor → своя ветка (курсор сохраняется). */ export interface SingleShared<
   M extends Shape,
   S,
   I,
   Mo extends Mode,
+  L = SingleConfigHandle<M, S, I, Mo>,
 > {
   /** Текущий снапшот запроса (тестовый/дебаг-доступ к AST). */ readonly sqb: KadmiumSqb;
   where(
@@ -81,7 +82,7 @@ type Mode = 'many' | 'first';
   groupBy(
     fn: (t: SelectProxy<M>) => ReadonlyArray<SelectableField | SqlFragment>,
   ): this;
-  limit(n: number): this;
+  limit(n: number): L;
   /** Копия билдера: независимый sqb, общие ir/adapter. */ clone(): this;
   /** Выполнить запрос и вернуть результат. */ go(): Promise<
     SingleResult<M, S, I, Mo>
@@ -97,6 +98,18 @@ type Mode = 'many' | 'first';
   /** Терминал count() с SQL-превью. */ count(): SqlPreviewTerminal<number>;
   /** Терминал exists() с SQL-превью. */ exists(): SqlPreviewTerminal<boolean>;
   /** @deprecated Используйте `.compile()`; SQL-preview — `.compile().sql()`. */ toSql(): string;
+}
+
+/**
+ * SingleDml — пишущие операции. НЕ наследуют ветки: DML теряет смысл после
+ * order()/cursor(), потому что эти шаги не рендерятся в UPDATE/DELETE/INSERT
+ * (sql-pg строит DML только из данных и wheres — см. `orm/guards.ts`).
+ *
+ * На уровне типов DML доступен только из конфиг-ветки: после order() и
+ * cursor() его уже нет. `groupBy()` остаётся в SingleShared, поэтому
+ * groupBy → update ловится только runtime-гардом.
+ */
+export interface SingleDml<M extends Shape> {
   create(data: DmlData<M>): CreateFinalizer<M>;
   createMany(
     data: Record<string, unknown>[],
@@ -110,7 +123,7 @@ type Mode = 'many' | 'first';
   S = AllFields, // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   I = {},
   Mo extends Mode = 'many',
-> extends SingleShared<M, S, I, Mo> {
+> extends SingleShared<M, S, I, Mo, SingleConfigHandle<M, S, I, Mo>> {
   select(): SingleConfigHandle<M, AllFields, I, Mo>;
   select<NS extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<M>, tools: SelectTools) => NS,
@@ -138,15 +151,48 @@ type Mode = 'many' | 'first';
   order(
     fn: (t: OrderProxy<M>) => (OrderDirection | SqlOrder<'asc' | 'desc'>)[],
   ): SingleOrderingBranch<M, S, I, Mo>;
+  /**
+   * limit() намеренно возвращает ГОЛЫЙ конфиг, а не `this`: пагинация не
+   * рендерится в DML, поэтому после limit() DML-методов на типе не остаётся.
+   * Задано параметром `L` в extends-клозе (переопределение `this` запрещено
+   * TS2430). В ветках ordering/cursor limit() сохраняет свою ветку.
+   */
   offset(n: number): SingleConfigHandle<M, S, I, Mo>;
   page(page: number, size: number): SingleConfigHandle<M, S, I, Mo>;
 }
+
+/**
+ * DmlConfigHandle — конфиг-ветка single() вместе с DML. Это то, что отдаёт
+ * `orm.single()`; сужение до голого SingleConfigHandle происходит на первом
+ * шаге, который не переживает DML.
+ *
+ * Правило сужения: DML исчезает после любого шага, который sql-pg не
+ * рендерит в UPDATE/DELETE/INSERT. Это order(), cursor(), limit(),
+ * offset(), page(), а также select()/first()/findById()/include() —
+ * проекция в DML тоже отбрасывается, правильный путь для неё
+ * `update().returning([...])` на финализаторе.
+ *
+ * `limit()` в SingleConfigHandle объявлен явно (возвращает голый конфиг
+ * вместо `this`) — иначе полиморфный this на пересечении типов разрешился
+ * бы в DmlConfigHandle и сужения не было бы. В ветках ordering/cursor
+ * limit() не переопределён и сохраняет ветку.
+ *
+ * `groupBy()` остаётся в SingleShared (`groupBy(): this`), поэтому
+ * groupBy → update сужением не ловится — только runtime-гардом.
+ */
+export interface DmlConfigHandle<
+  M extends Shape,
+  S = AllFields, // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  I = {},
+  Mo extends Mode = 'many',
+>
+  extends SingleConfigHandle<M, S, I, Mo>, SingleDml<M> {}
 /** * SingleOrderingBranch — после order(): cursor() доступен. * offset()/page() «разоружают» ветку в SingleConfigHandle: порядок остаётся, * но курсор/ключ больше не появятся на типе. */ export interface SingleOrderingBranch<
   M extends Shape,
   S = AllFields, // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   I = {},
   Mo extends Mode = 'many',
-> extends SingleShared<M, S, I, Mo> {
+> extends SingleShared<M, S, I, Mo, SingleOrderingBranch<M, S, I, Mo>> {
   select(): SingleOrderingBranch<M, AllFields, I, Mo>;
   select<NS extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<M>, tools: SelectTools) => NS,
@@ -185,7 +231,7 @@ type Mode = 'many' | 'first';
   S = AllFields, // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   I = {},
   Mo extends Mode = 'many',
-> extends SingleShared<M, S, I, Mo> {
+> extends SingleShared<M, S, I, Mo, SingleCursorBranch<M, S, I, Mo>> {
   select(): SingleCursorBranch<M, AllFields, I, Mo>;
   select<NS extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<M>, tools: SelectTools) => NS,
