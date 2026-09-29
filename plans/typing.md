@@ -4,7 +4,7 @@
 > Updated 2026-09-05 — corrected T1 (proxy type-safety works correctly).
 > Updated 2026-09-07 — T2 resolved (`ff30dc1`), T4 resolved (`657db49`).
 > Updated 2026-09-08 — added T5 (duplicated type helpers), from project review.
-> Updated 2026-09-29 — added T8 (DML-сужение на handle-ветках, `7f91789`).
+> Updated 2026-09-29 — added T8 (DML-сужение на handle-ветках, `7f91789`; `select()` возвращён в DML-ветку после ревью).
 
 ---
 
@@ -187,18 +187,24 @@ as(alias: string): SelectableField<...> {
 |---|---|---|
 | `where/and/or/clone` | ✅ остаётся | фильтр — единственное, что DML читает кроме данных |
 | `order/cursor/limit/offset/page` | ❌ снимается | не рендерятся в DML |
-| `select/first/findById/include` | ❌ снимается | проекция тоже отбрасывается; путь — `update().returning([...])` |
-| `groupBy` | ✅ остаётся | `groupBy(): this` в `SingleShared`; сужение сломало бы ветку для всех. Единственный не-сужённый кейс, ловит `assertDmlUpdateNoGroupBy` |
+| `first` | ❌ снимается | ставит `sqb.limit = 1` (`single.ts:190`) — `assertDmlUpdateNoLimit` его уже отклоняет |
+| `findById` | ❌ снимается | = `where(pk).first()` (`single.ts:283`) — тот же `limit=1` |
+| `include` | ❌ снимается | пишет `sqb.includes`, который `_buildUpdateQuery` не читает; гарда на include нет, сужение чисто типовое |
+| **`select`** | ✅ **остаётся** | `sqb.selects` рендерится в `RETURNING` (`_buildUpdateQuery`/`_buildDeleteQuery`) — `select(t => [t.id]).update({...})` даёт `UPDATE ... RETURNING "id"` |
+| `groupBy` | ✅ остаётся | `groupBy(): this` в `SingleShared`; сужение сломало бы ветку для всех. Ловит `assertDmlUpdateNoGroupBy` |
+
+**Поправка после ревью.** Первая версия `7f91789` сужала DML и после `select()`, с обоснованием «проекция в DML отбрасывается, путь — `update().returning([...])`». Обоснование было неверным: адаптер читает `sqb.selects` и рендерит его как `RETURNING` — сужение ломало рабочий запрос. Исправлено в `fix-сужение-select` (см. ниже): `select()` перекрыт в `DmlConfigHandle` и возвращает `DmlConfigHandle`.
 
 **Техническая деталь (TS2430):** тип возврата `limit()` вынесен в параметр `L` у `SingleShared`. Переопределить `limit(): this` потомком нельзя — `this`-тип инстанцируется подтипом, а `DmlConfigHandle` сам является подтипом `SingleConfigHandle`, то есть `SingleConfigHandle` не удовлетворяет DML-контракту подтипа. Через `L` каждая ветка объявляет результат явно: конфиг → голый `SingleConfigHandle`, ordering/cursor → своя ветка (курсор сохраняется).
 
-**Слои защиты:** компилятор ловит первым (`Property 'update' does not exist on type 'SingleOrderingBranch<...>'`); runtime-гарды (`a785bbb`) остаются defense-in-depth для JS, динамических алиасов и обхода типов.
+**Слои защиты:** компилятор ловит первым (`Property 'update' does not exist on type 'SingleOrderingBranch<...>'`); runtime-гарды (`a785bbb`) остаются defense-in-depth для JS, динамических алиасов и обхода типов. Расхождение «сужено на типе, но гарда нет» есть только у `include` — там сужение единственный ловец.
 
 **Связанные файлы:**
-- `packages/core/src/orm/builders/handles.ts` (`SingleDml`, `DmlConfigHandle`, generic `L`)
+- `packages/core/src/orm/builders/handles.ts` (`SingleDml`, `DmlConfigHandle`, generic `L`, перекрытый `select`)
 - `packages/core/src/orm/orm.ts` (публичный возврат `orm.single()`)
-- `packages/core/test/orm/handles.test.ts` (парные ассерты: `@ts-expect-error` + `toThrow` на гарде)
-- `test-project/test/orm/guard.test.ts` (`@ts-expect-error`-пометки в сквозных тестах)
+- `packages/sql-pg/src/sql-generator.ts` (`_buildUpdateQuery`/`_buildDeleteQuery` — RETURNING из `sqb.selects`)
+- `packages/core/test/orm/handles.test.ts` (парные ассерты: `@ts-expect-error` + `toThrow` на гарде; отдельный тест, что `select()` DML сохраняет)
+- `test-project/test/orm/guard.test.ts` (`@ts-expect-error`-пометки + сквозной тест `select()` → `RETURNING`)
 - `packages/core/src/orm/guards.ts` (второй слой)
 
-**Коммит:** `7f91789`
+**Коммиты:** `7f91789` (сужение), `fix-сужение-select` (возврат `select()` в DML-ветку)

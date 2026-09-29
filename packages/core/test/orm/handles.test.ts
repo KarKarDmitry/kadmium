@@ -68,8 +68,10 @@ describe('handles — narrowing (ветки ловят порядковые ло
 
 /**
  * DML-сужение. `orm.single()` отдаёт DmlConfigHandle = конфиг-ветка + DML.
- * sql-pg строит UPDATE/DELETE/INSERT только из данных и wheres, поэтому любой
- * шаг, который в DML не рендерится, снимает DML-методы с типа.
+ * DML снимается шагами, которые sql-pg не рендерит в UPDATE/DELETE/INSERT:
+ * order(), cursor(), limit(), offset(), page(), first(), findById(), include().
+ * `select()` — исключение: `sqb.selects` рендерится как RETURNING, поэтому
+ * DML сохраняется (см. отдельный тест).
  *
  * Тесты двухуровневые и проверяют оба слоя сразу: `@ts-expect-error` — сужение
  * на типах (упадёт, если откатят), `toThrow` — runtime-гард. Компилятор ловит
@@ -77,10 +79,9 @@ describe('handles — narrowing (ветки ловят порядковые ло
  *
  * Сужение убирает метод с ТИПА, но не из класса: тело update() физически на
  * месте. Поэтому «не бросило» означало бы «гард сломан», а не «сужение есть».
- * Последний тест — контрпример: сужение снято только типом, ломающих шагов
- * нет, поэтому и гард молчит.
+ * `select()` — контрпример: сужения нет, ломающих шагов нет, гард молчит.
  */
-describe('handles — DML сужается шагами, которые не рендерятся в DML', () => {
+describe('handles — DML и шаги, которые его снимают', () => {
   const dml = { name: 'Alice' } as const;
   const ORDER = /order\(\)\/cursor\(\) is not supported with update\(\)/;
   const PAGE =
@@ -102,6 +103,33 @@ describe('handles — DML сужается шагами, которые не р�
       .clone();
     expect(() => after.update(dml)).not.toThrow();
     expect(after.sqb.wheres.elements.length).toBe(1);
+  });
+
+  it('select() DML НЕ снимает — селект рендерится как RETURNING', () => {
+    const after = config().select((u: any) => [u.id]);
+    // Без @ts-expect-error: sql-pg рендерит sqb.selects в RETURNING
+    // (_buildUpdateQuery/_buildDeleteQuery), поэтому update/delete остаются.
+    expect(() => after.update(dml)).not.toThrow();
+    expect(() => after.delete()).not.toThrow();
+    expect(after.sqb.selects?.length).toBe(1);
+  });
+
+  it('first()/findById() снимают DML — оба ставят limit=1', () => {
+    const first = config().first();
+    // @ts-expect-error — first() пишет sqb.limit=1, DML отбросил бы строки
+    expect(() => first.update(dml)).toThrow(PAGE);
+    const byId = config().findById(1);
+    // @ts-expect-error — findById() = where(pk).first(), тот же limit=1
+    expect(() => byId.update(dml)).toThrow(PAGE);
+    expect(byId.sqb.limit).toBe(1);
+  });
+
+  it('include() снимает DML — includes не рендерятся в UPDATE/DELETE', () => {
+    const after = config().include({ posts: true });
+    // @ts-expect-error — include не рендерится в DML
+    // Рантайм молчит: для include отдельного гарда нет, сужение чисто типовое
+    // (в отличие от first()/limit(), которые ловит assertDmlUpdateNoLimit).
+    expect(() => after.delete()).not.toThrow();
   });
 
   it('limit() снимает DML, гард ловит', () => {

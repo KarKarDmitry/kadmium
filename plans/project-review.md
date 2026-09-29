@@ -18,7 +18,7 @@
 > Updated 2026-09-12 — close-out: C13 done (`8b9c455`), C16 done (`c77d82b`), C17 done (`98d3977`); A22 done (`e5c417d`); P10 → ⚪ accepted; S11 → ✅ документирован (JSDoc `model/index.ts` + core/AGENTS.md).
 > Updated 2026-09-16 — any-reduction Closed (T7, typing.md): core lint baseline пересчитан 12 warnings (было 85–87). F2 closed (`931aab2`): `OrmManager.raw()`/`run()`/`transaction()`. Roadmap: G1 + C-блок sql-тега (см. builder-expression.md План 3).
 > Updated 2026-09-29 — C11 пересмотрен и **переигран** (`995e0d5`): dedup из `c98f947` (тихий пропуск) заменён на throw `assertNoDuplicateJoin` — второй `on` исчезал вместе с условием. Tests: core 579, project 333, lint baseline 12.
-> Updated 2026-09-29 — DML-сужение на типах (`7f91789`, T8 в typing.md): `orm.single()` → `DmlConfigHandle`; `order/cursor/limit/offset/page` снимают DML с типа, `where/clone/groupBy` оставляют. Гарды (`a785bbb`) — второй слой.
+> Updated 2026-09-29 — DML-сужение на типах (`7f91789`, T8 в typing.md): `orm.single()` → `DmlConfigHandle`; `order/cursor/limit/offset/page/first/findById/include` снимают DML с типа, `where/clone/groupBy/select` оставляют (`select` → `RETURNING`). Гарды (`a785bbb`) — второй слой.
 
 ## Repository snapshot
 

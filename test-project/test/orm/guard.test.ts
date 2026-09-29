@@ -30,6 +30,8 @@ import { resetAndSeed } from '../fixtures';
  * это defense-in-depth для JS, динамических алиасов и обхода типов.
  * groupBy намеренно НЕ сужен (`groupBy(): this` в SingleShared), поэтому
  * его кейсы — только рантайм-проверки.
+ * select() НЕ сужен: `sqb.selects` рендерится как RETURNING, поэтому
+ * select() перед update()/delete() — валидный путь и проверяется отдельно.
  */
 
 let h: Harness;
@@ -126,6 +128,31 @@ describe('guards: DML + limit/offset (самая дорогая ошибка)', 
       .select((p) => [p.views])
       .go();
     expect(after.views).toBe(p.views);
+  });
+
+  it('select() перед update() — это RETURNING, DML сохранён', async () => {
+    const [before] = await h.orm
+      .single(PostModel)
+      .where((p) => p.title.eq('Hello Postgres'))
+      .select((p) => [p.id, p.views])
+      .go();
+    // Без @ts-expect-error: select() не сужает DML — selects идут в RETURNING
+    const updated = await h.orm
+      .single(PostModel)
+      .select((p) => [p.id, p.views])
+      .where((p) => p.id.eq(before.id))
+      .update({ views: before.views + 1 })
+      .go();
+    expect(updated[0]).toMatchObject({
+      id: before.id,
+      views: before.views + 1,
+    });
+    // возвращаем сид как был, чтобы не протекать в другие тесты
+    await h.orm
+      .single(PostModel)
+      .where((p) => p.id.eq(before.id))
+      .update({ views: before.views })
+      .go();
   });
 });
 

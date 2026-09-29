@@ -166,11 +166,20 @@ export interface SingleDml<M extends Shape> {
  * `orm.single()`; сужение до голого SingleConfigHandle происходит на первом
  * шаге, который не переживает DML.
  *
- * Правило сужения: DML исчезает после любого шага, который sql-pg не
- * рендерит в UPDATE/DELETE/INSERT. Это order(), cursor(), limit(),
- * offset(), page(), а также select()/first()/findById()/include() —
- * проекция в DML тоже отбрасывается, правильный путь для неё
- * `update().returning([...])` на финализаторе.
+ * Правило: DML исчезает после шага, который sql-pg **не рендерит** в
+ * UPDATE/DELETE/INSERT. Это order(), cursor(), limit(), offset(), page(),
+ * а также first()/findById()/include():
+ *   - first() ставит `sqb.limit = 1` (single.ts:190) — гард `assertDmlUpdate`
+ *     его уже отклоняет, поэтому с типа DML надо снять раньше;
+ *   - findById() = `where(pk).first()` (single.ts:283) — то же limit=1;
+ *   - include() пишет `sqb.includes`, который `_buildUpdateQuery` не читает;
+ *   - order/cursor/limit/offset/page — не рендерятся в DML.
+ *
+ * `select()` НЕ сужает, и это осознанно: `sqb.selects` в sql-pg рендерится
+ * в `RETURNING` (`_buildUpdateQuery`/`_buildDeleteQuery`), то есть
+ * `select(t => [t.id]).update({...})` даёт `UPDATE ... RETURNING "id"` —
+ * корректный рабочий запрос. Поэтому в DmlConfigHandle select() перекрыт
+ * и сохраняет DML.
  *
  * `limit()` в SingleConfigHandle объявлен явно (возвращает голый конфиг
  * вместо `this`) — иначе полиморфный this на пересечении типов разрешился
@@ -186,7 +195,21 @@ export interface DmlConfigHandle<
   I = {},
   Mo extends Mode = 'many',
 >
-  extends SingleConfigHandle<M, S, I, Mo>, SingleDml<M> {}
+  extends SingleConfigHandle<M, S, I, Mo>, SingleDml<M> {
+  /**
+   * Перекрывает SingleConfigHandle.select(): селект переживает DML как
+   * `RETURNING`, поэтому DML-методы НЕ снимаются. Возврат уже
+   * DmlConfigHandle (ковариантно к базовому), S меняется как обычно.
+   */
+  select(): DmlConfigHandle<M, AllFields, I, Mo>;
+  select<NS extends readonly AnySelectable[]>(
+    fn: (t: SelectProxy<M>, tools: SelectTools) => NS,
+  ): DmlConfigHandle<M, NS, I, Mo>;
+  select<NS extends readonly AnySelectable[]>(
+    items: NS,
+  ): DmlConfigHandle<M, NS, I, Mo>;
+  select<NS extends AnySelectable>(item: NS): DmlConfigHandle<M, [NS], I, Mo>;
+}
 /** * SingleOrderingBranch — после order(): cursor() доступен. * offset()/page() «разоружают» ветку в SingleConfigHandle: порядок остаётся, * но курсор/ключ больше не появятся на типе. */ export interface SingleOrderingBranch<
   M extends Shape,
   S = AllFields, // eslint-disable-next-line @typescript-eslint/no-empty-object-type
