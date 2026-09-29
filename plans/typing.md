@@ -4,6 +4,7 @@
 > Updated 2026-09-05 — corrected T1 (proxy type-safety works correctly).
 > Updated 2026-09-07 — T2 resolved (`ff30dc1`), T4 resolved (`657db49`).
 > Updated 2026-09-08 — added T5 (duplicated type helpers), from project review.
+> Updated 2026-09-29 — added T8 (DML-сужение на handle-ветках, `7f91789`).
 
 ---
 
@@ -169,3 +170,35 @@ as(alias: string): SelectableField<...> {
 | `slot.ts` (`SlotMarker<Name, any>`) | 1 | плоский `slot()` осознанно обходит eq-site проверку типа — компромисс за удобство |
 
 **Политика:** остаток остаётся `warn`-инвентарём — inline-disable и ослабление eslint-конфига не допускаются (счётчик и есть метрика).
+
+---
+
+## T8: DML-шаги, не рендерящиеся в UPDATE/DELETE/INSERT, доступны на типах
+
+**Важность:** 🟡 High (был silent-wrong-SQL, стал compile-error)
+
+**Краткое описание:** `SingleConfigHandle` держал `create/createMany/update/delete` вместе со `where/order/cursor/limit/offset/page`. sql-pg строит UPDATE/DELETE/INSERT **только** из данных и wheres, поэтому любой из этих шагов на пути к DML отбрасывался молча: `.limit(1).delete()` удалял все подходящие строки, `.where(...).create(...)` терял фильтр. Типы разрешали то, что адаптер не рендерит.
+
+**Статус:** ✅ Решено в `7f91789`. DML вынесены из `SingleShared` в отдельный интерфейс `SingleDml`; `orm.single()` отдаёт `DmlConfigHandle = SingleConfigHandle & SingleDml`.
+
+**Границы сужения:**
+
+| Шаг | DML на типе | Почему |
+|---|---|---|
+| `where/and/or/clone` | ✅ остаётся | фильтр — единственное, что DML читает кроме данных |
+| `order/cursor/limit/offset/page` | ❌ снимается | не рендерятся в DML |
+| `select/first/findById/include` | ❌ снимается | проекция тоже отбрасывается; путь — `update().returning([...])` |
+| `groupBy` | ✅ остаётся | `groupBy(): this` в `SingleShared`; сужение сломало бы ветку для всех. Единственный не-сужённый кейс, ловит `assertDmlUpdateNoGroupBy` |
+
+**Техническая деталь (TS2430):** тип возврата `limit()` вынесен в параметр `L` у `SingleShared`. Переопределить `limit(): this` потомком нельзя — `this`-тип инстанцируется подтипом, а `DmlConfigHandle` сам является подтипом `SingleConfigHandle`, то есть `SingleConfigHandle` не удовлетворяет DML-контракту подтипа. Через `L` каждая ветка объявляет результат явно: конфиг → голый `SingleConfigHandle`, ordering/cursor → своя ветка (курсор сохраняется).
+
+**Слои защиты:** компилятор ловит первым (`Property 'update' does not exist on type 'SingleOrderingBranch<...>'`); runtime-гарды (`a785bbb`) остаются defense-in-depth для JS, динамических алиасов и обхода типов.
+
+**Связанные файлы:**
+- `packages/core/src/orm/builders/handles.ts` (`SingleDml`, `DmlConfigHandle`, generic `L`)
+- `packages/core/src/orm/orm.ts` (публичный возврат `orm.single()`)
+- `packages/core/test/orm/handles.test.ts` (парные ассерты: `@ts-expect-error` + `toThrow` на гарде)
+- `test-project/test/orm/guard.test.ts` (`@ts-expect-error`-пометки в сквозных тестах)
+- `packages/core/src/orm/guards.ts` (второй слой)
+
+**Коммит:** `7f91789`

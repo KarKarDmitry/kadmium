@@ -118,6 +118,7 @@ orm.single(User)
 - `before()` — отдельным этапом (нужен реверс результата); opaque-токен — вне core (API-слой)
 - конфликт с `offset()`/`page()` — ошибка (обе стороны guard'ов); `limit()` остаётся отдельным; multi — вне scope MVP
 - NULL в ключах — не поддерживается (NOT NULL — документируется)
+- DML на этих ветках недоступен: `order/cursor/limit/offset/page` не рендерятся в UPDATE/DELETE/INSERT, поэтому сужают тип (см. `plans/typing.md` T8, `7f91789`)
 
 ### AST
 
