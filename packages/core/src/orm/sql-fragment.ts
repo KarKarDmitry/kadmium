@@ -7,6 +7,8 @@ import { KadmiumSqb } from './sqb';
 import { isHoleRef, SlotMarker } from './slot';
 import { fillCompiled, type FilledCompiled } from './compiled-query';
 import type { WhereExpression } from './ast/where';
+import type { SelectableField } from './ast/selectable';
+import type { GroupByStep } from './ast/group-by';
 
 export type SqlPart =
   | string
@@ -167,6 +169,45 @@ export function toSqlCondition(
   e: WhereExpression | SqlFragment,
 ): WhereExpression {
   return isSqlFragment(e) ? new SqlCondition(e) : e;
+}
+
+/**
+ * GROUP BY по sql-фрагменту: прекомпилированный opaque-лист.
+ * Рендер сдвигает локальные $1..$N на текущий paramIndex адаптера (как SqlOrder).
+ */
+export class SqlGroupBy {
+  readonly kind = 'group-by-fragment' as const;
+  /** Текст фрагмента с локальными $1..$N (сдвигается на текущий paramIndex адаптера). */
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
+
+  constructor(readonly fragment: SqlFragment) {
+    const values: unknown[] = [];
+    const slotOrder: SlotDefinition[] = [];
+    const text = renderFragment(fragment.segments, fragment.parts, values, {
+      p: 1,
+      slotOrder,
+    });
+    this.text = text;
+    this.values = values;
+    this.slotOrder = slotOrder;
+  }
+}
+
+/** Нормализовать элемент GROUP BY: SqlFragment → GroupByFragmentStep, колонка → GroupByColumnStep. */
+export function groupByToStep(
+  item: SelectableField | SqlFragment,
+  fallbackTableAlias: string,
+): GroupByStep[] {
+  if (isSqlFragment(item)) return [new SqlGroupBy(item)];
+  return [
+    {
+      kind: 'group-by-column',
+      tableAlias: item.tableAlias ?? fallbackTableAlias,
+      column: item.column ?? item.fieldName,
+    },
+  ];
 }
 
 /**

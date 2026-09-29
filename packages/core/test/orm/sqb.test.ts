@@ -23,18 +23,20 @@ describe('KadmiumSqb', () => {
     const sqb = new KadmiumSqb();
     sqb.tableContext.set('u', 'users');
     sqb.limit = 10;
-    sqb.groupBy.push('name');
+    sqb.groupBy.push({ kind: 'group-by-column', column: 'name' });
 
     const cloned = sqb.clone();
 
     sqb.tableContext.set('p', 'posts');
     sqb.limit = 20;
-    sqb.groupBy.push('email');
+    sqb.groupBy.push({ kind: 'group-by-column', column: 'email' });
 
     expect(cloned.tableContext.size).toBe(1);
     expect(cloned.tableContext.get('u')).toBe('users');
     expect(cloned.limit).toBe(10);
-    expect(cloned.groupBy).toEqual(['name']);
+    expect(cloned.groupBy).toEqual([
+      { kind: 'group-by-column', column: 'name' },
+    ]);
   });
 
   it('clone copies isMulti flag', () => {
@@ -121,7 +123,7 @@ describe('KadmiumSqb', () => {
       on: { field: 'id', op: '=', value: 1 },
     });
     sqb.orders.push({ field: 'name', direction: 'asc' });
-    sqb.groupBy.push('name');
+    sqb.groupBy.push({ kind: 'group-by-column', column: 'name' });
 
     const cloned = sqb.clone();
 
@@ -131,7 +133,7 @@ describe('KadmiumSqb', () => {
       on: { field: 'x', op: '=', value: 2 },
     });
     sqb.orders.push({ field: 'age', direction: 'desc' });
-    sqb.groupBy.push('email');
+    sqb.groupBy.push({ kind: 'group-by-column', column: 'email' });
 
     expect(cloned.joins.length).toBe(1);
     expect(cloned.orders.length).toBe(1);

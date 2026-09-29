@@ -19,6 +19,9 @@ import type {
   OrderFragmentStep,
   OrderStep,
   SqlValueFragment,
+  GroupByStep,
+  GroupByColumnStep,
+  GroupByFragmentStep,
 } from '@karkardmitry/kadmium-sql-types';
 import { assertSqlIdentifier } from './ddl-validate';
 
@@ -37,6 +40,11 @@ function isOrderFragmentStep(o: OrderStep): o is OrderFragmentStep {
 /** Duck-typed guard WHERE-предиката по фрагменту (E). */
 function isWhereFragment(e: WhereExpression): e is WhereFragment {
   return (e as { kind?: string }).kind === 'sql-condition';
+}
+
+/** Duck-typed guard шага GROUP BY по фрагменту. */
+function isGroupByFragmentStep(g: GroupByStep): g is GroupByFragmentStep {
+  return (g as { kind?: string }).kind === 'group-by-fragment';
 }
 
 /** Duck-typed guard DML-значения по фрагменту (F). */
@@ -329,6 +337,27 @@ export abstract class SqlGenerator {
   }
 
   /**
+   * Рендер ON-выражения JOIN: plain-условие, группа (в скобках при siblings)
+   * или sql-фрагмент (P1-скобки, локальные $N сдвигаются на paramIndex).
+   */
+  private _renderJoinOn(
+    on: WhereExpression,
+    values: unknown[],
+    paramIndex: ParamState,
+    hasSiblings: boolean,
+  ): string {
+    if (isWhereFragment(on)) {
+      return this._renderWhereFragment(on, values, paramIndex, hasSiblings);
+    }
+    if (!('elements' in on)) {
+      return this._buildConditionSql(on, values, paramIndex);
+    }
+    const inner = this._buildWhereGroupSql(on, values, paramIndex);
+    if (inner === '') return '';
+    return hasSiblings ? `(${inner})` : inner;
+  }
+
+  /**
    * HAVING: агрегатные алиасы из SELECT резолвятся в полные выражения,
    * т.к. Postgres не позволяет ссылаться на выходные алиасы в HAVING.
    * Формат выражения совпадает с AggregateField.toSql() без AS-части.
@@ -616,7 +645,12 @@ export abstract class SqlGenerator {
       paramIndex,
       extraConditions,
     );
-    const groupByClause = this._buildGroupByClause(sqb, mainTableAlias);
+    const groupByClause = this._buildGroupByClause(
+      sqb,
+      mainTableAlias,
+      values,
+      paramIndex,
+    );
     let havingClause = '';
     const havingSql = this._buildHavingClause(sqb, values, paramIndex);
     if (havingSql) havingClause = `HAVING ${havingSql}`;
@@ -791,10 +825,17 @@ export abstract class SqlGenerator {
         if (sel.kind === 'window') {
           // PG: в GROUP BY-запросе окно может ссылаться только на групповые
           // колонки или агрегаты — иначе 42803. Fail fast с понятной ошибкой.
+          const groupCols = sqb.groupBy.filter(
+            (g): g is GroupByColumnStep => g.kind === 'group-by-column',
+          );
           if (
             sqb.groupBy.length > 0 &&
             sel.fieldName !== '*' &&
-            !sqb.groupBy.includes(sel.column ?? sel.fieldName)
+            !groupCols.some(
+              (g) =>
+                g.column === (sel.column ?? sel.fieldName) &&
+                (g.tableAlias === undefined || g.tableAlias === sel.tableAlias),
+            )
           ) {
             throw new Error(
               `WINDOW: ${(sel.func ?? '').toUpperCase()}() references "${sel.tableAlias}"."${sel.column ?? sel.fieldName}", which is not in GROUP BY`,
@@ -896,16 +937,21 @@ export abstract class SqlGenerator {
             islandTablesInFrom.has(join.left) &&
             islandTablesInFrom.has(join.right)
           ) {
-            if (join.on && !('elements' in join.on)) {
+            if (join.on) {
               extraWhereConditions.push(
-                this._buildConditionSql(join.on, values, paramIndex),
+                this._renderJoinOn(join.on, values, paramIndex, true),
               );
             }
             processedJoins.add(join);
             continue;
           }
-          if (newAlias && join.on && !('elements' in join.on)) {
-            const onSql = this._buildConditionSql(join.on, values, paramIndex);
+          if (newAlias && join.on) {
+            const onSql = this._renderJoinOn(
+              join.on,
+              values,
+              paramIndex,
+              false,
+            );
             islandFromClause += ` ${this._joinKeyword(join.direction)} JOIN "${sqb.tableContext.get(newAlias)}" AS "${newAlias}" ON ${onSql}`;
             islandTablesInFrom.add(newAlias);
             processedJoins.add(join);
@@ -953,14 +999,45 @@ export abstract class SqlGenerator {
     return `WHERE ${all.join(' AND ')}`;
   }
 
+  /**
+   * GROUP BY из шагов: колонка — "alias"."column" (алиас шага или main),
+   * фрагмент — локальные $1..$N сдвигаются на текущий paramIndex.
+   */
   private _buildGroupByClause(
     sqb: ReadonlySqb,
     mainTableAlias: string,
+    values: unknown[],
+    paramIndex: ParamState,
   ): string {
     if (sqb.groupBy.length === 0) return '';
-    return `GROUP BY ${sqb.groupBy
-      .map((f) => `"${mainTableAlias}"."${f}"`)
-      .join(', ')}`;
+    const parts = sqb.groupBy.map((step) => {
+      if (isGroupByFragmentStep(step)) {
+        return this._renderGroupByFragmentStep(step, values, paramIndex);
+      }
+      return `"${step.tableAlias ?? mainTableAlias}"."${step.column}"`;
+    });
+    return `GROUP BY ${parts.join(', ')}`;
+  }
+
+  /** Рендер sql-фрагмента в GROUP BY: локальные $1..$N сдвигаются на текущий paramIndex. */
+  private _renderGroupByFragmentStep(
+    step: GroupByFragmentStep,
+    values: unknown[],
+    paramIndex: ParamState,
+  ): string {
+    const start = paramIndex.p;
+    const text = shiftParameters(step.text, start - 1);
+    for (const v of step.values) values.push(v);
+    paramIndex.p = start + step.values.length;
+    for (const s of step.slotOrder) {
+      if (
+        paramIndex.slotOrder &&
+        !paramIndex.slotOrder.some((os) => os.name === s.name)
+      ) {
+        paramIndex.slotOrder.push({ name: s.name, index: start - 1 + s.index });
+      }
+    }
+    return text;
   }
 
   /** Рендер sql-фрагмента в ORDER BY: локальные $1..$N сдвигаются на текущий paramIndex. */

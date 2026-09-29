@@ -237,7 +237,7 @@ describe('SqlGenerator — window functions', () => {
 
   it('grouped query: window over a grouped column is allowed', () => {
     const q = sqb({
-      groupBy: ['id'],
+      groupBy: [{ kind: 'group-by-column', column: 'id' }],
       selects: [
         windowSel({
           alias: 'total',
@@ -253,7 +253,7 @@ describe('SqlGenerator — window functions', () => {
 
   it('grouped query: window counting all rows (count(*) over) is allowed', () => {
     const q = sqb({
-      groupBy: ['author'],
+      groupBy: [{ kind: 'group-by-column', column: 'author' }],
       selects: [
         windowSel({
           alias: 'n',
@@ -269,7 +269,7 @@ describe('SqlGenerator — window functions', () => {
 
   it('grouped query: window on an ungrouped column fails fast', () => {
     const q = sqb({
-      groupBy: ['author'],
+      groupBy: [{ kind: 'group-by-column', column: 'author' }],
       selects: [
         windowSel({
           alias: 'byAuthor',
@@ -284,7 +284,7 @@ describe('SqlGenerator — window functions', () => {
 
   it('grouped query: window arg (lag) on an ungrouped column fails fast', () => {
     const q = sqb({
-      groupBy: ['author'],
+      groupBy: [{ kind: 'group-by-column', column: 'author' }],
       selects: [
         windowSel({
           alias: 'prev',

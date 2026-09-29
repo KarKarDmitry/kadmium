@@ -90,7 +90,10 @@ describe('SingleQueryBuilder — modifiers', () => {
   it('groupBy pushes to sqb.groupBy', () => {
     const b = builder();
     b.groupBy((t: any) => [t.name]);
-    expect(b.sqb.groupBy).toContain('name');
+    expect(b.sqb.groupBy[0]).toMatchObject({
+      kind: 'group-by-column',
+      column: 'name',
+    });
   });
 
   it('order pushes to sqb.orders', () => {

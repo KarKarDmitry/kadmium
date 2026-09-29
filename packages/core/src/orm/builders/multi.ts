@@ -1,10 +1,11 @@
 import { KadmiumSqb, type AnySelectableField, orderToStep } from '../sqb';
-import type { WhereCondition, WhereExpression } from '../ast/where';
+import type { WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
 import {
   toSqlCondition,
+  groupByToStep,
   type SqlFragment,
   type SqlOrder,
 } from '../sql-fragment';
@@ -159,7 +160,7 @@ export class MultiQueryBuilder<
     left: keyof T & string;
     right: keyof T & string;
     direction?: 'inner' | 'left' | 'right' | 'outer';
-    on: (tables: MultiFilterProxy<T>) => WhereCondition;
+    on: (tables: MultiFilterProxy<T>) => WhereExpression | SqlFragment;
   }): this {
     const direction = options.direction ?? 'inner';
     // Дубликат пары (left, right, direction) в АСТ не добавляем (C11)
@@ -168,7 +169,7 @@ export class MultiQueryBuilder<
       j.right === options.right &&
       j.direction === direction;
     if (!this.sqb.joins.some(dupe)) {
-      const onCondition = options.on(this._createFilterProxy());
+      const onCondition = toSqlCondition(options.on(this._createFilterProxy()));
       this.sqb.joins.push({
         left: options.left,
         right: options.right,
@@ -251,9 +252,14 @@ export class MultiQueryBuilder<
 
   // ── groupBy ──
 
-  groupBy(fn: (t: MultiSelectProxy<T>) => SelectableField[]): this {
-    const fields = fn(this._createSelectProxy());
-    this.sqb.groupBy.push(...fields.map((f) => f.column ?? f.fieldName));
+  groupBy(
+    fn: (
+      t: MultiSelectProxy<T>,
+    ) => ReadonlyArray<SelectableField | SqlFragment>,
+  ): this {
+    const alias = this._mainAlias();
+    const items = fn(this._createSelectProxy());
+    this.sqb.groupBy.push(...items.flatMap((f) => groupByToStep(f, alias)));
     return this;
   }
 
@@ -319,6 +325,10 @@ export class MultiQueryBuilder<
         configureRelation(this.sqb, builder, relationConfig);
       }
     }
+  }
+
+  private _mainAlias(): string {
+    return [...this.sqb.tableContext.keys()][0] ?? Object.keys(this.irs)[0];
   }
 
   private _createFilterProxy(): MultiFilterProxy<T> {

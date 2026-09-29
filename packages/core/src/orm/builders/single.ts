@@ -5,6 +5,7 @@ import type { ModelIR } from '../../ir/index';
 import {
   toSqlCondition,
   toSqlValue,
+  groupByToStep,
   type SqlFragment,
   type SqlOrder,
 } from '../sql-fragment';
@@ -236,9 +237,14 @@ export class SingleQueryBuilder<
 
   // ── modifiers — return this (no type change) ──
 
-  groupBy(fn: (t: SelectProxy<TModel>) => SelectableField[]): this {
-    const fields = fn(this._createSelectProxy());
-    this.sqb.groupBy.push(...fields.map((f) => f.column ?? f.fieldName));
+  groupBy(
+    fn: (
+      t: SelectProxy<TModel>,
+    ) => ReadonlyArray<SelectableField | SqlFragment>,
+  ): this {
+    const alias = this._alias();
+    const items = fn(this._createSelectProxy());
+    this.sqb.groupBy.push(...items.flatMap((f) => groupByToStep(f, alias)));
     return this;
   }
 

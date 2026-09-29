@@ -362,7 +362,7 @@ describe('SqlGenerator — toSql: select', () => {
   it('GROUP BY', () => {
     const q = sqb({
       selects: [selectable('u', 'id'), aggregate('u', 'count', 'total')],
-      groupBy: ['id'],
+      groupBy: [{ kind: 'group-by-column', column: 'id' }],
     });
     const { text } = gen.toSql(q);
     expect(text).toContain('GROUP BY "u"."id"');
@@ -371,7 +371,7 @@ describe('SqlGenerator — toSql: select', () => {
   it('HAVING after GROUP BY resolves aggregate alias to expression', () => {
     const q = sqb({
       selects: [selectable('u', 'id'), aggregate('u', 'count', 'total')],
-      groupBy: ['id'],
+      groupBy: [{ kind: 'group-by-column', column: 'id' }],
       havings: {
         elements: [{ join: 'AND', condition: where('total', '>', 5, '') }],
       },

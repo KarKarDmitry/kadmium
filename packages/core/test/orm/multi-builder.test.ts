@@ -185,7 +185,11 @@ describe('MultiQueryBuilder — modifiers', () => {
     const b = multiBuilder();
 
     b.groupBy((t: any) => [t.u.name]);
-    expect(b.sqb.groupBy).toContain('name');
+    expect(b.sqb.groupBy[0]).toMatchObject({
+      kind: 'group-by-column',
+      column: 'name',
+      tableAlias: 'u',
+    });
   });
 });
 

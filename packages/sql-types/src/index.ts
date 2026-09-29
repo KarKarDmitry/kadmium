@@ -121,11 +121,30 @@ export interface OrderFragmentStep {
 /** Шаг ORDER BY: колонка или фрагмент. */
 export type OrderStep = OrderColumnStep | OrderFragmentStep;
 
+/** GROUP BY по обычной колонке: "alias"."column". */
+export interface GroupByColumnStep {
+  readonly kind: 'group-by-column';
+  /** Алиас таблицы; отсутствие → mainTableAlias при рендере */
+  readonly tableAlias?: string;
+  readonly column: string;
+}
+
+/** GROUP BY по sql-фрагменту: скомпилированный текст + локальные $N. */
+export interface GroupByFragmentStep {
+  readonly kind: 'group-by-fragment';
+  readonly text: string;
+  readonly values: readonly unknown[];
+  readonly slotOrder: readonly SlotDefinition[];
+}
+
+/** Шаг GROUP BY: колонка или фрагмент. */
+export type GroupByStep = GroupByColumnStep | GroupByFragmentStep;
+
 export interface JoinOptions {
   left: string;
   right: string;
   direction?: 'inner' | 'left' | 'right' | 'outer';
-  on?: WhereCondition | WhereGroup;
+  on?: WhereExpression;
 }
 
 export interface IncludedRelation {
@@ -165,7 +184,7 @@ export interface ReadonlySqb {
   readonly orders: readonly OrderStep[];
   readonly limit: number | null;
   readonly offset: number | null;
-  readonly groupBy: readonly string[];
+  readonly groupBy: readonly GroupByStep[];
   /** Data for UPDATE operations */
   readonly updateData: Record<string, unknown> | null;
   /** Data for UPSERT operations */

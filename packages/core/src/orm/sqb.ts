@@ -1,9 +1,10 @@
-import type { WhereCondition, WhereGroup } from './ast/where';
+import type { WhereGroup, WhereExpression } from './ast/where';
 import { createWhereGroup } from './ast/where';
 import type { SelectableField } from './ast/selectable';
 import { AggregateField } from './ast/aggregate';
 import type { WindowField } from './ast/window-field';
 import type { SqlSelectable, SqlOrder } from './sql-fragment';
+import type { GroupByStep } from './ast/group-by';
 import type { OrderStep } from '@karkardmitry/kadmium-sql-types';
 import type { OrderDirection } from './types/proxy';
 import type { ModelIR } from '../ir/index';
@@ -32,7 +33,7 @@ export type JoinOptions = {
   left: string;
   right: string;
   direction?: 'inner' | 'left' | 'right' | 'outer';
-  on: WhereCondition;
+  on: WhereExpression;
 };
 
 /**
@@ -56,7 +57,7 @@ export class KadmiumSqb {
   public offset: number | null = null;
   /** Cursor-based пагинация: позиция рендерится AND-членом в WHERE */
   public cursor: WhereGroup = createWhereGroup();
-  public groupBy: string[] = [];
+  public groupBy: GroupByStep[] = [];
   /** Data for UPDATE operations */
   public updateData: Record<string, unknown> | null = null;
   /** Data for UPSERT operations */

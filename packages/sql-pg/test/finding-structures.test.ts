@@ -55,7 +55,7 @@ describe('having() over an aggregate of an aliased column', () => {
           alias: 'flaggedCount',
         },
       ],
-      groupBy: ['post'],
+      groupBy: [{ kind: 'group-by-column', column: 'post' }],
       havings: group('AND', [
         {
           field: 'flaggedCount',
