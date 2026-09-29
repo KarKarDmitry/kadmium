@@ -81,12 +81,15 @@ describe('MultiQueryBuilder — join', () => {
     expect(b.sqb.joins[0].direction).toBe('left');
   });
 
-  it('skips a duplicate join of the same pair and direction (C11)', () => {
+  it('throws on a duplicate join of the same pair and direction (C11)', () => {
     const b = multiBuilder();
 
     b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
 
-    b.join({ left: 'u', right: 'p', on: (t: any) => t.u.name.eq(t.p.title) });
+    expect(() =>
+      b.join({ left: 'u', right: 'p', on: (t: any) => t.u.name.eq(t.p.title) }),
+    ).toThrow(/join\(\) on u ↔ p \(inner\) is already declared/);
+    // AST не изменился: второе условие не добавилось и не заменило первое
     expect(b.sqb.joins.length).toBe(1);
     expect(b.sqb.joins[0].on).toMatchObject({ field: 'id' });
   });

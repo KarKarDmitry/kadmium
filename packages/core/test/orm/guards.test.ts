@@ -16,6 +16,7 @@ import {
   assertDmlInsertNoGroupBy,
   assertDmlInsertNoWhere,
   assertSelectAliasKnown,
+  assertNoDuplicateJoin,
 } from '../../src/orm/guards';
 import { makeUserIR } from './helpers';
 
@@ -269,5 +270,62 @@ describe('guards — select: алиас таблицы', () => {
   it('принимает Set (irs.keys() из multi) и массив', () => {
     const items = [new SelectableField('p', 'id', undefined, undefined)];
     expect(() => assertSelectAliasKnown(items, new Set(known))).not.toThrow();
+  });
+});
+
+describe('guards — join: дубликат пары алиасов', () => {
+  /** SQB с одним JOIN u→p; direction не указан — inner по умолчанию. */
+  function withJoin(
+    direction?: 'inner' | 'left' | 'right' | 'outer',
+  ): KadmiumSqb {
+    const sqb = new KadmiumSqb();
+    sqb.joins.push({
+      left: 'u',
+      right: 'p',
+      direction,
+      on: {
+        alias: 'u',
+        field: 'id',
+        column: 'id',
+        op: '=',
+        value: 1,
+      },
+    });
+    return sqb;
+  }
+
+  it('первый join() пары не бросает', () => {
+    const sqb = new KadmiumSqb();
+    expect(() => assertNoDuplicateJoin(sqb, 'u', 'p', 'inner')).not.toThrow();
+  });
+
+  it('повтор пары и направления ловится', () => {
+    expect(() =>
+      assertNoDuplicateJoin(withJoin('inner'), 'u', 'p', 'inner'),
+    ).toThrow(/join\(\) on u ↔ p \(inner\) is already declared/);
+  });
+
+  it('дубликат по умолчанию (inner) ловится, direction не указан', () => {
+    expect(() => assertNoDuplicateJoin(withJoin(), 'u', 'p', 'inner')).toThrow(
+      /is already declared/,
+    );
+  });
+
+  it('та же пара с другим направлением разрешена', () => {
+    expect(() =>
+      assertNoDuplicateJoin(withJoin('left'), 'u', 'p', 'inner'),
+    ).not.toThrow();
+  });
+
+  it('обратная пара алиасов — другой JOIN, разрешена', () => {
+    expect(() =>
+      assertNoDuplicateJoin(withJoin('inner'), 'p', 'u', 'inner'),
+    ).not.toThrow();
+  });
+
+  it('сообщение объясняет, что дубликат не отбрасывается молча', () => {
+    expect(() => assertNoDuplicateJoin(withJoin(), 'u', 'p', 'inner')).toThrow(
+      /rejected instead of dropped silently/,
+    );
   });
 });

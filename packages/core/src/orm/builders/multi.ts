@@ -32,7 +32,7 @@ import {
   type IncludeConfigValue,
 } from './include-utils';
 import type { SqlPreviewTerminal } from './single';
-import { assertSelectAliasKnown } from '../guards';
+import { assertNoDuplicateJoin, assertSelectAliasKnown } from '../guards';
 
 export type MultiIncludeConfig<T extends AliasesMap> = {
   [A in keyof T & string]?: IncludeConfig<
@@ -148,25 +148,21 @@ export class MultiQueryBuilder<
     ) => WhereExpression | SqlFragment | undefined;
   }): this {
     const direction = options.direction ?? 'inner';
-    // Дубликат пары (left, right, direction) в АСТ не добавляем (C11)
-    const dupe = (j: (typeof this.sqb.joins)[number]) =>
-      j.left === options.left &&
-      j.right === options.right &&
-      j.direction === direction;
-    if (!this.sqb.joins.some(dupe)) {
-      const rawOn = options.on(this._createFilterProxy());
-      if (rawOn === undefined)
-        throw new Error(
-          `join.on: empty expression for ${options.left}↔${options.right} — provide a condition`,
-        );
-      const onCondition = toSqlCondition(rawOn);
-      this.sqb.joins.push({
-        left: options.left,
-        right: options.right,
-        direction,
-        on: onCondition,
-      });
-    }
+    // Дубликат пары (left, right, direction) — ошибка, а не тихий пропуск (C11):
+    // молчаливое отбрасывание теряло второй on() вместе с его условием.
+    assertNoDuplicateJoin(this.sqb, options.left, options.right, direction);
+    const rawOn = options.on(this._createFilterProxy());
+    if (rawOn === undefined)
+      throw new Error(
+        `join.on: empty expression for ${options.left}↔${options.right} — provide a condition`,
+      );
+    const onCondition = toSqlCondition(rawOn);
+    this.sqb.joins.push({
+      left: options.left,
+      right: options.right,
+      direction,
+      on: onCondition,
+    });
     return this;
   }
 

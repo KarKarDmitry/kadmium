@@ -1,4 +1,4 @@
-import type { KadmiumSqb } from './sqb';
+import type { JoinOptions, KadmiumSqb } from './sqb';
 
 /**
  * Гарды целостности SQB для DML-операций и multi-select.
@@ -30,6 +30,9 @@ type DmlSqB = Pick<
   KadmiumSqb,
   'limit' | 'offset' | 'orders' | 'groupBy' | 'cursor' | 'wheres'
 >;
+
+/** Поля sqb, которые читает join-гард. */
+type JoinsSqB = Pick<KadmiumSqb, 'joins'>;
 
 /**
  * Алиас таблицы селекта, если он вообще есть.
@@ -64,6 +67,25 @@ function hasGroupBy(sqb: DmlSqB): boolean {
 
 function hasWhere(sqb: DmlSqB): boolean {
   return sqb.wheres.elements.length > 0;
+}
+
+/**
+ * Уже объявлен JOIN с этой парой алиасов и этим направлением.
+ * Направление сравниваем через `?? 'inner'`: in-memory sqb всегда пишет
+ * его явно, но ручной/клонированный AST мог сохранить undefined.
+ */
+function hasDuplicateJoin(
+  sqb: JoinsSqB,
+  left: string,
+  right: string,
+  direction: NonNullable<JoinOptions['direction']>,
+): boolean {
+  return sqb.joins.some(
+    (j) =>
+      j.left === left &&
+      j.right === right &&
+      (j.direction ?? 'inner') === direction,
+  );
 }
 
 /**
@@ -204,6 +226,29 @@ export function assertSelectAliasKnown(
     `Unknown table alias${unknown.length > 1 ? 'es' : ''} ` +
       `${unknown.map((a) => `"${a}"`).join(', ')} in select().${hint} ` +
       `Check the aliases passed to orm.query({...}).`,
+  );
+}
+
+/**
+ * Повторный join() той же пары алиасов и направления.
+ *
+ * Раньше дубликат молча пропускался (C11): второй `on` не добавлялся
+ * в AST, но и вызов не ошибался — условие соединения исчезало без следа,
+ * и запрос расходился с задуманным. JOIN без `on` в SQL не соберётся
+ * (адаптер добавляет только пары с условием), поэтому тихий пропуск
+ * маскировал опечатку в алиасах/направлении.
+ */
+export function assertNoDuplicateJoin(
+  sqb: JoinsSqB,
+  left: string,
+  right: string,
+  direction: NonNullable<JoinOptions['direction']>,
+): void {
+  if (!hasDuplicateJoin(sqb, left, right, direction)) return;
+  throw new Error(
+    `join() on ${left} ↔ ${right} (${direction}) is already declared.\n` +
+      `A duplicate JOIN is rejected instead of dropped silently — the second on() condition would disappear. ` +
+      `Reuse the existing join() and add the extra condition to where(), or drop the previous call.`,
   );
 }
 

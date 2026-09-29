@@ -365,6 +365,24 @@ describe('guards: multi select — алиас таблицы', () => {
         .compile(),
     ).toThrow(/Unknown table alias/);
   });
+
+  it('дубликат join() падает на строке сборки, данные не пострадали', async () => {
+    const q = () => h.orm.query({ u: UserModel, p: PostModel });
+    const build = () =>
+      q()
+        .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+        // Второй join той же пары: раньше молча игнорировался
+        .join({ left: 'u', right: 'p', on: (t) => t.p.published.eq(true) });
+    expect(() => build()).toThrow(
+      /join\(\) on u ↔ p \(inner\) is already declared/,
+    );
+    // Тот же запрос без дубля по-прежнему работает — гард точечный
+    const rows = await q()
+      .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
+      .select((t) => [t.u.name, t.p.title])
+      .go();
+    expect(rows.length).toBeGreaterThan(0);
+  });
 });
 
 describe('guards: граница с терминалами и prepared-каналом', () => {
