@@ -41,6 +41,8 @@ PostgreSQL-specific:
 - **`COALESCE(json_agg(subq), '[]'::json)`** — empty array for one-to-many
 - **Window functions** — `_renderWindow` renders `FUNC(field, $N…) OVER (PARTITION BY … ORDER BY … ROWS BETWEEN …)`, args → `values.push`; rank-family requires ORDER BY (enforced at render)
 - **DML expression values** — a `sql`-fragment *value* in update/create/createMany/`onConflict().set()` renders via `renderValueCell`: duck-typed `isSqlValueFragment` (`kind:'sql-value'`) → `shiftParameters` local `$1..$N` onto the current `paramIndex`, concatenate `values`, shift+dedup `slotOrder`; anything else → `$${paramIndex.p++}` param. `renderConflictClause(keys, conflictTarget, doNothing, setMap, values, paramIndex)` — `doNothing` wins; default SET is `EXCLUDED."k"` for every non-target key, or the explicit `setMap` (F, `204e91d`)
+- **JOIN ON** — `_renderJoinOn` dispatcher for `WhereExpression`: plain `WhereCondition` → `_buildConditionSql`; `WhereGroup` → `_buildWhereGroupSql` (parens when `hasSiblings`); `WhereFragment` → `_renderWhereFragment` (P1 + `$N` shift). A group/fragment on a fully-joined edge (self-join) is pushed to the WHERE extras parenthesized — never silently dropped (C, `34ed318`)
+- **GROUP BY** — `ReadonlySqb.groupBy` is `GroupByStep[]`: `group-by-column` renders `"alias"."col"` (step `tableAlias` or `mainTableAlias` fallback), `group-by-fragment` renders through `_renderGroupByFragmentStep` (local `$1..$N` shifted onto `paramIndex`, values/slotOrder pushed, mirror of the ORDER BY fragment step). Window validation matches group columns by name **and** alias (empty `tableAlias` = legacy fallback) (C, `34ed318`)
 
 ## Include System
 

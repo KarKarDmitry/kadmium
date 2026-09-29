@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SingleQueryBuilder } from '../../src/orm/builders/single';
 import { and, or } from '../../src/orm/where-expression';
+import { sql } from '../../src/orm/sql-fragment';
 import { makeUserIR, makeMockAdapter, type MockAdapter } from './helpers';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
@@ -94,6 +95,12 @@ describe('SingleQueryBuilder — modifiers', () => {
       kind: 'group-by-column',
       column: 'name',
     });
+  });
+
+  it('groupBy accepts a sql-fragment step', () => {
+    const b = builder();
+    b.groupBy((t: any) => [sql`lower(${t.name})`]);
+    expect(b.sqb.groupBy[0]).toMatchObject({ kind: 'group-by-fragment' });
   });
 
   it('order pushes to sqb.orders', () => {

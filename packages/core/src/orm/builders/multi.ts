@@ -160,7 +160,9 @@ export class MultiQueryBuilder<
     left: keyof T & string;
     right: keyof T & string;
     direction?: 'inner' | 'left' | 'right' | 'outer';
-    on: (tables: MultiFilterProxy<T>) => WhereExpression | SqlFragment;
+    on: (
+      tables: MultiFilterProxy<T>,
+    ) => WhereExpression | SqlFragment | undefined;
   }): this {
     const direction = options.direction ?? 'inner';
     // Дубликат пары (left, right, direction) в АСТ не добавляем (C11)
@@ -169,7 +171,12 @@ export class MultiQueryBuilder<
       j.right === options.right &&
       j.direction === direction;
     if (!this.sqb.joins.some(dupe)) {
-      const onCondition = toSqlCondition(options.on(this._createFilterProxy()));
+      const rawOn = options.on(this._createFilterProxy());
+      if (rawOn === undefined)
+        throw new Error(
+          `join.on: empty expression for ${options.left}↔${options.right} — provide a condition`,
+        );
+      const onCondition = toSqlCondition(rawOn);
       this.sqb.joins.push({
         left: options.left,
         right: options.right,

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { MultiQueryBuilder } from '../../src/orm/builders/multi';
+import { or } from '../../src/orm/where-expression';
+import { sql } from '../../src/orm/sql-fragment';
 import {
   makeUserIR,
   makePostIR,
@@ -101,6 +103,28 @@ describe('MultiQueryBuilder — join', () => {
 
     b.join({ left: 'u', right: 'p', on: (t: any) => t.u.id.eq(t.p.author) });
     expect(b.sqb.joins.length).toBe(2);
+  });
+
+  it('accepts a sql-fragment as join.on (precompiled to SqlCondition)', () => {
+    const b = multiBuilder();
+
+    b.join({
+      left: 'u',
+      right: 'p',
+      on: (t: any) => sql`${t.u.id} = ${t.p.author}`,
+    });
+    expect(b.sqb.joins[0].on).toMatchObject({ kind: 'sql-condition' });
+  });
+
+  it('accepts a group expression as join.on', () => {
+    const b = multiBuilder();
+
+    b.join({
+      left: 'u',
+      right: 'p',
+      on: (t: any) => or(t.u.id.eq(t.p.author), t.u.active.eq(t.p.title)),
+    });
+    expect(b.sqb.joins[0].on).toHaveProperty('elements');
   });
 });
 

@@ -8,6 +8,7 @@
 > Updated 2026-09-16 — F2 resolved (B1/B2, `931aab2`): `OrmManager.raw()`/`run()`/`transaction()` landed.
 > Updated 2026-09-25 — C-блок sql-тега закрыт: C1 тег (`bf0e406`), C2 select-embed/overloads/array()/order-embed (`5699286`/`8f954d7`/`59afe1c`/`59e11b4`), C3 `@deprecated` toSql (`952a3a5`).
 > Updated 2026-09-25 — DML-выражения (F из builder-expression, `204e91d`): sql-фрагменты в update/create/createMany + `onConflict().set()`.
+> Updated 2026-09-29 — join().on + groupBy (вариант 2 из builder-expression План 3, `34ed318`): `JoinOptions.on` принимает `WhereCondition | WhereGroup | WhereFragment`; `groupBy` — шаги `GroupByColumnStep | GroupByFragmentStep` (алиас колонки едет в АСТ, фикс латентного `"main"."col"` бага); рендер ON-диспетчер и GROUP BY-шаги в sql-pg (`34ed318`).
 
 ---
 

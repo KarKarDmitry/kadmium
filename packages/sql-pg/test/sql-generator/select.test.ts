@@ -382,6 +382,40 @@ describe('SqlGenerator — toSql: select', () => {
     expect(values).toEqual([5]);
   });
 
+  it('GROUP BY renders a non-main table alias', () => {
+    const q = sqb({
+      tableContext: new Map([
+        ['u', 'users'],
+        ['p', 'posts'],
+      ]),
+      selects: [
+        selectable('u', 'id'),
+        selectable('p', 'author'),
+        aggregate('u', 'count', 'total'),
+      ],
+      groupBy: [{ kind: 'group-by-column', tableAlias: 'p', column: 'author' }],
+    });
+    const { text } = gen.toSql(q);
+    expect(text).toContain('GROUP BY "p"."author"');
+  });
+
+  it('GROUP BY renders a sql-fragment step with values', () => {
+    const q = sqb({
+      selects: [selectable('u', 'id'), aggregate('u', 'count', 'total')],
+      groupBy: [
+        {
+          kind: 'group-by-fragment',
+          text: 'date_trunc($1, "u"."createdAt")',
+          values: ['month'],
+          slotOrder: [],
+        },
+      ],
+    });
+    const { text, values } = gen.toSql(q);
+    expect(text).toContain('GROUP BY date_trunc($1, "u"."createdAt")');
+    expect(values).toEqual(['month']);
+  });
+
   it('HAVING without GROUP BY resolves aggregate alias to expression', () => {
     const q = sqb({
       selects: [aggregate('u', 'count', 'total')],
