@@ -32,6 +32,7 @@ import {
   type IncludeConfigValue,
 } from './include-utils';
 import type { SqlPreviewTerminal } from './single';
+import { assertSelectAliasKnown } from '../guards';
 
 export type MultiIncludeConfig<T extends AliasesMap> = {
   [A in keyof T & string]?: IncludeConfig<
@@ -199,6 +200,7 @@ export class MultiQueryBuilder<
         : Array.isArray(source)
           ? source
           : [source];
+    assertSelectAliasKnown(items, this.irs.keys());
     sqb.selects = [...items] as AnySelectableField[];
     return this._buildSelectTerminal(sqb, false);
   }
@@ -244,6 +246,7 @@ export class MultiQueryBuilder<
         : Array.isArray(source)
           ? source
           : [source];
+    assertSelectAliasKnown(items, this.irs.keys());
     sqb.selects = [...items] as AnySelectableField[];
     sqb.limit = 1;
     const base = this._buildSelectTerminal(sqb, true);

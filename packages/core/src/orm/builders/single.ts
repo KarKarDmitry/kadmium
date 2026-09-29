@@ -61,6 +61,7 @@ import { buildWriteFinalizer } from './write-finalizer';
 import { buildRelation, configureRelation } from './include-utils';
 import { mapRow } from './utils';
 import { BaseQueryBuilder } from './base-query-builder';
+import { assertDmlDelete, assertDmlInsert, assertDmlUpdate } from '../guards';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -288,6 +289,7 @@ export class SingleQueryBuilder<
     data: DmlData<TModel>,
   ): import('./upsert-helpers').CreateFinalizer<TModel> {
     if (!this.adapter) throw new Error('No adapter configured; cannot create.');
+    assertDmlInsert(this.sqb);
     return buildCreateFinalizer<TModel>(
       this.sqb.clone(),
       this.adapter,
@@ -311,6 +313,7 @@ export class SingleQueryBuilder<
         sql: () => '',
       };
     }
+    assertDmlInsert(this.sqb);
     const mapped = data.map((row) => this._mapData(row));
     return buildCreateManyFinalizer<TModel>(
       this.sqb.clone(),
@@ -324,6 +327,7 @@ export class SingleQueryBuilder<
   // ── UPDATE / DELETE ──
 
   update(data: DmlData<TModel>): UpdateFinalizer<TModel> {
+    assertDmlUpdate(this.sqb);
     const sqb = this.sqb.clone();
     sqb.operation = 'update';
     sqb.updateData = this._mapData(data);
@@ -337,6 +341,7 @@ export class SingleQueryBuilder<
   }
 
   delete(): UpdateFinalizer<TModel> {
+    assertDmlDelete(this.sqb);
     const sqb = this.sqb.clone();
     sqb.operation = 'delete';
     return buildWriteFinalizer<TModel>(
