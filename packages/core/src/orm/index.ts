@@ -3,6 +3,13 @@ export type { RawRunner } from './compiled-query';
 export { SingleQueryBuilder } from './builders/single';
 export { MultiQueryBuilder } from './builders/multi';
 export type { MultiSelectResult } from './builders/multi';
+export type {
+  SingleShared,
+  SingleConfigHandle,
+  SingleOrderingBranch,
+  SingleCursorBranch,
+  MultiConfigHandle,
+} from './builders/handles';
 export { KadmiumSqb } from './sqb';
 export { and, or } from './where-expression';
 export { SelectableField } from './ast/selectable';

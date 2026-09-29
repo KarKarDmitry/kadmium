@@ -487,6 +487,16 @@ describe('SingleQueryBuilder — count', () => {
     const result = await b.count().go();
     expect(result).toBe(0);
   });
+
+  it('count() resets limit/offset (S2)', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ count: '7' }]);
+    const b = builder(adapter).limit(10).offset(5);
+    await b.count().go();
+    const sqb: any = adapter.execute.mock.calls[0][0];
+    expect(sqb.limit).toBeNull();
+    expect(sqb.offset).toBeNull();
+  });
 });
 
 describe('SingleQueryBuilder — exists', () => {
@@ -504,6 +514,16 @@ describe('SingleQueryBuilder — exists', () => {
     const b = builder(adapter);
     const result = await b.exists().go();
     expect(result).toBe(false);
+  });
+
+  it('exists() resets offset and keeps LIMIT 1 (S3)', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ id: 1 }]);
+    const b = builder(adapter).offset(5);
+    await b.exists().go();
+    const sqb: any = adapter.execute.mock.calls[0][0];
+    expect(sqb.offset).toBeNull();
+    expect(sqb.limit).toBe(1);
   });
 });
 

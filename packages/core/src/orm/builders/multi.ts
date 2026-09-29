@@ -1,4 +1,4 @@
-import { type AnySelectableField } from '../sqb';
+import { KadmiumSqb, type AnySelectableField } from '../sqb';
 import type { WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
@@ -31,8 +31,9 @@ import {
   configureRelation,
   type IncludeConfigValue,
 } from './include-utils';
+import type { SqlPreviewTerminal } from './single';
 
-type MultiIncludeConfig<T extends AliasesMap> = {
+export type MultiIncludeConfig<T extends AliasesMap> = {
   [A in keyof T & string]?: IncludeConfig<
     InstanceType<T[A]> extends {
       ['~shape']: Record<string, unknown>;
@@ -71,6 +72,30 @@ export interface MultiSelectResult<
   compile<NS extends readonly (AnySelectable | AnyArrayField)[]>(
     slots: MultiQuerySlots<T, NS>,
   ): CompiledQuery<ToDef<NS>, FinalResult<S, T, C>[]>;
+}
+
+/**
+ * MultiFirstResult — терминал multi-запроса с разворачиванием первой строки.
+ * first() = select() + LIMIT 1: go() возвращает одну строку | undefined,
+ * compile() помечает single: true (unwrap в orm.run, как у single.first()).
+ */
+export interface MultiFirstResult<
+  S extends readonly AnySelectable[],
+  T extends AliasesMap,
+  C extends MultiIncludeConfig<T> = Record<never, never>,
+> {
+  /**
+   * @deprecated Используйте `.compile()` — он возвращает CompiledQuery с
+   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().sql()`.
+   */
+  toSql(): string;
+  go(): Promise<FinalResult<S, T, C> | undefined>;
+  compile<
+    TSlots extends Record<string, unknown> = Record<string, never>,
+  >(): CompiledQuery<TSlots, FinalResult<S, T, C> | undefined>;
+  compile<NS extends readonly (AnySelectable | AnyArrayField)[]>(
+    slots: MultiQuerySlots<T, NS>,
+  ): CompiledQuery<ToDef<NS>, FinalResult<S, T, C> | undefined>;
 }
 
 /**
@@ -175,32 +200,7 @@ export class MultiQueryBuilder<
           ? source
           : [source];
     sqb.selects = [...items] as AnySelectableField[];
-    const result: MultiSelectResult<readonly AnySelectable[], T, TInclude> = {
-      toSql: () => this._toSqlFrom(sqb),
-      go: () => {
-        if (this.adapter) {
-          return this.adapter.execute(sqb) as Promise<
-            FinalResult<readonly AnySelectable[], T, TInclude>[]
-          >;
-        }
-        throw new Error('No adapter configured; cannot execute query.');
-      },
-      compile: (slots?: MultiQuerySlots<T, any>) => {
-        const snap = sqb.clone();
-        if (!this.adapter)
-          throw new Error('No adapter configured; cannot compile SQL.');
-        const { text, values, slotOrder } = this.adapter.toSql(snap);
-        slots?.assertSlotNames(slotOrder ?? []);
-        return {
-          text,
-          values: values as (unknown | HoleRef)[],
-          slotOrder: slotOrder ?? [],
-          single: false,
-          sqb: snap,
-        } as unknown as CompiledQuery<any, any>;
-      },
-    };
-    return result;
+    return this._buildSelectTerminal(sqb, false);
   }
 
   // ── include ──
@@ -212,6 +212,91 @@ export class MultiQueryBuilder<
       config as Record<string, Record<string, IncludeConfigValue>>,
     );
     return this as unknown as MultiQueryBuilder<T, C>;
+  }
+
+  // ── first ──
+
+  first<const S extends readonly AnySelectable[]>(
+    fn: (t: MultiSelectProxy<T>, tools: SelectTools) => S,
+  ): MultiFirstResult<S, T, TInclude>;
+  first<const S extends readonly AnySelectable[]>(
+    items: S,
+  ): MultiFirstResult<S, T, TInclude>;
+  first<const S extends AnySelectable>(
+    item: S,
+  ): MultiFirstResult<[S], T, TInclude>;
+  first(
+    source:
+      | ((
+          t: MultiSelectProxy<T>,
+          tools: SelectTools,
+        ) => readonly AnySelectable[])
+      | readonly AnySelectable[]
+      | AnySelectable,
+  ): MultiFirstResult<readonly AnySelectable[], T, TInclude> {
+    const sqb = this.sqb.clone();
+    const items =
+      typeof source === 'function'
+        ? source(this._createSelectProxy(), {
+            agg: aggregates,
+            wf: windowFunctions,
+          })
+        : Array.isArray(source)
+          ? source
+          : [source];
+    sqb.selects = [...items] as AnySelectableField[];
+    sqb.limit = 1;
+    const base = this._buildSelectTerminal(sqb, true);
+    return {
+      toSql: base.toSql,
+      // runtime-объект общий; TResult различается только статически: single:true
+      // разворачивает строку в orm.run (compile().sqb — тот же снапшот).
+      compile: base.compile as unknown as MultiFirstResult<
+        readonly AnySelectable[],
+        T,
+        TInclude
+      >['compile'],
+      go: async () => {
+        const rows = await base.go();
+        return rows[0];
+      },
+    };
+  }
+
+  // ── count / exists ──
+
+  count(): SqlPreviewTerminal<number> {
+    const sqb = this.sqb.clone();
+    sqb.selects = [aggregates.count('*').as('count')];
+    // S2: count() считает ВСЕ строки, пагинация (limit/offset) не должна влиять.
+    sqb.limit = null;
+    sqb.offset = null;
+    return {
+      sql: () => this._toSqlFrom(sqb),
+      go: async (): Promise<number> => {
+        if (!this.adapter)
+          throw new Error('No adapter configured; cannot execute query.');
+        const results = await this.adapter.execute(sqb);
+        return Number(results[0]?.count ?? 0);
+      },
+    };
+  }
+
+  exists(): SqlPreviewTerminal<boolean> {
+    const sqb = this.sqb.clone();
+    if (!sqb.selects) sqb.selects = this._buildAllSelects();
+    sqb.limit = 1;
+    // S3: exists() проверяет наличие любых строк — offset не должен влиять.
+    sqb.offset = null;
+    return {
+      sql: () => this._toSqlFrom(sqb),
+      go: async (): Promise<boolean> => {
+        if (!this.adapter)
+          throw new Error('No adapter configured; cannot execute query.');
+        const results = await this.adapter.execute(sqb);
+        return results.length > 0;
+      },
+    };
   }
 
   // ── private ──
@@ -240,6 +325,55 @@ export class MultiQueryBuilder<
 
   protected _fallbackAlias(): string {
     return Object.keys(this.irs)[0] ?? '';
+  }
+
+  /** Дефолтный select multi: все колонки всех таблиц ("u".*, "p".*, ...). */
+  private _buildAllSelects(): AnySelectableField[] {
+    const all: AnySelectableField[] = [];
+    for (const [alias, ir] of this.irs) {
+      for (const [name, f] of Object.entries(ir.fields)) {
+        if (f.sourceModel) continue;
+        all.push(
+          new SelectableField(alias, name, undefined, undefined, f.alias),
+        );
+      }
+    }
+    return all;
+  }
+
+  /**
+   * Общий терминал multi-запроса по снапшоту sqb. `single` помечает first():
+   * compile() отдаёт single:true (unwrap в orm.run).
+   */
+  private _buildSelectTerminal(
+    sqb: KadmiumSqb,
+    single: boolean,
+  ): MultiSelectResult<readonly AnySelectable[], T, TInclude> {
+    return {
+      toSql: () => this._toSqlFrom(sqb),
+      go: () => {
+        if (this.adapter) {
+          return this.adapter.execute(sqb) as Promise<
+            FinalResult<readonly AnySelectable[], T, TInclude>[]
+          >;
+        }
+        throw new Error('No adapter configured; cannot execute query.');
+      },
+      compile: (slots?: MultiQuerySlots<T, any>) => {
+        const snap = sqb.clone();
+        if (!this.adapter)
+          throw new Error('No adapter configured; cannot compile SQL.');
+        const { text, values, slotOrder } = this.adapter.toSql(snap);
+        slots?.assertSlotNames(slotOrder ?? []);
+        return {
+          text,
+          values: values as (unknown | HoleRef)[],
+          slotOrder: slotOrder ?? [],
+          single,
+          sqb: snap,
+        } as unknown as CompiledQuery<any, any>;
+      },
+    };
   }
 
   protected _createFilterProxy(): MultiFilterProxy<T> {

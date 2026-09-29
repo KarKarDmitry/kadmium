@@ -234,6 +234,7 @@ export class SingleQueryBuilder<
    * Keyset-пагинация: продолжить выборку с ключевой позиции.
    * Семантически WHERE-условие, рендерится отдельным AND-членом в скобках.
    * Только поля-условия — sql-фрагменты тут не принимаются (keyset по order()).
+   * Возврат — `this` (ветка Narrow видна на уровне handle-поверхности).
    */
   cursor(
     fn: (t: FilterProxy<TModel>) => CursorWhereExpression | undefined,
@@ -415,6 +416,9 @@ export class SingleQueryBuilder<
   count(): SqlPreviewTerminal<number> {
     const sqb = this.sqb.clone();
     sqb.selects = [aggregates.count('*').as('count')];
+    // S2: count() считает ВСЕ строки, пагинация (limit/offset) не должна влиять.
+    sqb.limit = null;
+    sqb.offset = null;
     return {
       sql: () => this._toSqlFrom(sqb),
       go: async (): Promise<number> => {
@@ -429,6 +433,8 @@ export class SingleQueryBuilder<
   exists(): SqlPreviewTerminal<boolean> {
     const sqb = this.sqb.clone();
     sqb.limit = 1;
+    // S3: exists() проверяет наличие любых строк — offset не должен влиять.
+    sqb.offset = null;
     this._materializeSelects(sqb);
     return {
       sql: () => this._toSqlFrom(sqb),

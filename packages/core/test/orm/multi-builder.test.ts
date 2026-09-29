@@ -217,6 +217,84 @@ describe('MultiQueryBuilder — modifiers', () => {
   });
 });
 
+describe('MultiQueryBuilder — count/exists/first', () => {
+  it('count() returns number and resets limit/offset (S2)', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ count: '7' }]);
+    const b = multiBuilder(adapter).limit(10).offset(5);
+    const result = await b.count().go();
+    expect(result).toBe(7);
+    const sqb: any = adapter.execute.mock.calls[0][0];
+    expect(sqb.limit).toBeNull();
+    expect(sqb.offset).toBeNull();
+  });
+
+  it('count() overrides selects with COUNT(*)', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ count: '2' }]);
+    const b = multiBuilder(adapter);
+    await b.count().go();
+    const sqb: any = adapter.execute.mock.calls[0][0];
+    expect(sqb.selects).toHaveLength(1);
+    expect(sqb.selects[0].kind).toBe('aggregate');
+    expect(sqb.selects[0].func).toBe('count');
+    expect(sqb.selects[0].field).toBe('*');
+    expect(sqb.selects[0].alias).toBe('count');
+  });
+
+  it('exists() materializes default select (all tables) with LIMIT 1 and no offset', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ id: 1 }]);
+    const b = multiBuilder(adapter).offset(5);
+    const yes = await b.exists().go();
+    expect(yes).toBe(true);
+    const sqb: any = adapter.execute.mock.calls[0][0];
+    expect(sqb.limit).toBe(1);
+    expect(sqb.offset).toBeNull();
+    const cols = sqb.selects
+      .map((s: any) => `${s.tableAlias}.${s.column}`)
+      .sort();
+    expect(cols).toEqual([
+      'p.author',
+      'p.id',
+      'p.title',
+      'u.active',
+      'u.age',
+      'u.email',
+      'u.id',
+      'u.name',
+    ]);
+  });
+
+  it('first() applies select on a snapshot, LIMIT 1, and unwraps rows[0]', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([{ name: 'Alice' }, { name: 'Bob' }]);
+    const b = multiBuilder(adapter);
+    const row = await b.first((t: any) => [t.u.name]).go();
+    expect(row).toEqual({ name: 'Alice' });
+    const sqb: any = adapter.execute.mock.calls[0][0];
+    expect(sqb.limit).toBe(1);
+    expect(b.sqb.selects).toBeNull();
+  });
+
+  it('first() returns undefined when no rows', async () => {
+    const adapter = makeMockAdapter();
+    adapter.execute.mockResolvedValue([]);
+    const b = multiBuilder(adapter);
+    const row = await b.first((t: any) => [t.u.name]).go();
+    expect(row).toBeUndefined();
+  });
+
+  it('first().compile() marks the query as single (unwrap)', async () => {
+    const adapter = makeMockAdapter();
+    adapter.toSql.mockReturnValue({ text: 'SELECT 1', values: [] });
+    const b = multiBuilder(adapter);
+    const c = b.first((t: any) => [t.u.name]).compile();
+    expect(c.single).toBe(true);
+    expect(c.text).toBe('SELECT 1');
+  });
+});
+
 describe('MultiQueryBuilder — toSql', () => {
   it('throws without adapter', () => {
     const b = multiBuilder();

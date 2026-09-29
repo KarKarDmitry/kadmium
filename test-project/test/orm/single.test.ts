@@ -91,4 +91,14 @@ describe('single: select / update / delete', () => {
       .where((p) => p.title.eq('Stateless Count'))
       .go();
   });
+
+  it('count() counts all users regardless of limit/offset (S2)', async () => {
+    const n = await h.orm.single(UserModel).limit(1).offset(1).count().go();
+    expect(n).toBe(3);
+  });
+
+  it('exists() ignores offset (S3)', async () => {
+    const yes = await h.orm.single(UserModel).offset(5).exists().go();
+    expect(yes).toBe(true);
+  });
 });

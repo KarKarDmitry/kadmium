@@ -1,5 +1,6 @@
 import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/multi';
+import type { SingleConfigHandle, MultiConfigHandle } from './builders/handles';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
@@ -62,13 +63,13 @@ export class OrmManager {
       ['~rel']: Record<string, unknown>;
       ['~relInfo']: Record<string, unknown>;
     },
-  >(modelClass: { new (): TModel }, ir?: ModelIR): SingleQueryBuilder<TModel> {
+  >(modelClass: { new (): TModel }, ir?: ModelIR): SingleConfigHandle<TModel> {
     const compiled = ir ?? this._irFor(modelClass);
     return new SingleQueryBuilder<TModel>(
       compiled,
       this._irLookup,
       this._adapter,
-    );
+    ) as unknown as SingleConfigHandle<TModel>;
   }
 
   /**
@@ -108,12 +109,16 @@ export class OrmManager {
         };
       };
     },
-  >(aliases: T): MultiQueryBuilder<T> {
+  >(aliases: T): MultiConfigHandle<T> {
     const irs = new Map<string, ModelIR>();
     for (const [alias, cls] of Object.entries(aliases)) {
       irs.set(alias, this._irFor(cls as { new (): object }));
     }
-    return new MultiQueryBuilder<T>(irs, this._irLookup, this._adapter);
+    return new MultiQueryBuilder<T>(
+      irs,
+      this._irLookup,
+      this._adapter,
+    ) as unknown as MultiConfigHandle<T>;
   }
 
   /**

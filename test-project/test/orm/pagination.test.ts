@@ -208,8 +208,11 @@ describe('cursor: keyset pagination', () => {
   });
 
   it('throws without order()', () => {
-    expect(() => h.orm.single(UserModel).cursor((u) => u.id.gt(1))).toThrow(
-      /requires an order/,
-    );
+    // cursor() недоступен на типе SingleConfigHandle (нужен order()) —
+    // здесь проверяем рантайм-гард, поэтому снимаем тип через as any.
+    expect(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (h.orm.single(UserModel) as any).cursor((u: any) => u.id.gt(1));
+    }).toThrow(/requires an order/);
   });
 });
