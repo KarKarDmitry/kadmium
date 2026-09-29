@@ -1,20 +1,15 @@
-import { KadmiumSqb, type AnySelectableField, orderToStep } from '../sqb';
+import { type AnySelectableField } from '../sqb';
 import type { WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
-import {
-  toSqlCondition,
-  groupByToStep,
-  type SqlFragment,
-  type SqlOrder,
-} from '../sql-fragment';
+import { BaseQueryBuilder } from './base-query-builder';
+import { toSqlCondition, type SqlFragment } from '../sql-fragment';
 import type { ModelIR } from '../../ir/index';
 import type {
   MultiFilterProxy,
   MultiSelectProxy,
   MultiOrderProxy,
-  OrderDirection,
   AliasesMap,
   FinalResult,
   SelectTools,
@@ -31,7 +26,6 @@ import type { AnySelectable } from '../types/includes';
 import type { AnyFilterProxy } from '../types/phantom';
 import type { AnyArrayField } from '../ast/array-field';
 import type { MultiQuerySlots, ToDef } from '../query-slots';
-import { buildDebugSql } from './utils';
 import {
   buildRelation,
   configureRelation,
@@ -85,21 +79,20 @@ export interface MultiSelectResult<
 export class MultiQueryBuilder<
   T extends AliasesMap,
   TInclude extends MultiIncludeConfig<T> = Record<never, never>,
+> extends BaseQueryBuilder<
+  MultiFilterProxy<T>,
+  MultiSelectProxy<T>,
+  MultiOrderProxy<T>
 > {
-  public sqb: KadmiumSqb;
   private irs: Map<string, ModelIR>;
-  private irLookup: (name: string) => ModelIR | undefined;
-  private adapter: SqlAdapter | null = null;
 
   constructor(
     irs: Map<string, ModelIR>,
     irLookup?: (name: string) => ModelIR | undefined,
     adapter?: SqlAdapter,
   ) {
+    super(irLookup, adapter);
     this.irs = irs;
-    this.irLookup = irLookup ?? (() => undefined);
-    this.adapter = adapter ?? null;
-    this.sqb = new KadmiumSqb();
     this.sqb.isMulti = true;
 
     for (const [alias, ir] of irs) {
@@ -116,42 +109,6 @@ export class MultiQueryBuilder<
     );
     b.sqb = this.sqb.clone();
     return b;
-  }
-
-  // ── where ──
-  // Линейная последовательность шагов; группы — только выражениями (and/or).
-
-  where(
-    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
-  ): this {
-    this._pushWhere('AND', fn);
-    return this;
-  }
-
-  and(
-    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
-  ): this {
-    return this.where(fn);
-  }
-
-  or(
-    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
-  ): this {
-    this._pushWhere('OR', fn);
-    return this;
-  }
-
-  private _pushWhere(
-    join: 'AND' | 'OR',
-    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
-  ): void {
-    const expression = fn(this._createFilterProxy());
-    if (expression !== undefined) {
-      this.sqb.wheres.elements.push({
-        join,
-        condition: toSqlCondition(expression),
-      });
-    }
   }
 
   // ── join ──
@@ -257,60 +214,7 @@ export class MultiQueryBuilder<
     return this as unknown as MultiQueryBuilder<T, C>;
   }
 
-  // ── groupBy ──
-
-  groupBy(
-    fn: (
-      t: MultiSelectProxy<T>,
-    ) => ReadonlyArray<SelectableField | SqlFragment>,
-  ): this {
-    const alias = this._mainAlias();
-    const items = fn(this._createSelectProxy());
-    this.sqb.groupBy.push(...items.flatMap((f) => groupByToStep(f, alias)));
-    return this;
-  }
-
-  // ── limit / offset / order ──
-
-  limit(n: number): this {
-    this.sqb.limit = n;
-    return this;
-  }
-
-  offset(n: number): this {
-    this.sqb.offset = n;
-    return this;
-  }
-
-  order(
-    fn: (
-      t: MultiOrderProxy<T>,
-    ) => (OrderDirection | SqlOrder<'asc' | 'desc'>)[],
-  ): this {
-    for (const d of fn(this._createOrderProxy())) {
-      this.sqb.orders.push(orderToStep(d));
-    }
-    return this;
-  }
-
-  // ── toSql ──
-
-  /**
-   * @deprecated Используйте `.compile()` — SQL-preview для дебага — `.compile().sql()`.
-   */
-  toSql(): string {
-    return this._toSqlFrom(this.sqb.clone());
-  }
-
   // ── private ──
-
-  private _toSqlFrom(sqb: KadmiumSqb): string {
-    if (!this.adapter)
-      throw new Error(
-        'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
-      );
-    return buildDebugSql(sqb, this.adapter);
-  }
 
   private _resolveIncludes(
     config: Record<string, Record<string, IncludeConfigValue>>,
@@ -334,11 +238,11 @@ export class MultiQueryBuilder<
     }
   }
 
-  private _mainAlias(): string {
-    return [...this.sqb.tableContext.keys()][0] ?? Object.keys(this.irs)[0];
+  protected _fallbackAlias(): string {
+    return Object.keys(this.irs)[0] ?? '';
   }
 
-  private _createFilterProxy(): MultiFilterProxy<T> {
+  protected _createFilterProxy(): MultiFilterProxy<T> {
     const sqb = this.sqb;
     const irs = this.irs;
     return new Proxy({} as MultiFilterProxy<T>, {
@@ -357,7 +261,7 @@ export class MultiQueryBuilder<
     });
   }
 
-  private _createSelectProxy(): MultiSelectProxy<T> {
+  protected _createSelectProxy(): MultiSelectProxy<T> {
     const irs = this.irs;
     return new Proxy({} as MultiSelectProxy<T>, {
       get: (_, alias: string) => {
@@ -376,7 +280,7 @@ export class MultiQueryBuilder<
     });
   }
 
-  private _createOrderProxy(): MultiOrderProxy<T> {
+  protected _createOrderProxy(): MultiOrderProxy<T> {
     const irs = this.irs;
     return new Proxy({} as MultiOrderProxy<T>, {
       get: (_, alias: string) =>

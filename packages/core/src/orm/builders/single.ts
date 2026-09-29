@@ -1,19 +1,12 @@
-import { KadmiumSqb, type AnySelectableField, orderToStep } from '../sqb';
+import { KadmiumSqb, type AnySelectableField } from '../sqb';
 import type { CursorWhereExpression, WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import type { ModelIR } from '../../ir/index';
-import {
-  toSqlCondition,
-  toSqlValue,
-  groupByToStep,
-  type SqlFragment,
-  type SqlOrder,
-} from '../sql-fragment';
+import { toSqlCondition, toSqlValue, type SqlFragment } from '../sql-fragment';
 import type {
   FilterProxy,
   SelectProxy,
   OrderProxy,
-  OrderDirection,
   UpdateFinalizer,
   HavingProxy,
   HavingSource,
@@ -66,7 +59,8 @@ import {
 } from './upsert-helpers';
 import { buildWriteFinalizer } from './write-finalizer';
 import { buildRelation, configureRelation } from './include-utils';
-import { buildDebugSql, mapRow } from './utils';
+import { mapRow } from './utils';
+import { BaseQueryBuilder } from './base-query-builder';
 
 export class SingleQueryBuilder<
   TModel extends {
@@ -78,11 +72,12 @@ export class SingleQueryBuilder<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   TInclude = {},
   TMode extends 'many' | 'first' = 'many',
+> extends BaseQueryBuilder<
+  FilterProxy<TModel>,
+  SelectProxy<TModel>,
+  OrderProxy<TModel>
 > {
-  public sqb: KadmiumSqb;
   private ir: ModelIR;
-  private irLookup: (name: string) => ModelIR | undefined;
-  private adapter: SqlAdapter | null = null;
   private _isFirst = false;
 
   constructor(
@@ -90,10 +85,8 @@ export class SingleQueryBuilder<
     irLookup?: (name: string) => ModelIR | undefined,
     adapter?: SqlAdapter,
   ) {
+    super(irLookup, adapter);
     this.ir = ir;
-    this.irLookup = irLookup ?? (() => undefined);
-    this.adapter = adapter ?? null;
-    this.sqb = new KadmiumSqb();
     this.sqb.tableContext.set(ir.name, ir.collection);
   }
 
@@ -111,43 +104,6 @@ export class SingleQueryBuilder<
     b.sqb = this.sqb.clone();
     b._isFirst = this._isFirst;
     return b;
-  }
-
-  // ── where / and / or — return this (no type change) ──
-  // Линейная последовательность шагов: скобок/групп на уровне API нет.
-  // Вложенные структуры — только через and()/or() выражения.
-
-  where(
-    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
-  ): this {
-    this._pushWhere('AND', fn);
-    return this;
-  }
-
-  and(
-    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
-  ): this {
-    return this.where(fn);
-  }
-
-  or(
-    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
-  ): this {
-    this._pushWhere('OR', fn);
-    return this;
-  }
-
-  private _pushWhere(
-    join: 'AND' | 'OR',
-    fn: (t: FilterProxy<TModel>) => WhereExpression | SqlFragment | undefined,
-  ): void {
-    const expression = fn(this._createFilterProxy());
-    if (expression !== undefined) {
-      this.sqb.wheres.elements.push({
-        join,
-        condition: toSqlCondition(expression),
-      });
-    }
   }
 
   // ── select — returns this with updated TSelect ──
@@ -237,17 +193,6 @@ export class SingleQueryBuilder<
 
   // ── modifiers — return this (no type change) ──
 
-  groupBy(
-    fn: (
-      t: SelectProxy<TModel>,
-    ) => ReadonlyArray<SelectableField | SqlFragment>,
-  ): this {
-    const alias = this._alias();
-    const items = fn(this._createSelectProxy());
-    this.sqb.groupBy.push(...items.flatMap((f) => groupByToStep(f, alias)));
-    return this;
-  }
-
   /** Фильтр по агрегатным алиасам (HAVING). Алиасы — из select()/.as(). */
   having(
     fn: (
@@ -285,17 +230,6 @@ export class SingleQueryBuilder<
     }
   }
 
-  order(
-    fn: (
-      t: OrderProxy<TModel>,
-    ) => (OrderDirection | SqlOrder<'asc' | 'desc'>)[],
-  ): this {
-    for (const d of fn(this._createOrderProxy())) {
-      this.sqb.orders.push(orderToStep(d));
-    }
-    return this;
-  }
-
   /**
    * Keyset-пагинация: продолжить выборку с ключевой позиции.
    * Семантически WHERE-условие, рендерится отдельным AND-членом в скобках.
@@ -319,19 +253,6 @@ export class SingleQueryBuilder<
     if (expression !== undefined) {
       this.sqb.cursor.elements.push({ join: 'AND', condition: expression });
     }
-    return this;
-  }
-
-  limit(n: number): this {
-    this.sqb.limit = n;
-    return this;
-  }
-
-  offset(n: number): this {
-    if (this.sqb.cursor.elements.length > 0) {
-      throw new Error('offset() cannot be combined with cursor().');
-    }
-    this.sqb.offset = n;
     return this;
   }
 
@@ -451,14 +372,6 @@ export class SingleQueryBuilder<
   }
 
   /**
-   * @deprecated Используйте `.compile()` — он возвращает CompiledQuery с
-   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().sql()`.
-   */
-  toSql(): string {
-    return this._toSqlFrom(this.sqb.clone());
-  }
-
-  /**
    * Терминал компиляции (План 3, B1): sqb.clone() → toSql → CompiledQuery.
    * Плоский путь — тип слотов руками; типизированный — runtime-проверка имён
    * через QuerySlots.assertSlotNames. TResult — миррор go() (first/many).
@@ -556,15 +469,7 @@ export class SingleQueryBuilder<
     sqb.selects = this._buildAllSelects();
   }
 
-  private _toSqlFrom(sqb: KadmiumSqb): string {
-    if (!this.adapter)
-      throw new Error(
-        'No adapter configured. Import createDebugAdapter() from @karkardmitry/kadmium-sql-pg for SQL preview, or pass a PgAdapter for database access.',
-      );
-    return buildDebugSql(sqb, this.adapter);
-  }
-
-  private _resolveIncludes(config: IncludeConfig<TModel>): void {
+  protected _resolveIncludes(config: IncludeConfig<TModel>): void {
     for (const [relationName, relationConfig] of Object.entries(config)) {
       if (relationConfig === undefined) continue;
       const builder = buildRelation(
@@ -572,7 +477,7 @@ export class SingleQueryBuilder<
         this.ir,
         relationName,
         this.irLookup,
-        this._alias(),
+        this._defaultAlias(),
       );
       configureRelation(
         this.sqb,
@@ -582,16 +487,16 @@ export class SingleQueryBuilder<
     }
   }
 
-  private _createFilterProxy(): FilterProxy<TModel> {
-    return createFilterProxy(this._alias(), this.ir, this.sqb);
+  protected _createFilterProxy(): FilterProxy<TModel> {
+    return createFilterProxy(this._defaultAlias(), this.ir, this.sqb);
   }
 
-  private _createSelectProxy(): SelectProxy<TModel> {
-    return createSelectProxy(this._alias(), this.ir);
+  protected _createSelectProxy(): SelectProxy<TModel> {
+    return createSelectProxy(this._defaultAlias(), this.ir);
   }
 
-  private _createOrderProxy(): OrderProxy<TModel> {
-    return createOrderProxy(this._alias(), this.ir);
+  protected _createOrderProxy(): OrderProxy<TModel> {
+    return createOrderProxy(this._defaultAlias(), this.ir);
   }
 
   /** Алиасы агрегатов из текущего select — допустимые ключи для having(). */
@@ -605,7 +510,7 @@ export class SingleQueryBuilder<
     return aliases;
   }
 
-  private _alias(): string {
-    return [...this.sqb.tableContext.keys()][0] ?? this.ir.name;
+  protected _fallbackAlias(): string {
+    return this.ir.name;
   }
 }
