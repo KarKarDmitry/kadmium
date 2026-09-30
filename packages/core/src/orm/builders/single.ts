@@ -305,13 +305,18 @@ export class SingleQueryBuilder<
     if (!this.adapter)
       throw new Error('No adapter configured; cannot createMany.');
     if (data.length === 0) {
-      return {
+      const empty = {
         onConflict: () => this.createMany(data, options),
         doNothing: () => this.createMany(data, options),
         set: () => this.createMany(data, options),
+        returning: () => ({
+          go: () => Promise.resolve([]),
+          sql: () => '',
+        }),
         go: () => Promise.resolve([]),
         sql: () => '',
       };
+      return empty as import('./upsert-helpers').CreateManyFinalizer<TModel>;
     }
     assertDmlInsert(this.sqb);
     const mapped = data.map((row) => this._mapData(row));

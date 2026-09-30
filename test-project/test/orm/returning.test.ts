@@ -100,3 +100,78 @@ describe('returning: update / delete projection', () => {
     expect('title' in deleted[0]).toBe(true);
   });
 });
+
+describe('returning: create / createMany projection', () => {
+  it('create().returning() returns only selected fields', async () => {
+    const row = await h.orm
+      .single(UserModel)
+      .create({ name: 'Rita', email: 'rita@x.io' })
+      .returning((u) => [u.id, u.name])
+      .go();
+    expect(row.id).toBeDefined();
+    expect(row.name).toBe('Rita');
+    expect('email' in row).toBe(false);
+  });
+
+  it('create().returning() with alias uses alias as key', async () => {
+    const row = await h.orm
+      .single(UserModel)
+      .create({ name: 'Rune', email: 'rune@x.io' })
+      .returning((u) => [u.name.as('who')])
+      .go();
+    expect(row).toEqual({ who: 'Rune' });
+  });
+
+  it('create().returning() renders projection into RETURNING clause', () => {
+    const sql = h.orm
+      .single(UserModel)
+      .create({ name: 'Sql', email: 'sql@x.io' })
+      .returning((u) => [u.id, u.name])
+      .sql();
+    const returning = sql.slice(sql.indexOf('RETURNING'));
+    expect(returning).toContain('"id"');
+    expect(returning).toContain('"name"');
+    expect(returning).not.toContain('"email"');
+  });
+
+  it('create().go() without returning returns full row (regression)', async () => {
+    const row = await h.orm
+      .single(UserModel)
+      .create({ name: 'Full', email: 'full@x.io' })
+      .go();
+    expect(row.name).toBe('Full');
+    expect('email' in row).toBe(true);
+  });
+
+  it('createMany().returning() projects every inserted row', async () => {
+    const rows = await h.orm
+      .single(UserModel)
+      .createMany([
+        { name: 'M1', email: 'm1@x.io' },
+        { name: 'M2', email: 'm2@x.io' },
+      ])
+      .returning((u) => [u.name])
+      .go();
+    expect(rows).toEqual([{ name: 'M1' }, { name: 'M2' }]);
+  });
+
+  it('createMany().returning() with onConflict projects upserted rows', async () => {
+    const rows = await h.orm
+      .single(UserModel)
+      .createMany([{ name: 'Alice', email: 'alice@new.io' }])
+      .onConflict((u) => [u.email])
+      .returning((u) => [u.name, u.email])
+      .go();
+    expect(rows).toEqual([{ name: 'Alice', email: 'alice@new.io' }]);
+  });
+
+  it('createMany().go() without returning returns full rows (regression)', async () => {
+    const rows = await h.orm
+      .single(UserModel)
+      .createMany([{ name: 'W1', email: 'w1@x.io' }])
+      .go();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('W1');
+    expect('email' in rows[0]).toBe(true);
+  });
+});

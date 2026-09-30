@@ -1,10 +1,12 @@
-import type { KadmiumSqb } from '../sqb';
+import type { KadmiumSqb, AnySelectableField } from '../sqb';
 import type { ModelIR } from '../../ir/index';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { SelectableField } from '../ast/selectable';
-import type { SelectProxy, FilterProxy } from '../types/proxy';
+import type { AnySelectable, FlatFinalResult } from '../types/includes';
+import type { SelectProxy, FilterProxy, ReturningTools } from '../types/proxy';
 import { createSelectProxy, createFilterProxy } from './query-proxies';
 import { toSqlValue } from '../sql-fragment';
+import { aggregates } from '../field-builders/aggregates';
 import { buildDebugSql, mapRow } from './utils';
 
 // ── Types ──
@@ -23,7 +25,21 @@ export interface CreateFinalizer<TModel extends Model> {
   doNothing: () => CreateFinalizer<TModel>;
   /** DO UPDATE SET-выражения для ON CONFLICT (F): обычные значения или sql-фрагменты. */
   set: (data: DmlData<TModel>) => CreateFinalizer<TModel>;
+  /**
+   * Проекция RETURNING: `sqb.selects` рендерится в RETURNING-клаузу
+   * (тот же путь, что у `update()/delete().returning()`). Без вызова —
+   * `RETURNING *` и полная модель через mapRow.
+   */
+  returning: <S extends readonly AnySelectable[]>(
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
+  ) => CreateReturningFinalizer<S>;
   go: () => Promise<TModel['~shape']>;
+  sql: () => string;
+}
+
+/** Результат `create().returning(...)`: плоская проекция, а не полная модель. */
+export interface CreateReturningFinalizer<S extends readonly AnySelectable[]> {
+  go: () => Promise<FlatFinalResult<S>>;
   sql: () => string;
 }
 
@@ -34,6 +50,13 @@ export interface CreateManyFinalizer<TModel extends Model> {
   doNothing: () => CreateManyFinalizer<TModel>;
   /** DO UPDATE SET-выражения для ON CONFLICT (F): обычные значения или sql-фрагменты. */
   set: (data: DmlData<TModel>) => CreateManyFinalizer<TModel>;
+  /** Проекция RETURNING — применяется к каждой строке батча. */
+  returning: <S extends readonly AnySelectable[]>(
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
+  ) => {
+    go: () => Promise<FlatFinalResult<S>[]>;
+    sql: () => string;
+  };
   go: () => Promise<TModel['~shape'][]>;
   sql: () => string;
 }
@@ -86,6 +109,48 @@ function applySet<TModel extends Model>(
   sqb.upsertSetData = mapDmlData<TModel>(ir, sqb, ir.collection, input);
 }
 
+/**
+ * Выставить проекцию RETURNING в sqb и вернуть сборщик селектов.
+ *
+ * Алиас селекта = tableContext-алиас, под которым рендерится RETURNING,
+ * — поэтому здесь берётся `ir.name` (первый ключ tableContext), а не
+ * collection: `create` регистрирует таблицу как `ir.name → ir.collection`.
+ */
+function applyReturning<TModel extends Model>(
+  sqb: KadmiumSqb,
+  ir: ModelIR,
+  fn: (
+    t: SelectProxy<TModel>,
+    tools: ReturningTools,
+  ) => readonly AnySelectable[],
+): AnySelectableField[] {
+  const alias = [...sqb.tableContext.keys()][0] ?? ir.name;
+  const selects = fn(
+    createSelectProxy(alias, ir) as unknown as SelectProxy<TModel>,
+    {
+      agg: aggregates,
+    },
+  );
+  sqb.selects = [...selects] as AnySelectableField[];
+  return sqb.selects;
+}
+
+/**
+ * Маппинг строки RETURNING: оставить только запрошенные ключи, по алиасу
+ * селекта (PG возвращает колонки под именем `AS "<alias>"`).
+ */
+function mapReturningRow(
+  row: Record<string, unknown>,
+  selects: AnySelectableField[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const sel of selects) {
+    const key = sel.alias ?? sel.fieldName;
+    if (row[key] !== undefined) out[key] = row[key];
+  }
+  return out;
+}
+
 // ── Single row create finalizer ──
 
 export function buildCreateFinalizer<TModel extends Model>(
@@ -97,7 +162,9 @@ export function buildCreateFinalizer<TModel extends Model>(
   sqb.operation = 'upsert';
   sqb.upsertData = mapped;
 
-  const _finalize = (): CreateFinalizer<TModel> => ({
+  const _finalize = <
+    S extends readonly AnySelectable[],
+  >(): CreateFinalizer<TModel> => ({
     onConflict: (fn) => {
       sqb.conflictTarget = extractFieldNames(ir, fn);
       return _finalize();
@@ -110,6 +177,21 @@ export function buildCreateFinalizer<TModel extends Model>(
       applySet<TModel>(sqb, ir, data);
       return _finalize();
     },
+    returning: (fn) => {
+      const selects = applyReturning<TModel>(sqb, ir, fn);
+      const finalizer: CreateReturningFinalizer<S> = {
+        go: async () => {
+          const rows = await adapter.execute(sqb);
+          if (!rows[0]) return {} as FlatFinalResult<S>;
+          return mapReturningRow(
+            rows[0] as Record<string, unknown>,
+            selects,
+          ) as FlatFinalResult<S>;
+        },
+        sql: () => buildDebugSql(sqb, adapter),
+      };
+      return finalizer;
+    },
     go: async () => {
       const row = await adapter.execute(sqb);
       if (!row[0]) return {} as TModel['~shape'];
@@ -121,6 +203,32 @@ export function buildCreateFinalizer<TModel extends Model>(
   return _finalize();
 }
 
+/**
+ * SQL-превью для batch create: собирает одноразовый sqb по ПЕРВОЙ строке
+ * (батч уходит одним multi-row statement) и зеркалит conflict-настройки.
+ * `selects` — проекция returning, если она задана.
+ */
+function buildManyDebugSql(
+  baseSqb: KadmiumSqb,
+  adapter: SqlAdapter,
+  firstRow: Record<string, unknown> | undefined,
+  selects: AnySelectableField[] | null,
+): string {
+  const sqb = new (baseSqb.constructor as new () => KadmiumSqb)();
+  sqb.operation = 'upsert';
+  sqb.upsertData = firstRow ?? {};
+  sqb.tableContext = new Map(baseSqb.tableContext);
+  sqb.conflictTarget = baseSqb.conflictTarget
+    ? [...baseSqb.conflictTarget]
+    : null;
+  sqb.upsertSetData = baseSqb.upsertSetData
+    ? { ...baseSqb.upsertSetData }
+    : null;
+  sqb.doNothing = baseSqb.doNothing;
+  sqb.selects = selects;
+  return buildDebugSql(sqb, adapter);
+}
+
 // ── Multi-row create finalizer ──
 
 export function buildCreateManyFinalizer<TModel extends Model>(
@@ -130,7 +238,11 @@ export function buildCreateManyFinalizer<TModel extends Model>(
   mappedRows: Record<string, unknown>[],
   options?: CreateManyOptions,
 ): CreateManyFinalizer<TModel> {
-  const _finalize = (): CreateManyFinalizer<TModel> => ({
+  let returningSelects: AnySelectableField[] | null = null;
+
+  const _finalize = <
+    S extends readonly AnySelectable[],
+  >(): CreateManyFinalizer<TModel> => ({
     onConflict: (fn) => {
       baseSqb.conflictTarget = extractFieldNames(ir, fn);
       return _finalize();
@@ -143,6 +255,26 @@ export function buildCreateManyFinalizer<TModel extends Model>(
       applySet<TModel>(baseSqb, ir, data);
       return _finalize();
     },
+    returning: (fn) => {
+      returningSelects = applyReturning<TModel>(baseSqb, ir, fn);
+      return {
+        go: async (): Promise<FlatFinalResult<S>[]> => {
+          const rows = await adapter.createMany(ir.collection, mappedRows, {
+            transaction: options?.transaction,
+            conflictTarget: baseSqb.conflictTarget ?? undefined,
+            doNothing: baseSqb.doNothing,
+            setData: baseSqb.upsertSetData ?? undefined,
+            returning: returningSelects,
+          });
+          const sel = returningSelects as AnySelectableField[];
+          return rows.map((r) =>
+            mapReturningRow(r, sel),
+          ) as FlatFinalResult<S>[];
+        },
+        sql: () =>
+          buildManyDebugSql(baseSqb, adapter, mappedRows[0], returningSelects),
+      };
+    },
     go: async () => {
       const rows = await adapter.createMany(ir.collection, mappedRows, {
         transaction: options?.transaction,
@@ -152,21 +284,7 @@ export function buildCreateManyFinalizer<TModel extends Model>(
       });
       return rows.map((r) => mapRow(ir, r)) as TModel['~shape'][];
     },
-    sql: () => {
-      // Preview for the first row (batch upsert issues a single multi-row statement)
-      const sqb = new (baseSqb.constructor as new () => KadmiumSqb)();
-      sqb.operation = 'upsert';
-      sqb.upsertData = mappedRows[0];
-      sqb.tableContext = new Map(baseSqb.tableContext);
-      sqb.conflictTarget = baseSqb.conflictTarget
-        ? [...baseSqb.conflictTarget]
-        : null;
-      sqb.upsertSetData = baseSqb.upsertSetData
-        ? { ...baseSqb.upsertSetData }
-        : null;
-      sqb.doNothing = baseSqb.doNothing;
-      return buildDebugSql(sqb, adapter);
-    },
+    sql: () => buildManyDebugSql(baseSqb, adapter, mappedRows[0], null),
   });
 
   baseSqb.operation = 'upsert';
