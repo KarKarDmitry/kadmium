@@ -289,6 +289,12 @@ export interface SqlAdapter {
       doNothing?: boolean;
       /** DO UPDATE SET-выражения для ON CONFLICT (F): ключ → значение или sql-фрагмент */
       setData?: Record<string, unknown>;
+      /**
+       * Проекция RETURNING: те же SelectItem, что и в `ReadonlySqb.selects`.
+       * `null`/пусто → `RETURNING *`. Адаптер рендерит их в порядке,
+       * указанном здесь, после VALUES и ON CONFLICT.
+       */
+      returning?: readonly SelectItem[] | null;
     },
   ): Promise<Record<string, unknown>[]>;
 

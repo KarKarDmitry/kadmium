@@ -13,8 +13,13 @@ import type {
   SqlAdapter,
   TransactionalAdapter,
   ReadonlySqb,
+  SelectItem,
 } from '@karkardmitry/kadmium-sql-types';
-import { SqlGenerator, assertNoUnfilledSlots } from './sql-generator';
+import {
+  SqlGenerator,
+  assertNoUnfilledSlots,
+  type ParamState,
+} from './sql-generator';
 import { PgDdlAdapter } from './ddl-adapter';
 import { maxBatchRows } from './batch';
 import {
@@ -25,6 +30,7 @@ import {
   createManyRows,
   rawQuery,
   finalizeRows,
+  type ManyRowsSqlBuilder,
 } from './helpers';
 
 // Per-pool int8 (bigint) → number parser.
@@ -52,6 +58,23 @@ export interface PgAdapterConfig {
   poolSize?: number;
   /** Called before each query with the SQL text and bound parameters. */
   logger?: (sql: string, params: unknown[]) => void;
+}
+
+/**
+ * Построить рендерер RETURNING для batch-пути createMany.
+ *
+ * createMany не строит полный sqb, поэтому список SelectItem[] передаётся
+ * напрямую; рендер — тот же `renderReturningClause`, что у одиночного
+ * `_buildUpsertQuery` (INSERT-вариант: колонки без квалификации алиасом).
+ * Пустой/null → `undefined`, и renderInsert даёт `RETURNING *`.
+ */
+function returningRenderer(
+  generator: SqlGenerator,
+  selects: readonly SelectItem[] | null | undefined,
+): ((values: unknown[], paramIndex: ParamState) => string) | undefined {
+  if (!selects || selects.length === 0) return undefined;
+  return (values, paramIndex) =>
+    generator.renderReturningClause(selects, values, paramIndex);
 }
 
 // ═══ Transactional Adapter ═══
@@ -134,25 +157,29 @@ class TransactionalPgAdapter
       doNothing?: boolean;
       /** DO UPDATE SET-выражения для ON CONFLICT (F) */
       setData?: Record<string, unknown>;
+      returning?: readonly SelectItem[] | null;
     },
   ): Promise<Record<string, unknown>[]> {
     // Already in a transaction — ignore options.transaction
     const conflictTarget = options?.conflictTarget ?? [];
-    const builder = conflictTarget.length
-      ? (name: string, batch: Record<string, unknown>[]) =>
+    const renderReturning = returningRenderer(this, options?.returning);
+    const builder: ManyRowsSqlBuilder = conflictTarget.length
+      ? (name, batch) =>
           buildUpsertManySql(
             name,
             batch,
             conflictTarget,
             !!options?.doNothing,
             options?.setData ?? null,
+            renderReturning,
           )
-      : buildInsertManySql;
+      : (name, batch) => buildInsertManySql(name, batch, renderReturning);
     return createManyRows(
       (t, v) => this.client.query(t, v),
       collectionName,
       rows,
       builder,
+      renderReturning,
     );
   }
 
@@ -222,6 +249,7 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       doNothing?: boolean;
       /** DO UPDATE SET-выражения для ON CONFLICT (F) */
       setData?: Record<string, unknown>;
+      returning?: readonly SelectItem[] | null;
     },
   ): Promise<Record<string, unknown>[]> {
     if (rows.length === 0) return [];
@@ -229,22 +257,25 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
     const needsTransaction =
       options?.transaction !== false && rows.length > batchSize;
     const conflictTarget = options?.conflictTarget ?? [];
-    const builder = conflictTarget.length
-      ? (name: string, batch: Record<string, unknown>[]) =>
+    const renderReturning = returningRenderer(this, options?.returning);
+    const builder: ManyRowsSqlBuilder = conflictTarget.length
+      ? (name, batch) =>
           buildUpsertManySql(
             name,
             batch,
             conflictTarget,
             !!options?.doNothing,
             options?.setData ?? null,
+            renderReturning,
           )
-      : buildInsertManySql;
+      : (name, batch) => buildInsertManySql(name, batch, renderReturning);
     if (!needsTransaction) {
       return createManyRows(
         (t, v) => this.pool.query(t, v),
         collectionName,
         rows,
         builder,
+        renderReturning,
       );
     }
     // Multi-chunk: wrap in transaction
@@ -254,7 +285,11 @@ export class PgAdapter extends SqlGenerator implements SqlAdapter {
       const results: Record<string, unknown>[] = [];
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
-        const { text, values } = builder(collectionName, batch);
+        const { text, values } = builder(
+          collectionName,
+          batch,
+          renderReturning,
+        );
         this.logger?.(text, values);
         const result = await client.query(text, values);
         results.push(...(result.rows as Record<string, unknown>[]));

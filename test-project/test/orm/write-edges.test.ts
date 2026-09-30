@@ -41,8 +41,9 @@ describe('write edges: null, empty, types, bulk', () => {
       .go();
   });
 
-  it('create() with empty object uses DB defaults (or passes through)', async () => {
-    // comment has `text default ''` and non-null refs → provide required refs.
+  it('create() with empty string and explicit nulls inserts and returns the row', async () => {
+    // Не пустой объект, а пустые ЗНАЧЕНИЯ: '' для text и явные null для
+    // не-nullable ref-ов — Postgres должен принять их как DEFAULT/NULL.
     const { Comment: CommentModel } = await import('../../src/models');
     const comment = await h.orm
       .single(CommentModel)
@@ -53,6 +54,17 @@ describe('write edges: null, empty, types, bulk', () => {
       })
       .go();
     expect(comment.id).toBeDefined();
+  });
+
+  it('create({}) is rejected — the payload is never validated', async () => {
+    // Известный пробел (C10): create({}) не отсекается ни гардами, ни
+    // раннером. SQL собирается как INSERT INTO "t" () VALUES () — это
+    // синтаксическая ошибка Postgres (42601), а не внятная диагностика.
+    // Тест фиксирует НАСТОЯЩЕЕ поведение, а не желаемое.
+    const { Comment: CommentModel } = await import('../../src/models');
+    await expect(
+      h.orm.single(CommentModel).create({}).go(),
+    ).rejects.toThrowError();
   });
 
   it('IN([]) renders 1=0 and returns no rows', async () => {

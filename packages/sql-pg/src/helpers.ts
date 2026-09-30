@@ -7,13 +7,8 @@ import type {
   IncludedRelation,
   ReadonlySqb,
 } from '@karkardmitry/kadmium-sql-types';
-import {
-  renderConflictClause,
-  renderValueCell,
-  type ParamState,
-} from './sql-generator';
+import { renderInsert, type ParamState } from './sql-generator';
 import { ResultReshaper } from './result-reshaper';
-import { assertSqlIdentifier } from './ddl-validate';
 import { maxBatchRows } from './batch';
 
 export type QueryFn = (
@@ -41,27 +36,34 @@ export function unionKeys(rows: Record<string, unknown>[]): string[] {
 export function buildInsertSql(
   collectionName: string,
   data: Record<string, unknown>,
+  renderReturning?: (values: unknown[], paramIndex: ParamState) => string,
 ): { text: string; values: unknown[] } {
-  assertSqlIdentifier(collectionName, 'collection name');
-  const keys = Object.keys(data);
-  for (const k of keys) assertSqlIdentifier(k, 'column name');
-  const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
   const paramIndex: ParamState = { p: 1 };
-  const cells = keys.map((k) => renderValueCell(data[k], values, paramIndex));
-  const text =
-    `INSERT INTO "${collectionName}" (${columns}) VALUES (${cells.join(', ')}) RETURNING *`
-      .trim()
-      .replace(/\s+/g, ' ');
-  return { text, values };
+  return {
+    text: renderInsert({
+      collectionName,
+      keys: Object.keys(data),
+      rows: [data],
+      values,
+      paramIndex,
+      renderReturning,
+    }),
+    values,
+  };
 }
 
 export async function createRow(
   queryFn: QueryFn,
   collectionName: string,
   data: Record<string, unknown>,
+  renderReturning?: (values: unknown[], paramIndex: ParamState) => string,
 ): Promise<Record<string, unknown>> {
-  const { text, values } = buildInsertSql(collectionName, data);
+  const { text, values } = buildInsertSql(
+    collectionName,
+    data,
+    renderReturning,
+  );
   const result = await queryFn(text, values);
   return result.rows[0] as Record<string, unknown>;
 }
@@ -69,24 +71,23 @@ export async function createRow(
 export function buildInsertManySql(
   collectionName: string,
   rows: Record<string, unknown>[],
+  renderReturning?: (values: unknown[], paramIndex: ParamState) => string,
 ): { text: string; values: unknown[] } {
   if (rows.length === 0)
     throw new Error('createMany requires at least one row');
-  assertSqlIdentifier(collectionName, 'collection name');
-  const keys = unionKeys(rows);
-  for (const k of keys) assertSqlIdentifier(k, 'column name');
-  const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
   const paramIndex: ParamState = { p: 1 };
-  const valuePlaceholders = rows.map((row) => {
-    const cells = keys.map((k) => renderValueCell(row[k], values, paramIndex));
-    return `(${cells.join(', ')})`;
-  });
-  const text =
-    `INSERT INTO "${collectionName}" (${columns}) VALUES ${valuePlaceholders.join(', ')} RETURNING *`
-      .trim()
-      .replace(/\s+/g, ' ');
-  return { text, values };
+  return {
+    text: renderInsert({
+      collectionName,
+      keys: unionKeys(rows),
+      rows,
+      values,
+      paramIndex,
+      renderReturning,
+    }),
+    values,
+  };
 }
 
 export function buildUpsertManySql(
@@ -95,37 +96,30 @@ export function buildUpsertManySql(
   conflictTarget: string[],
   doNothing: boolean,
   setMap: Record<string, unknown> | null = null,
+  renderReturning?: (values: unknown[], paramIndex: ParamState) => string,
 ): { text: string; values: unknown[] } {
   if (rows.length === 0)
     throw new Error('createMany requires at least one row');
-  assertSqlIdentifier(collectionName, 'collection name');
-  const keys = unionKeys(rows);
-  for (const k of keys) assertSqlIdentifier(k, 'column name');
-  const columns = keys.map((k) => `"${k}"`).join(', ');
   const values: unknown[] = [];
   const paramIndex: ParamState = { p: 1 };
-  const valuePlaceholders = rows.map((row) => {
-    const cells = keys.map((k) => renderValueCell(row[k], values, paramIndex));
-    return `(${cells.join(', ')})`;
-  });
-  const onConflict = renderConflictClause(
-    keys,
-    conflictTarget,
-    doNothing,
-    setMap,
+  return {
+    text: renderInsert({
+      collectionName,
+      keys: unionKeys(rows),
+      rows,
+      values,
+      paramIndex,
+      conflict: { target: conflictTarget, doNothing, setMap },
+      renderReturning,
+    }),
     values,
-    paramIndex,
-  );
-  const text =
-    `INSERT INTO "${collectionName}" (${columns}) VALUES ${valuePlaceholders.join(', ')}${onConflict} RETURNING *`
-      .trim()
-      .replace(/\s+/g, ' ');
-  return { text, values };
+  };
 }
 
 export type ManyRowsSqlBuilder = (
   collectionName: string,
   rows: Record<string, unknown>[],
+  renderReturning?: (values: unknown[], paramIndex: ParamState) => string,
 ) => { text: string; values: unknown[] };
 
 export async function createManyRows(
@@ -133,13 +127,14 @@ export async function createManyRows(
   collectionName: string,
   rows: Record<string, unknown>[],
   builder: ManyRowsSqlBuilder = buildInsertManySql,
+  renderReturning?: (values: unknown[], paramIndex: ParamState) => string,
 ): Promise<Record<string, unknown>[]> {
   if (rows.length === 0) return [];
   const batchSize = maxBatchRows(unionKeys(rows).length);
   const results: Record<string, unknown>[] = [];
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
-    const { text, values } = builder(collectionName, batch);
+    const { text, values } = builder(collectionName, batch, renderReturning);
     const result = await queryFn(text, values);
     results.push(...(result.rows as Record<string, unknown>[]));
   }

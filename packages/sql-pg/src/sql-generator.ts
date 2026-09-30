@@ -155,6 +155,67 @@ export function renderValueCell(
   return `$${paramIndex.p++}`;
 }
 
+/** Описание ON CONFLICT для `renderInsert` — рендерится ПОСЛЕ ячеек VALUES. */
+export type InsertConflict = {
+  target: string[];
+  doNothing: boolean;
+  setMap: Record<string, unknown> | null;
+};
+
+/**
+ * Единственный рендер `INSERT ... VALUES ... ON CONFLICT ... RETURNING`.
+ *
+ * Раньше одна и та же строка собиралась в четырёх местах — `buildInsertSql`,
+ * `buildInsertManySql`, `buildUpsertManySql` (helpers.ts) и
+ * `_buildUpsertQuery` (здесь), — и все четыре хардкодили `RETURNING *`.
+ * Теперь формат INSERT задан один раз; `returning` прокидывается явно.
+ *
+ * Порядок важен: сначала рендерятся ячейки VALUES, потом конфликтная клауза,
+ * потом RETURNING (её выражения — агрегаты/окна — продолжают нумерацию $N).
+ * Поэтому `renderReturning` — колбэк, а не строка: вызывающий сам решает,
+ * чем рендерить проекцию, и мы гарантируем позицию вызова.
+ * Функция мутирует `values`/`paramIndex` — вызывающий передаёт свои буферы.
+ */
+export function renderInsert(args: {
+  collectionName: string;
+  keys: string[];
+  rows: Record<string, unknown>[];
+  values: unknown[];
+  paramIndex: ParamState;
+  conflict?: InsertConflict;
+  /**
+   * Рендер проекции RETURNING. Вызывается ПОСЛЕ ячеек VALUES и ON CONFLICT
+   * и получает их буферы, поэтому `$N` в выражениях (окна, sql-фрагменты)
+   * продолжают сквозную нумерацию. `undefined`/пустая строка → `RETURNING *`.
+   */
+  renderReturning?: (values: unknown[], paramIndex: ParamState) => string;
+}): string {
+  const { collectionName, keys, rows, values, paramIndex, conflict } = args;
+  assertSqlIdentifier(collectionName, 'collection name');
+  for (const k of keys) assertSqlIdentifier(k, 'column name');
+
+  const columns = keys.map((k) => `"${k}"`).join(', ');
+  const groups = rows.map((row) => {
+    const cells = keys.map((k) => renderValueCell(row[k], values, paramIndex));
+    return `(${cells.join(', ')})`;
+  });
+  const onConflict = conflict
+    ? renderConflictClause(
+        keys,
+        conflict.target,
+        conflict.doNothing,
+        conflict.setMap,
+        values,
+        paramIndex,
+      )
+    : '';
+  const returning = args.renderReturning?.(values, paramIndex) || '*';
+
+  return `INSERT INTO "${collectionName}" (${columns}) VALUES ${groups.join(', ')}${onConflict} RETURNING ${returning}`
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 /** Whitelist операторов сравнения, интерполируемых в SQL (S5: runtime guard против SQL-инъекций). */
 export const VALID_OPS = new Set<string>([
   '=',
@@ -769,11 +830,55 @@ export abstract class SqlGenerator {
     return `${body} ${this._renderOverClause(sel.over)} AS "${sel.alias}"`;
   }
 
+  /**
+   * Клауза RETURNING из `sqb.selects`; без селектов — `*`.
+   * UPDATE/DELETE: в тексте есть `AS "alias"`, поэтому колонки квалифицированы.
+   */
+  private _renderReturning(
+    sqb: ReadonlySqb,
+    values: unknown[],
+    paramIndex: ParamState,
+  ): string {
+    return this._renderReturningItems(sqb.selects, values, paramIndex, true);
+  }
+
+  /**
+   * Клауза RETURNING для INSERT: у INSERT нет FROM, поэтому колонки
+   * рендерятся БЕЗ квалификации алиасом — `"User"."id"` дало бы 42P01.
+   * Публичный: используется генератором (`_buildUpsertQuery`) и batch-путём
+   * createMany, который строит INSERT без полного sqb.
+   */
+  renderReturningClause(
+    selects: readonly SelectItem[] | null,
+    values: unknown[],
+    paramIndex: ParamState,
+  ): string {
+    return this._renderReturningItems(selects, values, paramIndex, false);
+  }
+
+  /**
+   * Общий рендер RETURNING. Выражения (`sql-item`, окна) вычисляются в позиции,
+   * где `$N` продолжает нумерацию после VALUES/конфликтной клаузы.
+   * `qualify` — квалифицировать ли простые колонки table-alias'ом.
+   */
+  private _renderReturningItems(
+    selects: readonly SelectItem[] | null,
+    values: unknown[],
+    paramIndex: ParamState,
+    qualify: boolean,
+  ): string {
+    if (!selects || selects.length === 0) return '*';
+    return selects
+      .map((sel) => this._renderSelectItem(sel, values, paramIndex, qualify))
+      .join(', ');
+  }
+
   /** Рендер SELECT-элемента для RETURNING (поле/агрегат/оконная функция). */
   private _renderSelectItem(
     sel: SelectItem,
     values: unknown[],
     paramIndex: ParamState,
+    qualify: boolean,
   ): string {
     if (sel.kind === 'aggregate') return this._renderAggregate(sel);
     if (sel.kind === 'window')
@@ -781,7 +886,8 @@ export abstract class SqlGenerator {
     if (sel.kind === 'sql-item')
       return this._renderSqlItem(sel, values, paramIndex);
     const col = sel.column ?? sel.fieldName;
-    return `"${sel.tableAlias}"."${col}" AS "${sel.alias ?? sel.fieldName}"`;
+    const qualified = qualify ? `"${sel.tableAlias}"."${col}"` : `"${col}"`;
+    return `${qualified} AS "${sel.alias ?? sel.fieldName}"`;
   }
 
   /** Рендер sql-фрагмента в SELECT: локальные $1..$N сдвигаются на текущий paramIndex. */
@@ -1153,15 +1259,8 @@ export abstract class SqlGenerator {
       [],
     );
 
-    const returningClause =
-      sqb.selects && sqb.selects.length > 0
-        ? sqb.selects
-            .map((sel) => this._renderSelectItem(sel, values, paramIndex))
-            .join(', ')
-        : '*';
-
     return {
-      text: `UPDATE "${collectionName}" AS "${tableAlias}" SET ${setClause} ${whereClause} RETURNING ${returningClause}`
+      text: `UPDATE "${collectionName}" AS "${tableAlias}" SET ${setClause} ${whereClause} RETURNING ${this._renderReturning(sqb, values, paramIndex)}`
         .trim()
         .replace(/\s+/g, ' '),
       values,
@@ -1178,37 +1277,37 @@ export abstract class SqlGenerator {
   } {
     if (sqb.tableContext.size !== 1)
       throw new Error('UPSERT requires exactly one table');
-    const collectionName = sqb.tableContext.values().next().value;
+    // size === 1, но TS не выводит non-undefined из IteratorResult —
+    // раньше значение уходило в шаблонную строку и могло дать "undefined".
+    const [collectionName] = sqb.tableContext.values();
+    if (!collectionName) throw new Error('UPSERT requires exactly one table');
     const data = sqb.upsertData;
 
     if (!data || Object.keys(data).length === 0)
       throw new Error('No data provided for UPSERT');
 
     const keys = Object.keys(data);
-    for (const k of keys) assertSqlIdentifier(k, 'column name');
-    const columns = keys.map((k) => `"${k}"`).join(', ');
     const values: unknown[] = [];
     const paramIndex: ParamState = { p: 1, slotOrder: [] };
-    const placeholders = keys
-      .map((k) => renderValueCell(data[k], values, paramIndex))
-      .join(', ');
-
-    let onConflict = '';
-    if (sqb.conflictTarget?.length) {
-      onConflict = renderConflictClause(
-        keys,
-        sqb.conflictTarget,
-        sqb.doNothing,
-        sqb.upsertSetData,
-        values,
-        paramIndex,
-      );
-    }
+    const conflict: InsertConflict | undefined = sqb.conflictTarget?.length
+      ? {
+          target: sqb.conflictTarget,
+          doNothing: sqb.doNothing,
+          setMap: sqb.upsertSetData,
+        }
+      : undefined;
 
     return {
-      text: `INSERT INTO "${collectionName}" (${columns}) VALUES (${placeholders})${onConflict} RETURNING *`
-        .trim()
-        .replace(/\s+/g, ' '),
+      text: renderInsert({
+        collectionName,
+        keys,
+        rows: [data],
+        values,
+        paramIndex,
+        conflict,
+        renderReturning: (v, pi) =>
+          this.renderReturningClause(sqb.selects, v, pi),
+      }),
       values,
       slotOrder: paramIndex.slotOrder ?? [],
     };
@@ -1234,15 +1333,8 @@ export abstract class SqlGenerator {
       [],
     );
 
-    const returningClause =
-      sqb.selects && sqb.selects.length > 0
-        ? sqb.selects
-            .map((sel) => this._renderSelectItem(sel, values, paramIndex))
-            .join(', ')
-        : '*';
-
     return {
-      text: `DELETE FROM "${collectionName}" AS "${tableAlias}" ${whereClause} RETURNING ${returningClause}`
+      text: `DELETE FROM "${collectionName}" AS "${tableAlias}" ${whereClause} RETURNING ${this._renderReturning(sqb, values, paramIndex)}`
         .trim()
         .replace(/\s+/g, ' '),
       values,

@@ -193,7 +193,7 @@ as(alias: string): SelectableField<...> {
 | **`select`** | ✅ **остаётся** | `sqb.selects` рендерится в `RETURNING` (`_buildUpdateQuery`/`_buildDeleteQuery`) — `select(t => [t.id]).update({...})` даёт `UPDATE ... RETURNING "id"` |
 | `groupBy` | ✅ остаётся | `groupBy(): this` в `SingleShared`; сужение сломало бы ветку для всех. Ловит `assertDmlUpdateNoGroupBy` |
 
-**Поправка после ревью.** Первая версия `7f91789` сужала DML и после `select()`, с обоснованием «проекция в DML отбрасывается, путь — `update().returning([...])`». Обоснование было неверным: адаптер читает `sqb.selects` и рендерит его как `RETURNING` — сужение ломало рабочий запрос. Исправлено в `fix-сужение-select` (см. ниже): `select()` перекрыт в `DmlConfigHandle` и возвращает `DmlConfigHandle`.
+**Поправка после ревью.** Первая версия `7f91789` сужала DML и после `select()`, с обоснованием «проекция в DML отбрасывается, путь — `update().returning([...])`». Обоснование было неверным: адаптер читает `sqb.selects` и рендерит его как `RETURNING` — сужение ломало рабочий запрос. Исправлено в `c82bb71` (см. ниже): `select()` перекрыт в `DmlConfigHandle` и возвращает `DmlConfigHandle`.
 
 **Техническая деталь (TS2430):** тип возврата `limit()` вынесен в параметр `L` у `SingleShared`. Переопределить `limit(): this` потомком нельзя — `this`-тип инстанцируется подтипом, а `DmlConfigHandle` сам является подтипом `SingleConfigHandle`, то есть `SingleConfigHandle` не удовлетворяет DML-контракту подтипа. Через `L` каждая ветка объявляет результат явно: конфиг → голый `SingleConfigHandle`, ordering/cursor → своя ветка (курсор сохраняется).
 
@@ -207,4 +207,4 @@ as(alias: string): SelectableField<...> {
 - `test-project/test/orm/guard.test.ts` (`@ts-expect-error`-пометки + сквозной тест `select()` → `RETURNING`)
 - `packages/core/src/orm/guards.ts` (второй слой)
 
-**Коммиты:** `7f91789` (сужение), `fix-сужение-select` (возврат `select()` в DML-ветку)
+**Коммиты:** `7f91789` (сужение), `c82bb71` (возврат `select()` в DML-ветку)

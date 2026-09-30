@@ -37,7 +37,7 @@ PostgreSQL-specific:
 - **`json_agg`** / **`row_to_json`** — include as JSON columns
 - **`LEFT JOIN LATERAL`** — includes as lateral subqueries
 - **`$1`, `$2`...** — parameterized queries
-- **`RETURNING *`** — on UPDATE/DELETE
+- **`RETURNING`** — on UPDATE/DELETE/INSERT/UPSERT. Формат INSERT задан единственным `renderInsert()` (экспорт из `sql-generator.ts`); `buildInsertSql`/`buildInsertManySql`/`buildUpsertManySql` и `_buildUpsertQuery` вызывают его и не собирают текст сами. Клауза передаётся колбэком (`renderReturning`), а не строкой — выражения в RETURNING (окна, агрегаты, `sql-item`) продолжают нумерацию `$N` после VALUES и ON CONFLICT. **Квалификация колонок различается по операции**: у UPDATE/DELETE в тексте есть `AS "alias"` → `_renderReturning` рендерит `"u"."id" AS "id"`; у INSERT нет FROM, поэтому `renderReturningClause` (публичный, им же пользуется batch-путь `createMany` без полного sqb) рендерит `"id" AS "id"`. Квалифицированный INSERT-RETURNING даёт PG `42P01`
 - **`COALESCE(json_agg(subq), '[]'::json)`** — empty array for one-to-many
 - **Window functions** — `_renderWindow` renders `FUNC(field, $N…) OVER (PARTITION BY … ORDER BY … ROWS BETWEEN …)`, args → `values.push`; rank-family requires ORDER BY (enforced at render)
 - **DML expression values** — a `sql`-fragment *value* in update/create/createMany/`onConflict().set()` renders via `renderValueCell`: duck-typed `isSqlValueFragment` (`kind:'sql-value'`) → `shiftParameters` local `$1..$N` onto the current `paramIndex`, concatenate `values`, shift+dedup `slotOrder`; anything else → `$${paramIndex.p++}` param. `renderConflictClause(keys, conflictTarget, doNothing, setMap, values, paramIndex)` — `doNothing` wins; default SET is `EXCLUDED."k"` for every non-target key, or the explicit `setMap` (F, `204e91d`)
@@ -80,7 +80,7 @@ Converts PostgreSQL `int8` (bigint) to JavaScript `number`. **Warning**: global 
 - **All SQL generation** goes through `SqlGenerator` — never build SQL strings directly
 - **Parameterized queries only** — never interpolate user values into SQL
 - **Includes use LEFT JOIN LATERAL** — not correlated subqueries (not N+1)
-- **`RETURNING *`** on all UPDATE/DELETE operations
+- **One INSERT renderer**: `renderInsert()` in `sql-generator.ts` is the only place that builds `INSERT ... VALUES ... ON CONFLICT ... RETURNING`. Both `_buildUpsertQuery` and the three `build*Sql` helpers in `helpers.ts` delegate to it — don't reassemble that string in a new call site
 - **Test against real Postgres**: `cd test-project && npm run db:up && npm run test:project`
 
 ## When Changing `sql-generator.ts`
