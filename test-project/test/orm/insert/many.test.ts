@@ -387,22 +387,3 @@ describe('insertMany API: sql preview', () => {
   });
 });
 
-describe('insertMany API: legacy interop', () => {
-  it('insertMany() and single().createMany() coexist', async () => {
-    await h.orm
-      .insertMany(UserModel)
-      .values([
-        { name: 'NewA', email: 'newa@test.com' },
-        { name: 'NewB', email: 'newb@test.com' },
-      ])
-      .go();
-    await h.orm
-      .single(UserModel)
-      .createMany([{ name: 'Legacy', email: 'legacy@test.com' }])
-      .go();
-
-    const all = await h.orm.select(UserModel).go();
-    expect(all).toHaveLength(6);
-    expect(seed.alice.name).toBe('Alice');
-  });
-});

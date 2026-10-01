@@ -366,26 +366,3 @@ describe('insert API: sql preview', () => {
   });
 });
 
-describe('insert API: legacy interop', () => {
-  it('insert() and single().create() coexist in the same schema', async () => {
-    await h.orm
-      .insert(UserModel)
-      .values({ name: 'NewAPI', email: 'new@test.com' })
-      .go();
-    await h.orm
-      .single(UserModel)
-      .create({ name: 'Legacy', email: 'legacy@test.com' })
-      .go();
-
-    const all = await h.orm.select(UserModel).go();
-    expect(all).toHaveLength(5);
-    expect(all.map((u) => u.name).sort()).toEqual([
-      'Alice',
-      'Bob',
-      'Carol',
-      'Legacy',
-      'NewAPI',
-    ]);
-    expect(seed.alice.name).toBe('Alice');
-  });
-});

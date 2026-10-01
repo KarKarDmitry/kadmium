@@ -33,17 +33,17 @@ afterAll(async () => {
   await h.adapter.end();
 });
 
-describe('single: go() vs run(compile()).fill().go()', () => {
+describe('select: go() vs run(compile()).fill().go()', () => {
   it('базовое WHERE по статусу (typed-слот boolean) — оба канала дают одинаковые строки', async () => {
     const direct = await h.orm
-      .single(PostModel)
-      .select((p) => [p.id, p.published])
+      .select(PostModel)
+      .fields((p) => [p.id, p.published])
       .where((p) => p.published.eq(true))
       .go();
     const S = new QuerySlots(PostModel).push((p) => [p.published]);
     const c = h.orm
-      .single(PostModel)
-      .select((p) => [p.id, p.published])
+      .select(PostModel)
+      .fields((p) => [p.id, p.published])
       .where((p) => p.published.eq(S.slot('published')))
       .compile(S);
     const viaRun = await h.orm.run(c).fill({ published: true }).go();
@@ -57,14 +57,14 @@ describe('single: go() vs run(compile()).fill().go()', () => {
   it('два typed-слота разных типов (bool + число) в AND-цепочке', async () => {
     const S = new QuerySlots(PostModel).push((p) => [p.published, p.views]);
     const direct = await h.orm
-      .single(PostModel)
-      .select((p) => [p.id, p.title])
+      .select(PostModel)
+      .fields((p) => [p.id, p.title])
       .where((p) => p.published.eq(true))
       .where((p) => p.views.gt(7))
       .go();
     const c = h.orm
-      .single(PostModel)
-      .select((p) => [p.id, p.title])
+      .select(PostModel)
+      .fields((p) => [p.id, p.title])
       .where((p) => p.published.eq(S.slot('published')))
       .where((p) => p.views.gt(S.slot('views')))
       .compile(S);
@@ -78,14 +78,14 @@ describe('single: go() vs run(compile()).fill().go()', () => {
     const id = seedData.alice.id as number;
     const S = new QuerySlots(UserModel).push((u) => [u.id]);
     const direct = await h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where((u) => u.id.eq(id))
       .first()
       .go();
     const c = h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where((u) => u.id.eq(S.slot('id')))
       .first()
       .compile(S);
@@ -99,13 +99,13 @@ describe('single: go() vs run(compile()).fill().go()', () => {
     const ids = [seedData.alice.id as number, seedData.bob.id as number];
     const S = new QuerySlots(UserModel).push((u) => [u.id.array.as('ids')]);
     const direct = await h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where((u) => u.id.in(ids))
       .go();
     const c = h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where((u) => u.id.in(S.slot('ids')))
       .compile(S);
     const viaRun = await h.orm.run(c).fill({ ids }).go();
@@ -118,12 +118,12 @@ describe('single: go() vs run(compile()).fill().go()', () => {
     const id = seedData.alice.id as number;
     const S = new QuerySlots(UserModel).push((u) => [u.id]);
     const direct = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.id.eq(id))
       .include({ posts: true })
       .go();
     const c = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.id.eq(S.slot('id')))
       .include({ posts: true })
       .compile(S);
@@ -145,16 +145,16 @@ describe('single: go() vs run(compile()).fill().go()', () => {
       u.id.as('minViews'),
     ]);
     const direct = await h.orm
-      .single(UserModel)
-      .select((u) => [u.id])
+      .select(UserModel)
+      .fields((u) => [u.id])
       .where((u) => u.id.eq(id))
       .include({
         posts: { where: (p) => p.views.gt(0), order: (p) => [p.title.asc] },
       })
       .go();
     const c = h.orm
-      .single(UserModel)
-      .select((u) => [u.id])
+      .select(UserModel)
+      .fields((u) => [u.id])
       .where((u) => u.id.eq(S.slot('id')))
       .include({
         posts: {
@@ -172,14 +172,14 @@ describe('single: go() vs run(compile()).fill().go()', () => {
 
   it('плоский slot() внутри include({ posts: { where } }) + compile<T>() — результат как go()', async () => {
     const direct = await h.orm
-      .single(UserModel)
-      .select((u) => [u.id])
+      .select(UserModel)
+      .fields((u) => [u.id])
       .where((u) => u.name.eq('Alice'))
       .include({ posts: { where: (p) => p.views.gt(0) } })
       .go();
     const c = h.orm
-      .single(UserModel)
-      .select((u) => [u.id])
+      .select(UserModel)
+      .fields((u) => [u.id])
       .where((u) => u.name.eq(slot('name')))
       .include({ posts: { where: (p) => p.views.gt(slot('minViews')) } })
       .compile<{ name: string | undefined; minViews: number }>();
@@ -191,15 +191,15 @@ describe('single: go() vs run(compile()).fill().go()', () => {
   it('order + page с одним слотом — одинаковый порядок и пагинация', async () => {
     const S = new QuerySlots(PostModel).push((p) => [p.views]);
     const direct = await h.orm
-      .single(PostModel)
-      .select((p) => [p.id, p.views])
+      .select(PostModel)
+      .fields((p) => [p.id, p.views])
       .where((p) => p.views.gt(0))
       .order((p) => [p.views.desc])
       .page(1, 2)
       .go();
     const c = h.orm
-      .single(PostModel)
-      .select((p) => [p.id, p.views])
+      .select(PostModel)
+      .fields((p) => [p.id, p.views])
       .where((p) => p.views.gt(S.slot('views')))
       .order((p) => [p.views.desc])
       .page(1, 2)
@@ -213,8 +213,8 @@ describe('single: go() vs run(compile()).fill().go()', () => {
   it('типизированный compile(S): TSlots = ToDef<S>, TResult = результат go()', () => {
     const S = new QuerySlots(PostModel).push((p) => [p.published, p.views]);
     const b = h.orm
-      .single(PostModel)
-      .select((p) => [p.id])
+      .select(PostModel)
+      .fields((p) => [p.id])
       .where((p) => p.published.eq(S.slot('published')));
     type R = Awaited<ReturnType<typeof b.go>>;
     const c = b.compile(S);
@@ -228,7 +228,7 @@ describe('single: go() vs run(compile()).fill().go()', () => {
   it('fill: лишний ключ и недостающий ключ бросают (strict-валидация)', () => {
     const S = new QuerySlots(PostModel).push((p) => [p.published]);
     const c = h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.published.eq(S.slot('published')))
       .compile(S);
     const runner = h.orm.run(c);
@@ -242,13 +242,13 @@ describe('single: go() vs run(compile()).fill().go()', () => {
 
   it('плоский путь: flat compile<T>() + core slot("name") — тот же результат, что go()', async () => {
     const direct = await h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where((u) => u.name.eq('Alice'))
       .go();
     const c = h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where((u) => u.name.eq(slot('name')))
       .compile<{ name: string | undefined }>();
     const runner = h.orm.run(c);
@@ -261,16 +261,16 @@ describe('single: go() vs run(compile()).fill().go()', () => {
   it('один compiled-запрос переиспользуется в цикле с разными fill — все равны go()', async () => {
     const S = new QuerySlots(PostModel).push((p) => [p.published]);
     const c = h.orm
-      .single(PostModel)
-      .select((p) => [p.id, p.published])
+      .select(PostModel)
+      .fields((p) => [p.id, p.published])
       .where((p) => p.published.eq(S.slot('published')))
       .compile(S);
     const before = c.text;
 
     for (const published of [true, false]) {
       const direct = await h.orm
-        .single(PostModel)
-        .select((p) => [p.id, p.published])
+        .select(PostModel)
+        .fields((p) => [p.id, p.published])
         .where((p) => p.published.eq(published))
         .go();
       const viaRun = await h.orm.run(c).fill({ published }).go();
@@ -283,13 +283,13 @@ describe('single: go() vs run(compile()).fill().go()', () => {
   it('run() внутри transaction() — маршрутизация на tx-адаптер, результат как go()', async () => {
     const S = new QuerySlots(PostModel).push((p) => [p.published]);
     const direct = await h.orm
-      .single(PostModel)
-      .select((p) => [p.id])
+      .select(PostModel)
+      .fields((p) => [p.id])
       .where((p) => p.published.eq(true))
       .go();
     const c = h.orm
-      .single(PostModel)
-      .select((p) => [p.id])
+      .select(PostModel)
+      .fields((p) => [p.id])
       .where((p) => p.published.eq(S.slot('published')))
       .compile(S);
 

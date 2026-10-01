@@ -113,14 +113,14 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(PostModel)
-          .select((p) => [p.id, p.published])
+          .select(PostModel)
+          .fields((p) => [p.id, p.published])
           .where((p) => p.published.eq(true))
           .toSql(),
       () => {
         const c = orm
-          .single(PostModel)
-          .select((p) => [p.id, p.published])
+          .select(PostModel)
+          .fields((p) => [p.id, p.published])
           .where((p) => p.published.eq(S.slot('published')))
           .compile(S);
         return () => orm.run(c).fill({ published: true }).sql();
@@ -141,15 +141,15 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(PostModel)
-          .select((p) => [p.id, p.title])
+          .select(PostModel)
+          .fields((p) => [p.id, p.title])
           .where((p) => p.published.eq(true))
           .where((p) => p.views.gt(7))
           .toSql(),
       () => {
         const c = orm
-          .single(PostModel)
-          .select((p) => [p.id, p.title])
+          .select(PostModel)
+          .fields((p) => [p.id, p.title])
           .where((p) => p.published.eq(S.slot('published')))
           .where((p) => p.views.gt(S.slot('views')))
           .compile(S);
@@ -171,14 +171,14 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(UserModel)
-          .select((u) => [u.id, u.name])
+          .select(UserModel)
+          .fields((u) => [u.id, u.name])
           .where((u) => u.id.in([1, 2, 3]))
           .toSql(),
       () => {
         const c = orm
-          .single(UserModel)
-          .select((u) => [u.id, u.name])
+          .select(UserModel)
+          .fields((u) => [u.id, u.name])
           .where((u) => u.id.in(S.slot('ids')))
           .compile(S);
         return () =>
@@ -204,15 +204,15 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(UserModel)
-          .select((u) => [u.id, u.name])
+          .select(UserModel)
+          .fields((u) => [u.id, u.name])
           .where((u) => u.id.eq(1))
           .include({ posts: true })
           .toSql(),
       () => {
         const c = orm
-          .single(UserModel)
-          .select((u) => [u.id, u.name])
+          .select(UserModel)
+          .fields((u) => [u.id, u.name])
           .where((u) => u.id.eq(S.slot('id')))
           .include({ posts: true })
           .compile(S);
@@ -235,16 +235,16 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(PostModel)
-          .select((p) => [p.id, p.views])
+          .select(PostModel)
+          .fields((p) => [p.id, p.views])
           .where((p) => p.views.gt(0))
           .order((p) => [p.views.desc])
           .limit(5)
           .toSql(),
       () => {
         const c = orm
-          .single(PostModel)
-          .select((p) => [p.id, p.views])
+          .select(PostModel)
+          .fields((p) => [p.id, p.views])
           .where((p) => p.views.gt(S.slot('views')))
           .order((p) => [p.views.desc])
           .limit(5)
@@ -267,15 +267,15 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(PostModel)
-          .select((p) => [p.id, p.title])
+          .select(PostModel)
+          .fields((p) => [p.id, p.title])
           .where((p) => p.id.eq(3))
           .first()
           .toSql(),
       () => {
         const c = orm
-          .single(PostModel)
-          .select((p) => [p.id, p.title])
+          .select(PostModel)
+          .fields((p) => [p.id, p.title])
           .where((p) => p.id.eq(S.slot('id')))
           .first()
           .compile(S);
@@ -297,14 +297,14 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(PostModel)
-          .select((p) => [p.id, p.title])
+          .select(PostModel)
+          .fields((p) => [p.id, p.title])
           .where((p) => p.title.eq('Hello Postgres'))
           .toSql(),
       () => {
         const c = orm
-          .single(PostModel)
-          .select((p) => [p.id, p.title])
+          .select(PostModel)
+          .fields((p) => [p.id, p.title])
           .where((p) => p.title.eq(slot('title')))
           .compile<{ title: string | undefined }>();
         return () => orm.run(c).fill({ title: 'Hello Postgres' }).sql();
@@ -329,15 +329,15 @@ describe('render-perf: обычный билдер vs compiled (без запр�
       harness.reset,
       () =>
         orm
-          .single(PostModel)
-          .select((p) => [p.id, p.views])
+          .select(PostModel)
+          .fields((p) => [p.id, p.views])
           .where((p) => p.views.gte(0))
           .where((p) => p.views.lte(100))
           .toSql(),
       () => {
         const c = orm
-          .single(PostModel)
-          .select((p) => [p.id, p.views])
+          .select(PostModel)
+          .fields((p) => [p.id, p.views])
           .where((p) => p.views.gte(S.slot('min')))
           .where((p) => p.views.lte(S.slot('max')))
           .compile(S);
@@ -372,12 +372,12 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           harness.count,
           harness.reset,
           () => {
-            const q = orm.single(PostModel).select((p) => [p.id]);
+            const q = orm.select(PostModel).fields((p) => [p.id]);
             for (let i = 0; i < n; i++) q.where((p) => p.published.eq(true));
             return q.toSql();
           },
           () => {
-            const q = orm.single(PostModel).select((p) => [p.id]);
+            const q = orm.select(PostModel).fields((p) => [p.id]);
             for (let i = 0; i < n; i++)
               q.where((p) => p.published.eq(slots[i]));
             const c = q.compile(S);
