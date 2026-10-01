@@ -116,6 +116,11 @@ export interface SingleDml<M extends Shape> {
    *   returning` читается как клаузы SQL. См. `plans/crud-api.md`.
    */
   create(data: DmlData<M>): CreateFinalizer<M>;
+  /**
+   * @deprecated Используйте `orm.insertMany(Model).values(rows)`.
+   *   `transaction` стал шагом `.transaction(bool)`, а не опцией второго
+   *   аргумента — вся write-поверхность CRUD-API собирается шагами.
+   */
   createMany(
     data: Record<string, unknown>[],
     options?: CreateManyOptions,

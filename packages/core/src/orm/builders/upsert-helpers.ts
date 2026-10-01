@@ -240,6 +240,7 @@ function buildManyDebugSql(
   adapter: SqlAdapter,
   firstRow: Record<string, unknown> | undefined,
   selects: AnySelectableField[] | null,
+  rowCount: number,
 ): string {
   const sqb = new (baseSqb.constructor as new () => KadmiumSqb)();
   sqb.operation = 'upsert';
@@ -253,7 +254,11 @@ function buildManyDebugSql(
     : null;
   sqb.doNothing = baseSqb.doNothing;
   sqb.selects = selects;
-  return buildDebugSql(sqb, adapter);
+  const sql = buildDebugSql(sqb, adapter);
+  // Батч уходит одним multi-row statement, но превью рендерит только первую
+  // строку. Без маркера текст читался бы как одиночный INSERT — при N > 1
+  // это вводит в заблуждение. Для одной строки маркер не нужен.
+  return rowCount > 1 ? `-- preview: first of ${rowCount} rows\n${sql}` : sql;
 }
 
 // ── Multi-row create finalizer ──
@@ -292,7 +297,13 @@ export function buildCreateManyFinalizer<TModel extends Model>(
           ) as FlatFinalResult<S>[];
         },
         sql: () =>
-          buildManyDebugSql(baseSqb, adapter, mappedRows[0], returningSelects),
+          buildManyDebugSql(
+            baseSqb,
+            adapter,
+            mappedRows[0],
+            returningSelects,
+            mappedRows.length,
+          ),
       };
     },
     go: async () => {
@@ -304,7 +315,14 @@ export function buildCreateManyFinalizer<TModel extends Model>(
       });
       return rows.map((r) => mapRow(ir, r)) as TModel['~shape'][];
     },
-    sql: () => buildManyDebugSql(baseSqb, adapter, mappedRows[0], null),
+    sql: () =>
+      buildManyDebugSql(
+        baseSqb,
+        adapter,
+        mappedRows[0],
+        null,
+        mappedRows.length,
+      ),
   });
 
   baseSqb.operation = 'upsert';

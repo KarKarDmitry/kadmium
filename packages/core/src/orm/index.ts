@@ -10,6 +10,11 @@ export { DeleteQueryBuilder } from './builders/delete';
 export type { DeleteHandle } from './builders/delete';
 export { InsertBuilder } from './builders/insert';
 export type { InsertHandle, InsertData } from './builders/insert';
+export { InsertManyBuilder } from './builders/insert-many';
+export type {
+  InsertManyHandle,
+  InsertManyReturningTerminal,
+} from './builders/insert-many';
 export type { MultiSelectResult } from './builders/multi';
 export type {
   SingleShared,

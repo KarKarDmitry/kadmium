@@ -4,6 +4,10 @@ import { SelectQueryBuilder, type SelectHandle } from './builders/select';
 import { UpdateQueryBuilder, type UpdateHandle } from './builders/update';
 import { DeleteQueryBuilder, type DeleteHandle } from './builders/delete';
 import { InsertBuilder, type InsertHandle } from './builders/insert';
+import {
+  InsertManyBuilder,
+  type InsertManyHandle,
+} from './builders/insert-many';
 import type { DmlConfigHandle, MultiConfigHandle } from './builders/handles';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
@@ -199,6 +203,39 @@ export class OrmManager {
       this._irLookup,
       this._adapter,
     ) as unknown as InsertHandle<TModel>;
+  }
+
+  /**
+   * Вход операции batch INSERT.
+   *
+   * Цепочка: `values(rows)` → `onConflict(...)` → `set(...)`/`doNothing()`
+   * → `transaction(bool)` → `returning(...)` → `go()`.
+   *
+   * `transaction` — шаг, а не опция второго аргумента: вся write-поверхность
+   * CRUD-API собирается шагами. Дефолт `true`, как в legacy `createMany`.
+   *
+   * @example
+   * const rows = await orm.insertMany(User)
+   *   .values([
+   *     { name: 'A', email: 'a@x.io' },
+   *     { name: 'B', email: 'b@x.io' },
+   *   ])
+   *   .transaction(false)
+   *   .go();
+   */
+  insertMany<
+    TModel extends {
+      ['~shape']: Record<string, unknown>;
+      ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
+    },
+  >(modelClass: { new (): TModel }, ir?: ModelIR): InsertManyHandle<TModel> {
+    const compiled = ir ?? this._irFor(modelClass);
+    return new InsertManyBuilder<TModel>(
+      compiled,
+      this._irLookup,
+      this._adapter,
+    ) as unknown as InsertManyHandle<TModel>;
   }
 
   /**
