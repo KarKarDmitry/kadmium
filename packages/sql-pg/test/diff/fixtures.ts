@@ -9,6 +9,7 @@ import type {
   AddColumnOp,
   AddForeignKeyOp,
   AddIndexOp,
+  AlterForeignKeyOp,
   AlterNullableOp,
   AlterTypeOp,
   CreateTableOp,
@@ -336,6 +337,30 @@ export const dropCategoryFkOp = (): DropForeignKeyOp => ({
   tableName: 'posts',
 });
 
+export const alterAuthorFkOp = (): AlterForeignKeyOp => ({
+  type: 'alter-foreign-key',
+  fkName: 'fk_posts_author',
+  tableName: 'posts',
+  oldFk: {
+    name: 'fk_posts_author',
+    tableName: 'posts',
+    columns: ['author'],
+    refTable: 'user',
+    refColumns: ['id'],
+    onDelete: 'NO ACTION',
+    onUpdate: 'NO ACTION',
+  },
+  newFk: {
+    name: 'fk_posts_author',
+    tableName: 'posts',
+    columns: ['author'],
+    refTable: 'user',
+    refColumns: ['id'],
+    onDelete: 'CASCADE',
+    onUpdate: 'NO ACTION',
+  },
+});
+
 export const addLegacyIndexOp = (): AddIndexOp => ({
   type: 'add-index',
   index: {
@@ -374,6 +399,7 @@ export function diff(
       droppedIndexes: 0,
       addedForeignKeys: 0,
       droppedForeignKeys: 0,
+      alteredForeignKeys: 0,
       ...summary,
     },
   };

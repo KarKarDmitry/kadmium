@@ -61,6 +61,23 @@ export interface DropForeignKeyOp {
   tableName: string;
 }
 
+/**
+ * Смена определения существующего FK: действия, целевой таблицы или колонок.
+ *
+ * Отдельная операция, а не пара `drop-foreign-key` + `add-foreign-key`, потому
+ * что `checkHealth` считает добавленный FK «отсутствующим ограничением» и
+ * покраснел бы на исправной схеме. Postgres не умеет ALTER CONSTRAINT по
+ * частям — внутри операции ограничение пересоздаётся, но для диффа и для
+ * отчёта это изменение существующего FK, а не появление нового.
+ */
+export interface AlterForeignKeyOp {
+  type: 'alter-foreign-key';
+  fkName: string;
+  tableName: string;
+  oldFk: DbForeignKey;
+  newFk: DbForeignKey;
+}
+
 export interface CreateTableOp {
   type: 'create-table';
   table: string;
@@ -81,6 +98,7 @@ export type DiffOp =
   | DropIndexOp
   | AddForeignKeyOp
   | DropForeignKeyOp
+  | AlterForeignKeyOp
   | CreateTableOp
   | DropTableOp;
 
@@ -97,6 +115,7 @@ export interface DiffResult {
     droppedIndexes: number;
     addedForeignKeys: number;
     droppedForeignKeys: number;
+    alteredForeignKeys: number;
   };
 }
 

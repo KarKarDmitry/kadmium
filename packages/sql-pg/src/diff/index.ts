@@ -21,6 +21,7 @@ export type {
   DropIndexOp,
   AddForeignKeyOp,
   DropForeignKeyOp,
+  AlterForeignKeyOp,
   CreateTableOp,
   DropTableOp,
 } from './types';
@@ -80,6 +81,11 @@ export function diffToHealth(
   }
   if (diff.summary.addedForeignKeys > 0) {
     issues.push(`${diff.summary.addedForeignKeys} foreign key(s) missing`);
+  }
+  if (diff.summary.alteredForeignKeys > 0) {
+    issues.push(
+      `${diff.summary.alteredForeignKeys} foreign key(s) with a different referential action`,
+    );
   }
 
   return {

@@ -10,6 +10,7 @@ import {
   addFkOp,
   addLegacyIndexOp,
   addTitleColumnOp,
+  alterAuthorFkOp,
   alterAuthorTypeOp,
   alterNameNullableOp,
   createUsersOp,
@@ -134,6 +135,54 @@ describe('applyDiff', () => {
       'fk_posts_category',
       'posts',
     ]);
+  });
+
+  describe('alter-foreign-key', () => {
+    it('drops the old constraint before adding the new one', async () => {
+      const ddl = new MockDdl();
+      const op = alterAuthorFkOp();
+      await applyDiff(diff([op]), ddl);
+
+      const sequence = ddl.calls.map((c) => c.method);
+      expect(sequence).toEqual(['dropForeignKey', 'addForeignKey']);
+      const [drop, add] = ddl.calls;
+      expect(drop.args).toEqual(['fk_posts_author', 'posts']);
+      expect(add.args).toEqual([op.newFk]);
+    });
+
+    it('reports the action change, not a drop plus an add', async () => {
+      const ddl = new MockDdl();
+      const applied = await applyDiff(diff([alterAuthorFkOp()]), ddl);
+
+      expect(applied).toEqual([
+        'ALTER FK fk_posts_author on posts: ON DELETE NO ACTION → CASCADE',
+      ]);
+    });
+
+    it('mentions ON UPDATE only when it is what changed', async () => {
+      const ddl = new MockDdl();
+      const op = alterAuthorFkOp();
+      const applied = await applyDiff(
+        diff([
+          {
+            ...op,
+            oldFk: { ...op.oldFk, onUpdate: 'NO ACTION' },
+            newFk: { ...op.newFk, onUpdate: 'SET NULL' },
+          },
+        ]),
+        ddl,
+      );
+
+      expect(applied).toEqual([
+        'ALTER FK fk_posts_author on posts: ON DELETE NO ACTION → CASCADE, ON UPDATE NO ACTION → SET NULL',
+      ]);
+    });
+
+    it('a failing drop aborts before the constraint is recreated', async () => {
+      const ddl = new MockDdl((m) => m === 'dropForeignKey');
+      await expect(applyDiff(diff([alterAuthorFkOp()]), ddl)).rejects.toThrow();
+      expect(ddl.calls.map((c) => c.method)).toEqual(['dropForeignKey']);
+    });
   });
 
   it('skips drop-table but still reports it as applied', async () => {

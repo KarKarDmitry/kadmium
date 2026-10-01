@@ -43,6 +43,11 @@ function opToSql(op: DiffOp): string {
       return `${addForeignKeySql(op.fk)};`;
     case 'drop-foreign-key':
       return `${dropForeignKeySql(op.tableName, op.fkName)};`;
+    case 'alter-foreign-key':
+      // Postgres пересоздаёт ограничение целиком, поэтому превью — две
+      // статменты. Порядок тот же, что в executeOp: сначала снять, иначе имя
+      // уже занято. renderSql склеивает операции через '\n\n'.
+      return `${dropForeignKeySql(op.tableName, op.fkName)};\n${addForeignKeySql(op.newFk)};`;
   }
 }
 

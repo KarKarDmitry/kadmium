@@ -16,6 +16,7 @@ function makeDiff(overrides: Partial<DiffResult['summary']> = {}): DiffResult {
       droppedIndexes: 0,
       addedForeignKeys: 0,
       droppedForeignKeys: 0,
+      alteredForeignKeys: 0,
       ...overrides,
     },
   };
@@ -76,6 +77,19 @@ describe('diffToHealth', () => {
     const result = diffToHealth(irs, makeDiff({ addedForeignKeys: 1 }));
     expect(result.isHealthy).toBe(false);
     expect(result.issues).toContain('1 foreign key(s) missing');
+  });
+
+  it('reports foreign keys with a different referential action', () => {
+    const result = diffToHealth(irs, makeDiff({ alteredForeignKeys: 2 }));
+    expect(result.isHealthy).toBe(false);
+    expect(result.issues).toContain(
+      '2 foreign key(s) with a different referential action',
+    );
+  });
+
+  it('an altered action is not reported as a missing foreign key', () => {
+    const result = diffToHealth(irs, makeDiff({ alteredForeignKeys: 1 }));
+    expect(result.issues).not.toContain('1 foreign key(s) missing');
   });
 
   it('multiple issues combined', () => {

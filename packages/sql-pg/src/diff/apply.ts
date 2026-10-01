@@ -28,6 +28,19 @@ function opToString(op: DiffOp): string {
       return `ADD FK ${op.fk.name} (${op.fk.tableName} → ${op.fk.refTable})`;
     case 'drop-foreign-key':
       return `DROP FK ${op.fkName} on ${op.tableName}`;
+    case 'alter-foreign-key': {
+      const changes: string[] = [];
+      if (op.oldFk.onDelete !== op.newFk.onDelete) {
+        changes.push(`ON DELETE ${op.oldFk.onDelete} → ${op.newFk.onDelete}`);
+      }
+      if (op.oldFk.onUpdate !== op.newFk.onUpdate) {
+        changes.push(`ON UPDATE ${op.oldFk.onUpdate} → ${op.newFk.onUpdate}`);
+      }
+      if (op.oldFk.refTable !== op.newFk.refTable) {
+        changes.push(`ref ${op.oldFk.refTable} → ${op.newFk.refTable}`);
+      }
+      return `ALTER FK ${op.fkName} on ${op.tableName}: ${changes.join(', ')}`;
+    }
   }
 }
 
@@ -133,6 +146,13 @@ async function executeOp(op: DiffOp, ddl: DbDdlAdapter): Promise<void> {
       break;
     case 'drop-foreign-key':
       await ddl.dropForeignKey(op.fkName, op.tableName);
+      break;
+    case 'alter-foreign-key':
+      // Postgres не умеет ALTER CONSTRAINT по частям: ограничение
+      // пересоздаётся. Порядок обязателен — сначала снять, потом создать,
+      // иначе имя уже занято.
+      await ddl.dropForeignKey(op.fkName, op.tableName);
+      await ddl.addForeignKey(op.newFk);
       break;
   }
 }

@@ -154,5 +154,24 @@ export function assertDiffOpSqlSafe(op: DiffOp): void {
       assertSqlIdentifier(op.tableName, 'table name');
       assertSqlIdentifier(op.fkName, 'foreign key name');
       break;
+    case 'alter-foreign-key':
+      assertSqlIdentifier(op.tableName, 'table name');
+      assertSqlIdentifier(op.fkName, 'foreign key name');
+      // Оба FK валидны: старый попадает в DROP CONSTRAINT, новый — в ADD.
+      assertSqlIdentifier(op.oldFk.name, 'foreign key name');
+      assertSqlIdentifier(op.oldFk.tableName, 'table name');
+      assertSqlIdentifierList(op.oldFk.columns, 'foreign key columns');
+      assertSqlIdentifier(op.oldFk.refTable, 'referenced table name');
+      assertSqlIdentifierList(op.oldFk.refColumns, 'referenced columns');
+      assertReferentialAction(op.oldFk.onDelete, 'ON DELETE');
+      assertReferentialAction(op.oldFk.onUpdate, 'ON UPDATE');
+      assertSqlIdentifier(op.newFk.name, 'foreign key name');
+      assertSqlIdentifier(op.newFk.tableName, 'table name');
+      assertSqlIdentifierList(op.newFk.columns, 'foreign key columns');
+      assertSqlIdentifier(op.newFk.refTable, 'referenced table name');
+      assertSqlIdentifierList(op.newFk.refColumns, 'referenced columns');
+      assertReferentialAction(op.newFk.onDelete, 'ON DELETE');
+      assertReferentialAction(op.newFk.onUpdate, 'ON UPDATE');
+      break;
   }
 }

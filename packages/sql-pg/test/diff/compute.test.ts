@@ -4,8 +4,17 @@ import type {
   DbForeignKey,
   DbIndex,
   DbTable,
+  ReferentialAction,
 } from '@karkardmitry/kadmium-sql-types';
-import { irs, postColumns, userColumns, MockDdl } from './fixtures';
+import {
+  irs,
+  postColumns,
+  postFields,
+  userColumns,
+  userFields,
+  MockDdl,
+} from './fixtures';
+import type { IrField } from '../../src/diff/types';
 
 function syncedDdl(): MockDdl {
   const ddl = new MockDdl();
@@ -304,6 +313,211 @@ describe('computeDiff', () => {
       type: 'drop-foreign-key',
       fkName: 'fk_posts_category',
       tableName: 'posts',
+    });
+  });
+
+  describe('referential action changes', () => {
+    const irsWithAction = (
+      onDelete?: ReferentialAction,
+      onUpdate?: ReferentialAction,
+    ) => [
+      { name: 'User', collection: 'users', fields: userFields },
+      {
+        name: 'Post',
+        collection: 'posts',
+        fields: {
+          ...postFields,
+          author: { ...postFields.author, onDelete, onUpdate },
+        },
+      },
+    ];
+
+    const fkIn = (ddl: MockDdl, fk: Partial<DbForeignKey>) => {
+      const current = ddl.foreignKeys.get('posts')?.[0];
+      return ddl.foreignKeys.set('posts', [
+        {
+          name: 'fk_posts_author',
+          tableName: 'posts',
+          columns: ['author'],
+          refTable: 'user',
+          refColumns: ['id'],
+          onDelete: 'NO ACTION',
+          onUpdate: 'NO ACTION',
+          ...fk,
+        },
+        ...(current && current.name !== 'fk_posts_author' ? [current] : []),
+      ]);
+    };
+
+    it('emits alter-foreign-key when ON DELETE changes', async () => {
+      const ddl = syncedDdl();
+      const diff = await computeDiff(irsWithAction('CASCADE'), ddl);
+
+      expect(diff.summary.alteredForeignKeys).toBe(1);
+      expect(diff.summary.addedForeignKeys).toBe(0);
+      expect(diff.summary.droppedForeignKeys).toBe(0);
+      expect(
+        diff.operations.find((o) => o.type === 'alter-foreign-key'),
+      ).toMatchObject({
+        type: 'alter-foreign-key',
+        fkName: 'fk_posts_author',
+        tableName: 'posts',
+        oldFk: { onDelete: 'NO ACTION' },
+        newFk: { onDelete: 'CASCADE', onUpdate: 'NO ACTION' },
+      });
+    });
+
+    it('emits alter-foreign-key when ON UPDATE changes', async () => {
+      const diff = await computeDiff(
+        irsWithAction(undefined, 'RESTRICT'),
+        syncedDdl(),
+      );
+      expect(diff.summary.alteredForeignKeys).toBe(1);
+      expect(
+        diff.operations.find((o) => o.type === 'alter-foreign-key'),
+      ).toMatchObject({
+        newFk: { onDelete: 'NO ACTION', onUpdate: 'RESTRICT' },
+      });
+    });
+
+    it('emits alter-foreign-key when the action is removed from the model', async () => {
+      const ddl = syncedDdl();
+      fkIn(ddl, { name: 'fk_posts_author', onDelete: 'CASCADE' });
+      const diff = await computeDiff(irs, ddl);
+
+      expect(diff.summary.alteredForeignKeys).toBe(1);
+      expect(
+        diff.operations.find((o) => o.type === 'alter-foreign-key'),
+      ).toMatchObject({ newFk: { onDelete: 'NO ACTION' } });
+    });
+
+    it('emits alter-foreign-key when the ref target changes', async () => {
+      const ddl = syncedDdl();
+      // The FK target comes from the referenced model's name, so a rename
+      // retargets the constraint rather than dropping and re-adding it.
+      const renamed: Array<{
+        name: string;
+        collection: string;
+        fields: Record<string, IrField>;
+      }> = [
+        { name: 'User', collection: 'users', fields: userFields },
+        {
+          name: 'Account',
+          collection: 'accounts',
+          fields: { id: userFields.id },
+        },
+        {
+          name: 'Post',
+          collection: 'posts',
+          fields: {
+            ...postFields,
+            author: { ...postFields.author, ref: 'Account' },
+          },
+        },
+      ];
+      const diff = await computeDiff(renamed, ddl);
+
+      expect(diff.summary.alteredForeignKeys).toBe(1);
+      expect(
+        diff.operations.find((o) => o.type === 'alter-foreign-key'),
+      ).toMatchObject({
+        oldFk: { refTable: 'user' },
+        newFk: { refTable: 'account' },
+      });
+    });
+
+    it('no op when the action already matches', async () => {
+      const ddl = syncedDdl();
+      fkIn(ddl, { name: 'fk_posts_author', onDelete: 'CASCADE' });
+      const diff = await computeDiff(irsWithAction('CASCADE'), ddl);
+
+      expect(diff.summary.alteredForeignKeys).toBe(0);
+      expect(diff.operations).toEqual([]);
+      expect(diff.hasChanges).toBe(false);
+    });
+
+    it('one altered FK does not touch its neighbours', async () => {
+      const ddl = syncedDdl();
+      // Two refs on Post: author → User, editor → User. Only the first changes.
+      const twoRefs: Record<string, IrField> = {
+        ...postFields,
+        editor: { type: 'ref', ref: 'User', nullable: true, unique: false },
+      };
+      ddl.setSchema(
+        [{ name: 'users' }, { name: 'posts' }],
+        {
+          users: userColumns,
+          posts: [
+            ...postColumns,
+            {
+              name: 'editor',
+              tableName: 'posts',
+              dataType: 'integer',
+              isNullable: true,
+              defaultValue: null,
+              isPrimary: false,
+              isUnique: false,
+            },
+          ],
+        },
+        { users: [], posts: [] },
+        {
+          posts: [
+            {
+              name: 'fk_posts_author',
+              tableName: 'posts',
+              columns: ['author'],
+              refTable: 'user',
+              refColumns: ['id'],
+              onDelete: 'NO ACTION',
+              onUpdate: 'NO ACTION',
+            },
+            {
+              name: 'fk_posts_editor',
+              tableName: 'posts',
+              columns: ['editor'],
+              refTable: 'user',
+              refColumns: ['id'],
+              onDelete: 'NO ACTION',
+              onUpdate: 'NO ACTION',
+            },
+          ],
+        },
+      );
+      const diff = await computeDiff(
+        [
+          { name: 'User', collection: 'users', fields: userFields },
+          {
+            name: 'Post',
+            collection: 'posts',
+            fields: {
+              ...twoRefs,
+              author: { ...postFields.author, onDelete: 'CASCADE' },
+            },
+          },
+        ],
+        ddl,
+      );
+
+      expect(diff.summary.alteredForeignKeys).toBe(1);
+      expect(
+        diff.operations.filter((o) => o.type.endsWith('foreign-key')),
+      ).toHaveLength(1);
+      expect(
+        diff.operations.find((o) => o.type === 'alter-foreign-key'),
+      ).toMatchObject({ fkName: 'fk_posts_author' });
+    });
+
+    it('a missing FK with a differing action is still an add, not an alter', async () => {
+      const ddl = syncedDdl();
+      ddl.foreignKeys.set('posts', []);
+      const diff = await computeDiff(irsWithAction('CASCADE'), ddl);
+
+      expect(diff.summary.addedForeignKeys).toBe(1);
+      expect(diff.summary.alteredForeignKeys).toBe(0);
+      expect(
+        diff.operations.find((o) => o.type === 'add-foreign-key'),
+      ).toMatchObject({ fk: { onDelete: 'CASCADE' } });
     });
   });
 

@@ -2,7 +2,10 @@
  * computeDiff — compare IR models with actual DB state.
  */
 
-import type { DbDdlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type {
+  DbDdlAdapter,
+  DbForeignKey,
+} from '@karkardmitry/kadmium-sql-types';
 import type { DiffOp, DiffResult, IrField } from './types';
 import {
   pgType,
@@ -32,6 +35,7 @@ export async function computeDiff(
     droppedIndexes: 0,
     addedForeignKeys: 0,
     droppedForeignKeys: 0,
+    alteredForeignKeys: 0,
   };
 
   const dbTables = new Map<string, boolean>();
@@ -190,12 +194,23 @@ export async function computeDiff(
     // FK diff
     const expectedFks = expectedForeignKeys(tableName, ir.fields, irs);
     const expectedFkNames = new Set(expectedFks.map((f) => f.name));
-    const dbFkNames = new Set(dbFks.map((f) => f.name));
 
     for (const fk of expectedFks) {
-      if (!dbFkNames.has(fk.name)) {
+      const existing = dbFks.find((f) => f.name === fk.name);
+      if (!existing) {
         operations.push({ type: 'add-foreign-key', fk });
         summary.addedForeignKeys++;
+      } else if (foreignKeyChanged(existing, fk)) {
+        // Имя FK зависит только от таблицы и колонки, поэтому смена действия
+        // (или цели ссылки) его не затрагивает и соседних FK не шевелит.
+        operations.push({
+          type: 'alter-foreign-key',
+          fkName: fk.name,
+          tableName,
+          oldFk: existing,
+          newFk: fk,
+        });
+        summary.alteredForeignKeys++;
       }
     }
 
@@ -229,4 +244,26 @@ function groupByTable<T extends { tableName: string }>(
     else map.set(row.tableName, [row]);
   }
   return map;
+}
+
+/**
+ * Расходится ли существующий FK с ожидаемым по чему-то, кроме имени.
+ *
+ * Сравниваются колонки, цель и оба действия. Порядок в массивах колонок важен:
+ * Postgres хранит его в `information_schema`, но `pg_constraint` может вернуть
+ * свой — при перестановке это действительно другой FK, даже если смысл тот же.
+ */
+function foreignKeyChanged(
+  existing: DbForeignKey,
+  expected: DbForeignKey,
+): boolean {
+  return (
+    existing.columns.length !== expected.columns.length ||
+    existing.columns[0] !== expected.columns[0] ||
+    existing.refTable !== expected.refTable ||
+    existing.refColumns.length !== expected.refColumns.length ||
+    existing.refColumns[0] !== expected.refColumns[0] ||
+    existing.onDelete !== expected.onDelete ||
+    existing.onUpdate !== expected.onUpdate
+  );
 }

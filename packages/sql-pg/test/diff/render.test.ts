@@ -4,6 +4,7 @@ import {
   addEmailIndexOp,
   addFkOp,
   addTitleColumnOp,
+  alterAuthorFkOp,
   alterAuthorTypeOp,
   alterNameNullableOp,
   createUsersOp,
@@ -112,5 +113,83 @@ COMMIT;
       },
     ]);
     expect(() => renderSql(hostile)).toThrow(/Invalid SQL identifier/);
+  });
+
+  describe('alter-foreign-key', () => {
+    it('renders DROP CONSTRAINT before ADD CONSTRAINT', () => {
+      const sql = renderSql(diff([alterAuthorFkOp()]));
+      const drop = sql.indexOf('DROP CONSTRAINT IF EXISTS "fk_posts_author"');
+      const add = sql.indexOf('ADD CONSTRAINT "fk_posts_author"');
+      expect(drop).toBeGreaterThan(-1);
+      expect(add).toBeGreaterThan(drop);
+    });
+
+    it('the recreated constraint carries the new action', () => {
+      const sql = renderSql(diff([alterAuthorFkOp()]));
+      expect(sql).toContain('ON DELETE CASCADE ON UPDATE NO ACTION');
+      expect(sql).not.toContain('ON DELETE NO ACTION ON UPDATE NO ACTION');
+    });
+
+    it('renders both actions when both changed', () => {
+      const op = alterAuthorFkOp();
+      const sql = renderSql(
+        diff([
+          {
+            ...op,
+            newFk: { ...op.newFk, onDelete: 'SET NULL', onUpdate: 'SET NULL' },
+          },
+        ]),
+      );
+      expect(sql).toContain('ON DELETE SET NULL ON UPDATE SET NULL');
+    });
+
+    it('a poisoned new FK is rejected — it would be interpolated as SQL', () => {
+      const op = alterAuthorFkOp();
+      const hostile = diff([
+        {
+          ...op,
+          newFk: { ...op.newFk, refTable: 'user" ; DROP TABLE users; --' },
+        },
+      ]);
+      expect(() => renderSql(hostile)).toThrow(/Invalid SQL identifier/);
+    });
+
+    it('a poisoned old FK is rejected too — it reaches DROP CONSTRAINT', () => {
+      const op = alterAuthorFkOp();
+      const hostile = diff([
+        { ...op, oldFk: { ...op.oldFk, tableName: 'post"s' } },
+      ]);
+      expect(() => renderSql(hostile)).toThrow(/Invalid SQL identifier/);
+    });
+
+    it('an unknown action is rejected on both sides', () => {
+      const op = alterAuthorFkOp();
+      expect(() =>
+        renderSql(
+          diff([
+            {
+              ...op,
+              newFk: {
+                ...op.newFk,
+                onDelete: 'EXPLODE' as (typeof op.newFk)['onDelete'],
+              },
+            },
+          ]),
+        ),
+      ).toThrow(/Invalid referential action for ON DELETE/);
+      expect(() =>
+        renderSql(
+          diff([
+            {
+              ...op,
+              oldFk: {
+                ...op.oldFk,
+                onUpdate: 'EXPLODE' as (typeof op.oldFk)['onUpdate'],
+              },
+            },
+          ]),
+        ),
+      ).toThrow(/Invalid referential action for ON UPDATE/);
+    });
   });
 });
