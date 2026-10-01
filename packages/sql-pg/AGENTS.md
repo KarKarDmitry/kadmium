@@ -75,6 +75,15 @@ pgTypes.setTypeParser(20, (val) => val === null ? null : Number(val));
 ```
 Converts PostgreSQL `int8` (bigint) to JavaScript `number`. **Warning**: global mutation — conflicts with other pg users.
 
+## Referential Integrity
+
+`expectedForeignKeys()` (`diff/types.ts`) превращает IR в список ожидаемых FK: поле с `ref` и без `sourceModel` — это FK, владеющий колонкой. Действия приходят из model DSL уже в канонической uppercase-форме (`onDelete`/`onUpdate` на `IrField`), маппинг lowercase → uppercase живёт в core.
+
+- **CREATE** — `ddl-sql.ts` рендерит `ON DELETE ... ON UPDATE ...` в `ADD CONSTRAINT`; отсутствие действия даёт `NO ACTION`.
+- **ALTER** — смена действия порождает `AlterForeignKeyOp` (`{ oldFk, newFk }`), а `apply.ts` разворачивает его в `DROP CONSTRAINT` → `ADD CONSTRAINT`. Отдельного «изменения действия» в PG нет, поэтому это всегда пара операций.
+- **Валидация** — `assertReferentialAction()` (`ddl-validate.ts`) проверяет и `op.fk`, и `op.oldFk`/`op.newFk` у ALTER. Значение приходит из IR, а не от пользователя, но проверка всё равно нужна: в `ON DELETE` нельзя подставить произвольный SQL.
+
+Тесты: `test/diff/types.test.ts` (форма `expectedForeignKeys`), `test/diff/compute.test.ts` (порождение alter-операции), `test/diff/apply.test.ts` + `test/diff/render.test.ts` (DROP/ADD и текст превью), `test-project/test/ddl-fk.test.ts` (реальный PostgreSQL: `information_schema`, смена действия на существующем FK, `checkHealth`).
 ## Rules
 
 - **All SQL generation** goes through `SqlGenerator` — never build SQL strings directly

@@ -1,6 +1,19 @@
 # Расширение DSL ссылочных данных — `onDelete` / `onUpdate` в `f.ref`
 
-**Статус:** 📋 решения приняты, реализация не начата. PR1 — DSL.
+**Статус:** ✅ PR1–PR7 закрыты (2026-10-01).
+
+| PR | Содержание | Коммит |
+|----|-----------|--------|
+| 1 | DSL `.onDelete()` / `.onUpdate()`, валидация | `d37f19f` |
+| 2 | `ReferentialAction` в sql-types, IR | `667d288` |
+| 3 | `expectedForeignKeys()` с действиями | `b1ec0b7` |
+| 4 | `alter-foreign-key` в diff + apply + render + health | `0e14915` |
+| 5 | — (включён в PR4) | — |
+| 6 | Интеграция на реальном PostgreSQL | `2769553` |
+| 7 | Документация AGENTS.md + статус плана | `2f4a19c` |
+
+Побочно в PR6: ускорение тестовой инфраструктуры (`7c8cbce`) — харнес больше
+не идёт через `KadmiumApp.init()` на каждый файл, полный прогон 167с → 76с.
 
 **Суть:** `f.ref` сегодня умеет только геометрию связи (`target`/`inverse`/`fk`/
 `oneToOne`/`manyToOne`) и ничего не говорит о том, что происходит с детьми при
@@ -252,6 +265,11 @@ core резолвятся из `sql-types/dist/index.d.ts`.
 
 ### PR5 — render, apply, validate
 
+Реализовано вместе с PR4 (`0e14915`) — отдельного коммита не потребовалось:
+compute, apply, render и validate правились в одном проходе, потому что
+`alter-foreign-key` невозможно разделить — тип операции появляется в compute и
+потребляется в трёх местах сразу.
+
 - `render.ts`: op возвращает две статменты — `dropForeignKeySql`, затем
   `addForeignKeySql(newFk)`. `renderSql` джойнит операции через `\n\n`
   (`render.ts:51`), поэтому многострочный возврат из `opToSql` допустим
@@ -277,12 +295,11 @@ core резолвятся из `sql-types/dist/index.d.ts`.
 ### PR7 — документация
 
 - `packages/core/AGENTS.md`: форма `.onDelete()`, правило «действие на владельце
-  колонки», цепочка `User → Post → Comment`
-- `packages/sql-pg/AGENTS.md`: `expectedForeignKeys` больше не хардкодит,
-  `alter-foreign-key` в diff, сравнение по действию
-- Докблоки в `delete-api.test.ts` и `insert-api.test.ts`, где описана граница
-  «FK всегда NO ACTION»
-- Статус этого плана
+  колонки», различие DSL/IR-типов. Устаревшее утверждение delete-API «FK всегда
+  `NO ACTION`, каскад — отдельная фича» заменено ссылкой на новый раздел.
+- `packages/sql-pg/AGENTS.md`: раздел «Referential Integrity» — `expectedForeignKeys`,
+  `alter-foreign-key`, `assertReferentialAction`, перечень тестов
+- Статус этого плана — таблица коммитов выше
 
 ### Вне этого цикла
 
