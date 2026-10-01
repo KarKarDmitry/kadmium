@@ -164,7 +164,7 @@ as(alias: string): SelectableField<...> {
 | Файл | Кол-во | Причина |
 |---|---|---|
 | `builders/single.ts` (impl `select`/`first`) | 2 | сигнатуры реализации overloaded методов (TSelect инвариантен) |
-| `builders/multi.ts` (impl `compile`) | 3 | contextual typing объекта против overloaded `MultiSelectResult` |
+| `builders/query.ts` (impl `compile`) | 3 | contextual typing объекта против overloaded `MultiSelectResult` |
 | `field-builders/relation.ts` (`(t: any)`) | 3 | контравариантные колбэки: произвольный типизированный колбэк обязан храниться/вызываться через `any` |
 | `builders/include-utils.ts` (`(proxy: any)`) | 3 | то же — `IncludeConfigValue` (хранение + вызов типизированных колбэков) |
 | `slot.ts` (`SlotMarker<Name, any>`) | 1 | плоский `slot()` осознанно обходит eq-site проверку типа — компромисс за удобство |
@@ -180,6 +180,19 @@ as(alias: string): SelectableField<...> {
 **Краткое описание:** `SingleConfigHandle` держал `create/createMany/update/delete` вместе со `where/order/cursor/limit/offset/page`. sql-pg строит UPDATE/DELETE/INSERT **только** из данных и wheres, поэтому любой из этих шагов на пути к DML отбрасывался молча: `.limit(1).delete()` удалял все подходящие строки, `.where(...).create(...)` терял фильтр. Типы разрешали то, что адаптер не рендерит.
 
 **Статус:** ✅ Решено в `7f91789`. DML вынесены из `SingleShared` в отдельный интерфейс `SingleDml`; `orm.single()` отдаёт `DmlConfigHandle = SingleConfigHandle & SingleDml`.
+
+**Актуальность после PR1–PR5.** Сужение осталось только для legacy `orm.single()`; новая поверхность решает ту же проблему структурно — у каждой операции свой вход со своим списком шагов, и нерендерящиеся шаги на типе **отсутствуют как таковые** (не сузятся, а просто не объявлены):
+
+| Вход | Нерендерящиеся шаги |
+|---|---|
+| `orm.select(User)` | DML отсутствует (`update`/`delete`/`create`/`createMany` нет на типе) |
+| `orm.update(User)` | `order`/`limit`/`offset`/`page`/`cursor`/`groupBy`/`include`/`first` не объявлены |
+| `orm.delete(User)` | то же, кроме `set` (у DELETE его нет) |
+| `orm.insert(User)` | `where`/`order`/`limit`/`offset`/`page`/`cursor`/`groupBy`/`include` не объявлены |
+| `orm.insertMany(User)` | то же; добавлен `transaction(bool)` — у одиночного insert его нет |
+| `orm.query({...})` | `select()` → `fields()` (PR7) |
+
+Общий DML-родитель у write-билдеров сознательно **не** введён: каждый объявляет разрешённые шаги сам. `SingleDml`/`DmlConfigHandle` остаются как legacy-механизм до отдельного PR на удаление.
 
 **Границы сужения:**
 
@@ -207,4 +220,4 @@ as(alias: string): SelectableField<...> {
 - `test-project/test/orm/guard.test.ts` (`@ts-expect-error`-пометки + сквозной тест `select()` → `RETURNING`)
 - `packages/core/src/orm/guards.ts` (второй слой)
 
-**Коммиты:** `7f91789` (сужение), `c82bb71` (возврат `select()` в DML-ветку)
+**Коммиты:** `7f91789` (сужение), `c82bb71` (возврат `select()` в DML-ветку), `3c54160`/`de44e00`/`f0379bc`/`dd03566`/`8db8669` (явные входы, `plans/crud-api.md`)

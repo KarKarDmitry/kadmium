@@ -70,7 +70,7 @@ orm.single(User)
 - `src/orm/where-expression.ts` (**NEW**) — `and()`/`or()`
 - `src/orm/sqb.ts` — типы `wheres/havings`, `_cloneWhereGroup` под `elements`
 - `src/orm/builders/single.ts` — `where/and/or/having/havingOr` → push шага + guard; удалить `group`/`havingGroup`, импорт `where-helpers`
-- `src/orm/builders/multi.ts` — `where/and/or` → push шага + guard; убрать `addOrCondition`
+- `src/orm/builders/query.ts` — `where/and/or` → push шага + guard; убрать `addOrCondition`
 - `src/orm/field-builders/relation.ts` — `where` → push шага + guard
 - `src/orm/builders/include-utils.ts` — where-колбэк → `WhereExpression`
 - `src/orm/builders/where-helpers.ts` — **удалить**
@@ -270,9 +270,9 @@ interface CompiledQuery<TSlots = Record<string, never>> {
 ### Пример
 
 ```ts
-const base = app.orm.single(User)
+const base = app.orm.select(User)
   .where(t => t.tenantId.eq(S.slot('tenantId')))
-  .include(t => [t.posts]);
+  .include({ posts: true });
 
 const compiled = sql`
   WITH scoped AS (${base})

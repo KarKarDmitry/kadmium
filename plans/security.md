@@ -65,7 +65,7 @@ f.string({ db_type: "text; DROP TABLE users; --" })
 **Связанные файлы:**
 - `packages/core/src/orm/builders/where-helpers.ts` (addOrCondition)
 - `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/builders/query.ts`
 
 ---
 

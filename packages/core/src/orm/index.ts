@@ -15,7 +15,7 @@ export type {
   InsertManyHandle,
   InsertManyReturningTerminal,
 } from './builders/insert-many';
-export type { MultiFieldsResult as MultiSelectResult } from './builders/query';
+export type { MultiFieldsResult } from './builders/query';
 export type {
   SingleShared,
   SingleDml,
@@ -66,7 +66,7 @@ export type {
   RelationProxy,
   NullableMethods,
   MultiFilterProxy,
-  MultiSelectProxy,
+  MultiFieldsProxy,
   MultiRelationProxy,
   MultiOrderProxy,
   UpdateFinalizer,

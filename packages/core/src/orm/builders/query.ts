@@ -51,7 +51,7 @@ export type MultiIncludeConfig<T extends AliasesMap> = {
 };
 
 /**
- * MultiSelectResult — терминал multi-запроса (select финализирует цепочку).
+ * MultiFieldsResult — терминал multi-запроса (fields финализирует цепочку).
  * compile() компилирует снaпшот: плоский путь — тип слотов руками
  * (compile<T>()), типизированный — runtime-проверка имён через
  * MultiQuerySlots.assertSlotNames. TResult — миррор go() (всегда массив).
@@ -77,7 +77,7 @@ export interface MultiFieldsResult<
 
 /**
  * MultiFirstResult — терминал multi-запроса с разворачиванием первой строки.
- * first() = select() + LIMIT 1: go() возвращает одну строку | undefined,
+ * first() = fields() + LIMIT 1: go() возвращает одну строку | undefined,
  * compile() помечает single: true (unwrap в orm.run, как у single.first()).
  */
 export interface MultiFirstResult<
@@ -166,7 +166,7 @@ export class MultiQueryBuilder<
     return this;
   }
 
-  // ── select ──
+  // ── fields ──
 
   fields<const S extends readonly AnySelectable[]>(
     fn: (t: MultiFieldsProxy<T>, tools: SelectTools) => S,

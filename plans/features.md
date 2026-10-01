@@ -70,7 +70,7 @@ select((u, { agg, wf }) => [
 - `packages/core/src/orm/field-builders/aggregates.ts`
 - `packages/core/src/orm/ast/aggregate.ts` → базовый `FuncField` (новый `ast/func-field.ts`), `ast/window-field.ts`, `ast/window-spec.ts`
 - `packages/core/src/orm/types/proxy.d.ts` (сигнатура select/first/GetFieldType/GetFieldName)
-- `packages/core/src/orm/builders/single.ts`/`multi.ts`/`write-finalizer.ts` (сигнатуры)
+- `packages/core/src/orm/builders/single.ts`/`query.ts`/`write-finalizer.ts` (сигнатуры)
 - `packages/sql-types/src/index.ts` (`SelectItem`, `AggregateSelectable`, оконный вариант)
 - `packages/sql-pg/src/sql-generator.ts` (рендер select-листа)
 

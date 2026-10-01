@@ -1,6 +1,6 @@
 /**
  * QuerySlots / MultiQuerySlots — декларация именованных слотов (План 3, B1/B4).
- * Типы слотов выводятся из SelectProxy/MultiSelectProxy (известные фантомы),
+ * Типы слотов выводятся из SelectProxy/MultiFieldsProxy (известные фантомы),
  * имя ограничено ключами ToDef<S>, значение типизировано напрямую из кортежа.
  * Колбэк push() НЕ исполняется — чисто type-level накопление.
  */
@@ -26,7 +26,7 @@ export type ToDef<S extends readonly unknown[]> = {
  * BaseQuerySlots<S> — общая runtime-часть: набор реально запрошенных имён
  * (`_seen`, runtime-аналог ключей ToDef<S>) и типизированный slot() поверх
  * ToDef<S>. Наследники добавляют push() с источником полей: SelectProxy одной
- * модели (QuerySlots) либо MultiSelectProxy алиасов (MultiQuerySlots).
+ * модели (QuerySlots) либо MultiFieldsProxy алиасов (MultiQuerySlots).
  */
 abstract class BaseQuerySlots<
   S extends readonly (AnySelectable | AnyArrayField)[],
@@ -78,7 +78,7 @@ export class QuerySlots<
 
 /**
  * MultiQuerySlots<T, S> — типизированные слоты из полей алиасов multi-запроса.
- * Источник — MultiSelectProxy<T>: `(t) => [t.u.tenantId, t.p.author]`.
+ * Источник — MultiFieldsProxy<T>: `(t) => [t.u.tenantId, t.p.author]`.
  * Имена слотов глобальны по всем алиасам; при совпадении колонок используйте
  * `.as('u_id')`, чтобы развести имена.
  */

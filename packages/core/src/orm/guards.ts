@@ -207,7 +207,7 @@ export function assertDmlInsertNoWhere(sqb: DmlSqB): void {
 
 /**
  * Селект ссылается на алиас, которого нет в запросе.
- * MultiSelectProxy отдаёт поле с column=undefined вместо ошибки
+ * MultiFieldsProxy отдаёт поле с column=undefined вместо ошибки
  * (multi.ts `_createSelectProxy`), и запрос падает в PostgreSQL (42P01)
  * строкой ниже по стеку и в другом файле.
  */

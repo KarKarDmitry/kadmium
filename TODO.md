@@ -207,7 +207,7 @@ SQL-генерацией.
 **Плюсы:** Единый источник правды для SQL-генерации — `SqlGenerator` в sql-pg.
 
 - `packages/core/src/orm/builders/single.ts` — `toSql()` без fallback
-- `packages/core/src/orm/builders/multi.ts` — `toSql()` без fallback
+- `packages/core/src/orm/builders/query.ts` — `toSql()` без fallback
 
 ---
 

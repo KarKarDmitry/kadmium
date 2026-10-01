@@ -26,7 +26,7 @@ orm.single(User, adapter).where(u => u.name.eq('Alice')).toSql();
 **Связанные файлы:**
 - `packages/sql-pg/src/index.ts` (createDebugAdapter)
 - `packages/core/src/orm/builders/single.ts` (улучшенное сообщение ошибки)
-- `packages/core/src/orm/builders/multi.ts` (улучшенное сообщение ошибки)
+- `packages/core/src/orm/builders/query.ts` (улучшенное сообщение ошибки)
 
 ---
 
@@ -39,7 +39,7 @@ orm.single(User, adapter).where(u => u.name.eq('Alice')).toSql();
 **Пример:**
 ```typescript
 // Опечатка: 'postt' вместо 'posts'
-orm.single(User).include(t => [t.postt]).go();
+orm.select(User).include({ postt: true }).go();
 // Runtime: Error: Relation "postt" not found in User
 ```
 
@@ -132,7 +132,7 @@ export const orm = {
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/builders/query.ts`
 - `packages/sql-pg/src/index.ts`
 
 **Коммит:**

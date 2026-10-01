@@ -52,7 +52,7 @@ type ResolveRelation<M, K, C> =
 | 3 | `orm/types/proxy.d.ts` | Replace RelationProxy, delete 6 duplicate types | 0.5d |
 | 4 | `orm/field-builders/relation.ts` | Simplify Relation (0 generic), delete IRelationBuilder | 1d |
 | 5 | `orm/builders/single.ts` | Remove R param, new .include(), runtime resolution | 1.5d |
-| 6 | `orm/builders/multi.ts` | Same changes for multi-query | 1d |
+| 6 | `orm/builders/query.ts` | Same changes for multi-query | 1d |
 | 7 | `orm/types/relations.d.ts` | Delete 7 types, update ISingleTableQuery/IFirstQuery | 0.5d |
 | 8 | `orm/builders/query-proxies.ts` | Remove createRelationProxy | 0.5d |
 | 9 | `test-project/.types/~models.augment.ts` | Regenerate | 0.5d |
@@ -72,7 +72,7 @@ Delete: `IRelationBuilder` interface from `relation.ts`
 
 From `relations.d.ts`: `Evaluate`, `GetFieldName`, `GetFieldType`, `AnySelectable`, `FlatFinalResult`
 
-From `proxy.d.ts`: `NullableMethods`, `FieldTypeToFilter`, `AddNullable`, `FilterProxy`, `SelectProxy`, `OrderProxy`, `UpdateFinalizer`, `AliasesMap`, `MultiFilterProxy`, `MultiSelectProxy`, `MultiRelationProxy`, `ObjectForAlias`, `FinalResult`
+From `proxy.d.ts`: `NullableMethods`, `FieldTypeToFilter`, `AddNullable`, `FilterProxy`, `SelectProxy`, `OrderProxy`, `UpdateFinalizer`, `AliasesMap`, `MultiFilterProxy`, `MultiFieldsProxy`, `MultiRelationProxy`, `ObjectForAlias`, `FinalResult`
 
 ## Migration
 
@@ -92,7 +92,7 @@ From `proxy.d.ts`: `NullableMethods`, `FieldTypeToFilter`, `AddNullable`, `Filte
 - `~relInfo` phantom добавлен в codegen (`generate-model.ts`)
 - `includes.d.ts` создан с `IncludeConfig`, `IncludeResult`, `ResolveRelation`, `ResolveIncludes`
 - `Relation` упрощён (197 → 133 строки), `IRelationBuilder` удалён
-- `single.ts` и `multi.ts` обновлены для нового API
+- `single.ts` и `query.ts` обновлены для нового API
 - `relations.d.ts` удалён (7 типов: `ToOneRelation`, `ToManyRelation`, `ProcessRelation`, `BuildIncludedResultRecur`, `BuildIncludedResult`, `GetIncludedType`, `UnionToIntersection`)
 - `proxy.d.ts` обновлён (удалены `UnionToIntersection`, `ToOneRelation`, `ToManyRelation`, `RelationsOf`, `ShapeOf`, `RelationProxy`)
 - `~models.augment.ts` регенерирован с `~relInfo`

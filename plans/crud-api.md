@@ -1,7 +1,7 @@
 # Явный CRUD API — `orm.select / insert / insertMany / update / delete`
 
-**Статус:** 🚧 PR1–PR5 реализованы (select, update, delete, insert, insertMany).
-PR6–PR8 (include, multi, документация) не начаты.
+**Статус:** 🚧 PR1–PR7 закрыты (select, update, delete, insert, insertMany,
+include — был уже готов, multi). PR8 (документация) — в работе.
 
 **Суть:** один вход `orm.single(Model)` смешивает чтение и запись, из-за чего на
 типах приходится городить сужение DML, а `create(data)` нарушает привычный
@@ -62,7 +62,7 @@ PR6–PR8 (include, multi, документация) не начаты.
 
 - Не переписываем слой рендера: `sql-generator.ts`, `helpers.ts`, `guards.ts`,
   `where-expression.ts`, `query-proxies.ts`, `sqb.ts` — используются как есть.
-- Не трогаем `multi.ts` до PR5: `orm.query({...})` остаётся multi-входом.
+- Не трогаем `query.ts` до PR5: `orm.query({...})` остаётся multi-входом.
 - Не вводим DI-контейнер для прокси-фабрик.
 - `compile()`/`run()`/`transaction()` — без изменений, новые билдеры их просто
   переиспользуют.
@@ -252,7 +252,7 @@ packages/core/src/orm/builders/
 | `orm/sql-fragment.ts`            | `toSqlCondition`, `groupByToStep`                                                      | `select.ts`                                                                     |
 | `sql-pg/src/*`                   | рендер, маппинг, helpers                                                               | не трогаем                                                                      |
 
-**Что не переиспользуем:** `single.ts` (18 КБ), `multi.ts` (14 КБ), `handles.ts`
+**Что не переиспользуем:** `single.ts` (18 КБ), `query.ts` (14 КБ), `handles.ts`
 (19 КБ) — остаются для legacy-пути, новые билдеры их не наследуют.
 
 ---
@@ -267,7 +267,7 @@ packages/core/src/orm/builders/
 | `orm.single(User).update(d)`        | `orm.update(User).set(d)`             |
 | `orm.single(User).delete()`         | `orm.delete(User)`                    |
 | `.select(t => [...])` (проекция)    | `.fields(t => [...])`                 |
-| `.include(t => [t.posts])`          | `.include(t => ({ posts: t.posts }))` |
+| `.include(t => [t.posts])`          | `.include({ posts: true })`           |
 
 `@deprecated` ставится в том же PR, который добавляет замену (иначе пользователь
 останется без пути миграции):
@@ -347,18 +347,32 @@ packages/core/src/orm/builders/
 
 **PR6 — структурный `include()`**
 
-- объектная форма + `columns`/`order`/`limit` для include в `include-utils.ts`
+- объектная форма + `select`/`order`/`limit` для include в `include-utils.ts`
 - миграция массивной формы на новом `select.ts`
+
+Закрыт без кода: структурный include уже был и в `single()`, и в `select()`, и
+в `multi()`. `IncludeConfigValue` в `include-utils.ts:14` — объектная форма
+(`true | { alias?, select?, where?, order?, limit?, include? }`), массивной нет
+ни в одном входе, а `RelationProxy` — просто алиас на `IncludeConfig<TModel>`.
+52 теста уже используют `.include({ ... })`. План описывал ключ `columns`, фактическое
+имя — `select`.
 
 **PR7 — multi**
 
 - `orm.query({...}).fields()`, симметрия с `select`
 - `MultiConfigHandle.select()` → `fields()`
+- `multi.ts` → `query.ts`; `MultiSelectResult` → `MultiFieldsResult`,
+  `MultiSelectProxy` → `MultiFieldsProxy` — без алиасов, ломающее изменение
+
+Реализовано: `c14a3ee` + follow-up (переименование типов, ссылки в планах).
 
 **PR8 — документация**
 
-- `README`, `packages/core/AGENTS.md`, `plans/typing.md` (DML-сужение заменяется
-  раздельными входами)
+- `packages/core/AGENTS.md` — сделано в follow-up к PR7: таблица билдеров
+  дополнена `InsertBuilder`/`InsertManyBuilder`, примеры include/compile
+  переведены на структурный include и `fields()`, добавлены разделы по PR4/PR5/PR7
+- `plans/typing.md` (DML-сужение заменяется раздельными входами) — осталось
+- `README` в репозитории нет
 
 ## Верификация
 

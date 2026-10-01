@@ -57,7 +57,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 **Связанные файлы:**
 - `packages/core/src/orm/sqb.ts`
 - `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/builders/query.ts`
 - `packages/core/src/orm/field-builders/relation.ts`
 
 **Коммит:** `b709ad1` + PR2
@@ -104,7 +104,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `packages/core/src/orm/builders/single.ts`
 - `packages/core/src/orm/builders/write-finalizer.ts` (создан)
 - `packages/core/src/orm/builders/include-utils.ts` (создан)
-- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/builders/query.ts`
 - `packages/core/src/orm/field-builders/relation.ts`
 
 **Коммиты:** `53a69b2`, `1cacf6a`, `c78c0e7`, `2ec3067`, `72e66fc`
@@ -151,19 +151,19 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 **Связанные файлы:**
 - `packages/core/src/orm/builders/base.ts` (удалён)
 - `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/builders/query.ts`
 
 **Коммит:** `f3917da`
 
 ---
 
-## A6: Дублирование _or() в single.ts и multi.ts
+## A6: Дублирование _or() в single.ts и query.ts
 
 **Важность:** 🟡 High
 
 **Краткое описание:** Почти идентичная логика `_or()` в двух файлах:
 - `single.ts:90-114` — 25 строк
-- `multi.ts:73-93` — 21 строка
+- `query.ts:73-93` — 21 строка
 
 Оба обрабатывают: пустые условия, смену оператора, оборачивание в группу. `BaseWhereBuilder` (A5) содержит похожую логику `_add()`, но не используется.
 
@@ -172,7 +172,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 **Связанные файлы:**
 - `packages/core/src/orm/builders/where-helpers.ts` (создан)
 - `packages/core/src/orm/builders/single.ts` (_or удалён)
-- `packages/core/src/orm/builders/multi.ts` (_or удалён)
+- `packages/core/src/orm/builders/query.ts` (_or удалён)
 
 **Коммит:** `f3917da`
 
@@ -269,7 +269,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `write-finalizer.ts:10-13`
 - `upsert-helpers.ts:57-60`
 - `single.ts:448-455`
-- `multi.ts:195-202`
+- `query.ts:195-202`
 
 **Решение:** Одна shared-утилита `buildDebugSql(sqb, adapter): string` в общем месте (например, `builders/utils.ts`).
 
@@ -277,7 +277,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 - `packages/core/src/orm/builders/write-finalizer.ts`
 - `packages/core/src/orm/builders/upsert-helpers.ts`
 - `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/builders/query.ts`
 
 ---
 
@@ -335,7 +335,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 ---
 
-## A19: _pushWhere структурно идентичен в single.ts и multi.ts — ⚪ Won't fix
+## A19: _pushWhere структурно идентичен в single.ts и query.ts — ⚪ Won't fix
 
 **Важность:** 🟢 Medium
 
@@ -347,7 +347,7 @@ const sql2 = q.limit(10).toSql(); // sql1 тоже получил limit=10
 
 **Связанные файлы:**
 - `packages/core/src/orm/builders/single.ts`
-- `packages/core/src/orm/builders/multi.ts`
+- `packages/core/src/orm/builders/query.ts`
 
 ---
 
