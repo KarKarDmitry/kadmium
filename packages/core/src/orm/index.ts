@@ -6,6 +6,8 @@ export { SelectQueryBuilder } from './builders/select';
 export type { SelectHandle } from './builders/select';
 export { UpdateQueryBuilder } from './builders/update';
 export type { UpdateHandle, SetData } from './builders/update';
+export { DeleteQueryBuilder } from './builders/delete';
+export type { DeleteHandle } from './builders/delete';
 export type { MultiSelectResult } from './builders/multi';
 export type {
   SingleShared,

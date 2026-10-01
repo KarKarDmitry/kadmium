@@ -2,6 +2,7 @@ import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/multi';
 import { SelectQueryBuilder, type SelectHandle } from './builders/select';
 import { UpdateQueryBuilder, type UpdateHandle } from './builders/update';
+import { DeleteQueryBuilder, type DeleteHandle } from './builders/delete';
 import type { DmlConfigHandle, MultiConfigHandle } from './builders/handles';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
@@ -137,6 +138,35 @@ export class OrmManager {
       this._irLookup,
       this._adapter,
     ) as unknown as UpdateHandle<TModel>;
+  }
+
+  /**
+   * Вход операции DELETE — новая явная поверхность CRUD API.
+   *
+   * Цепочка: `where(...)` → `returning(...)` → `go()`.
+   * `where` не обязателен: DELETE без фильтра удаляет все строки.
+   * Шаги, которые sql-pg не рендерит в DELETE (`order`/`limit`/`offset`/
+   * `cursor`/`groupBy`), на типе отсутствуют.
+   *
+   * @example
+   * const removed = await orm.delete(Post)
+   *   .where(p => p.published.eq(false))
+   *   .returning(p => [p.id])
+   *   .go();
+   */
+  delete<
+    TModel extends {
+      ['~shape']: Record<string, unknown>;
+      ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
+    },
+  >(modelClass: { new (): TModel }, ir?: ModelIR): DeleteHandle<TModel> {
+    const compiled = ir ?? this._irFor(modelClass);
+    return new DeleteQueryBuilder<TModel>(
+      compiled,
+      this._irLookup,
+      this._adapter,
+    ) as unknown as DeleteHandle<TModel>;
   }
 
   /**

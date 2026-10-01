@@ -121,6 +121,11 @@ export interface SingleDml<M extends Shape> {
    *   См. `plans/crud-api.md`.
    */
   update(data: DmlData<M>): UpdateFinalizer<M>;
+  /**
+   * @deprecated Используйте `orm.delete(Model).where(...)`.
+   *   Новый вход объявляет фильтр шагом, а не аргументом входа.
+   *   См. `plans/crud-api.md`.
+   */
   delete(): UpdateFinalizer<M>;
 }
 /** * SingleConfigHandle — входной тип single(): cursor() недоступен до order(). * order() уводит в SingleOrderingBranch; offset()/page() остаются в конфиге. */ export interface SingleConfigHandle<
