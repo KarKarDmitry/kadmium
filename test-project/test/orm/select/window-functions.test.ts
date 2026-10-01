@@ -18,8 +18,8 @@ afterAll(async () => {
 describe('window functions', () => {
   it('row_number() OVER () numbers every row', async () => {
     const rows = await h.orm
-      .single(PostModel)
-      .select((p, { wf }) => [p.title, wf.rowNumber().as('rn')])
+      .select(PostModel)
+      .fields((p, { wf }) => [p.title, wf.rowNumber().as('rn')])
       .go();
     expect(rows).toHaveLength(3);
     const rns = rows.map((r) => r.rn).sort();
@@ -28,9 +28,9 @@ describe('window functions', () => {
 
   it('rank() per author over views desc', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.views.desc])
-      .select((p, { wf }) => [
+      .fields((p, { wf }) => [
         p.title,
         p.views,
         wf.rank().partitionBy(p.author).orderBy(p.views.desc).as('rank'),
@@ -42,9 +42,9 @@ describe('window functions', () => {
 
   it('row_number() per author over views desc', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.views.desc])
-      .select((p, { wf }) => [
+      .fields((p, { wf }) => [
         p.title,
         p.views,
         wf.rowNumber().partitionBy(p.author).orderBy(p.views.desc).as('rn'),
@@ -55,9 +55,9 @@ describe('window functions', () => {
 
   it('windowed SUM() OVER () equals per-author totals', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.views.desc])
-      .select((p, { agg }) => [
+      .fields((p, { agg }) => [
         p.views,
         agg.sum(p.views).over().partitionBy(p.author).as('authorTotal'),
       ])
@@ -68,9 +68,9 @@ describe('window functions', () => {
 
   it('running total via ORDER BY alone', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.views.desc])
-      .select((p, { agg }) => [
+      .fields((p, { agg }) => [
         p.views,
         agg.sum(p.views).over().orderBy(p.views.desc).as('running'),
       ])
@@ -80,9 +80,9 @@ describe('window functions', () => {
 
   it('lead() with offset and default pushes parameters', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.views.desc])
-      .select((p, { wf }) => [
+      .fields((p, { wf }) => [
         p.title,
         p.views,
         wf.lead(p.views, 1, 0).orderBy(p.views.desc).as('nextViews'),
@@ -94,9 +94,9 @@ describe('window functions', () => {
 
   it('rowsBetween frame: moving average over 2 preceding rows', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.views.desc])
-      .select((p, { agg }) => [
+      .fields((p, { agg }) => [
         p.views,
         agg
           .avg(p.views)

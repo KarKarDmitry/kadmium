@@ -26,21 +26,21 @@ let ids: {
 
 async function seedMax(): Promise<void> {
   const users = await h.orm
-    .single(UserModel)
-    .select((u) => [u.id, u.name])
+    .select(UserModel)
+    .fields((u) => [u.id, u.name])
     .go();
   const byName = (name: string) => users.find((u) => u.name === name)!.id;
 
   const posts = await h.orm
-    .single(PostModel)
-    .select((p) => [p.id, p.title])
+    .select(PostModel)
+    .fields((p) => [p.id, p.title])
     .go();
   const byTitle = (title: string) => posts.find((p) => p.title === title)!.id;
 
   // Доп. юзеры
   const dave = await h.orm
-    .single(UserModel)
-    .create({
+    .insert(UserModel)
+    .values({
       name: 'Dave',
       email: 'dave@test.com',
       age: 22,
@@ -49,8 +49,8 @@ async function seedMax(): Promise<void> {
     })
     .go();
   const eve = await h.orm
-    .single(UserModel)
-    .create({
+    .insert(UserModel)
+    .values({
       name: 'Eve',
       email: 'eve@test.com',
       age: 35,
@@ -61,8 +61,8 @@ async function seedMax(): Promise<void> {
 
   // Доп. посты
   const p4 = await h.orm
-    .single(PostModel)
-    .create({
+    .insert(PostModel)
+    .values({
       title: 'Alice Addon',
       content: 'addon body',
       published: true,
@@ -71,8 +71,8 @@ async function seedMax(): Promise<void> {
     })
     .go();
   const p5 = await h.orm
-    .single(PostModel)
-    .create({
+    .insert(PostModel)
+    .values({
       title: 'Bob Draft',
       content: 'bob draft body',
       published: false,
@@ -81,8 +81,8 @@ async function seedMax(): Promise<void> {
     })
     .go();
   const p6 = await h.orm
-    .single(PostModel)
-    .create({
+    .insert(PostModel)
+    .values({
       title: 'Carol Post',
       content: 'carol body',
       published: true,
@@ -93,16 +93,16 @@ async function seedMax(): Promise<void> {
 
   // Доп. комментарии: wow → Draft Post (alice), yeah → Bob Draft (bob)
   await h.orm
-    .single(CommentModel)
-    .create({
+    .insert(CommentModel)
+    .values({
       text: 'wow',
       post: byTitle('Draft Post'),
       user: byName('Alice'),
     })
     .go();
   await h.orm
-    .single(CommentModel)
-    .create({
+    .insert(CommentModel)
+    .values({
       text: 'yeah',
       post: p5.id,
       user: byName('Bob'),
@@ -153,9 +153,9 @@ const log = (label: string, sql: string, values?: unknown[]) => {
 
 describe('kitchen-sink: full API integration', () => {
   it('0. seed verified', async () => {
-    const users = await h.orm.single(UserModel).count().go();
-    const posts = await h.orm.single(PostModel).count().go();
-    const comments = await h.orm.single(CommentModel).count().go();
+    const users = await h.orm.select(UserModel).count().go();
+    const posts = await h.orm.select(PostModel).count().go();
+    const comments = await h.orm.select(CommentModel).count().go();
     expect(users).toBe(5);
     expect(posts).toBe(6);
     expect(comments).toBe(5);
@@ -164,11 +164,11 @@ describe('kitchen-sink: full API integration', () => {
   // ── SELECT + WHERE + ORDER + LIMIT ────────────────────────────────
   it('1. select + where + order + limit', async () => {
     const q = h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.published.eq(true))
       .order((p) => [p.views.desc])
       .limit(3)
-      .select((p) => [p.title, p.views, p.author]);
+      .fields((p) => [p.title, p.views, p.author]);
     log('1. select + where + order + limit', q.toSql());
 
     const rows = await q.go();
@@ -180,7 +180,7 @@ describe('kitchen-sink: full API integration', () => {
   // ── first() + select projection ───────────────────────────────────
   it('2. first() + select projection', async () => {
     const q = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .first((u) => [u.id, u.email]);
     log('2. first() + select', q.toSql());
@@ -194,21 +194,21 @@ describe('kitchen-sink: full API integration', () => {
   // ── count() + exists() ────────────────────────────────────────────
   it('3. count() and exists()', async () => {
     const q = h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.published.eq(true))
       .count();
     log('3a. count(published)', q.sql());
     expect(await q.go()).toBe(4);
 
     const qe = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .exists();
     log('3b. exists(alice)', qe.sql());
     expect(await qe.go()).toBe(true);
 
     const qn = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Zara'))
       .exists();
     expect(await qn.go()).toBe(false);
@@ -217,9 +217,9 @@ describe('kitchen-sink: full API integration', () => {
   // ── AND / OR composition ──────────────────────────────────────────
   it('4. where: and() + or() nested expression', async () => {
     const q = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => and(u.active.eq(true), or(u.age.gte(35), u.name.eq('Bob'))))
-      .select((u) => [u.name, u.age])
+      .fields((u) => [u.name, u.age])
       .order((u) => [u.name.asc]);
     log('4. where: and/or', q.toSql());
 
@@ -234,39 +234,39 @@ describe('kitchen-sink: full API integration', () => {
   // ── page() ────────────────────────────────────────────────────────
   it('5. page(): offset pagination', async () => {
     const q1 = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.name.asc])
       .page(1, 2)
-      .select((u) => [u.name]);
+      .fields((u) => [u.name]);
     log('5. page(1,2)', q1.toSql());
     expect(await q1.go()).toEqual([{ name: 'Alice' }, { name: 'Bob' }]);
 
     const q2 = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.name.asc])
       .page(2, 2)
-      .select((u) => [u.name]);
+      .fields((u) => [u.name]);
     expect(await q2.go()).toEqual([{ name: 'Carol' }, { name: 'Dave' }]);
   });
 
   // ── clone() ───────────────────────────────────────────────────────
   it('6. clone(): branch without mutating the base', async () => {
     const base = h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.published.eq(true))
       .order((p) => [p.views.desc]);
 
     const q1 = base
       .clone()
       .limit(1)
-      .select((p) => [p.title]);
+      .fields((p) => [p.title]);
     log('6. clone top-1', q1.toSql());
 
     const top1 = await q1.go();
     const top2 = await base
       .clone()
       .limit(2)
-      .select((p) => [p.title])
+      .fields((p) => [p.title])
       .go();
     expect(top1).toHaveLength(1);
     expect(top2).toHaveLength(2);
@@ -277,8 +277,8 @@ describe('kitchen-sink: full API integration', () => {
   // ── aggregates + grouping + having ────────────────────────────────
   it('7. aggregates + groupBy + having + havingOr', async () => {
     const q = h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [
+      .select(PostModel)
+      .fields((p, { agg }) => [
         p.author,
         agg.count('*').as('cnt'),
         agg.sum(p.views).as('totalViews'),
@@ -296,9 +296,9 @@ describe('kitchen-sink: full API integration', () => {
   // ── window functions ──────────────────────────────────────────────
   it('8. window functions: row_number/rank/lead/windowed sum', async () => {
     const q = h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.author.asc, p.views.desc])
-      .select((p, { wf, agg }) => [
+      .fields((p, { wf, agg }) => [
         p.title,
         p.author,
         p.views,
@@ -340,7 +340,7 @@ describe('kitchen-sink: full API integration', () => {
   // ── include to-one + to-many ──────────────────────────────────────
   it('10. include: post.author to-one + user.posts to-many', async () => {
     const qp = h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({ author: true })
       .first();
@@ -350,7 +350,7 @@ describe('kitchen-sink: full API integration', () => {
     expect(post!.author!.name).toBe('Alice');
 
     const qu = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({
         posts: {
@@ -368,8 +368,8 @@ describe('kitchen-sink: full API integration', () => {
   // ── update().returning() ──────────────────────────────────────────
   it('11. update().returning() projection', async () => {
     const q = h.orm
-      .single(PostModel)
-      .update({ views: 0 })
+      .update(PostModel)
+      .set({ views: 0 })
       .where((p) => p.title.eq('Draft Post'))
       .returning((p) => [p.id, p.title, p.views]);
     log('11. update returning', q.sql());
@@ -384,8 +384,7 @@ describe('kitchen-sink: full API integration', () => {
   // ── delete().returning() ──────────────────────────────────────────
   it('12. delete().returning()', async () => {
     const q = h.orm
-      .single(CommentModel)
-      .delete()
+      .delete(CommentModel)
       .where((c) => c.text.eq('yeah'))
       .returning((c) => [c.id, c.text]);
     log('12. delete returning', q.sql());
@@ -399,8 +398,8 @@ describe('kitchen-sink: full API integration', () => {
   it('13. transaction: commit', async () => {
     await h.orm.transaction(async (tx) => {
       const created = await tx
-        .single(UserModel)
-        .create({
+        .insert(UserModel)
+        .values({
           name: 'TxUser',
           email: 'tx@test.com',
           age: 99,
@@ -411,7 +410,7 @@ describe('kitchen-sink: full API integration', () => {
       expect(created.id).toBeDefined();
     });
     const found = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('tx@test.com'))
       .first()
       .go();
@@ -421,8 +420,8 @@ describe('kitchen-sink: full API integration', () => {
   // ── multi-column groupBy + min/max ────────────────────────────────
   it('14. multi-column groupBy + min/max', async () => {
     const q = h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [
+      .select(PostModel)
+      .fields((p, { agg }) => [
         p.author,
         p.published,
         agg.count('*').as('cnt'),
@@ -474,7 +473,7 @@ describe('kitchen-sink: full API integration', () => {
   // ── nested include ────────────────────────────────────────────────
   it('16. nested include: user → posts → comments', async () => {
     const q = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({
         posts: {
@@ -495,8 +494,8 @@ describe('kitchen-sink: full API integration', () => {
   // ── window + having in one query ──────────────────────────────────
   it('17. windowed aggregate + having', async () => {
     const q = h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [
+      .select(PostModel)
+      .fields((p, { agg }) => [
         p.author,
         agg.count('*').as('cnt'),
         agg.count('*').over().as('totalPosts'),
@@ -515,16 +514,16 @@ describe('kitchen-sink: full API integration', () => {
   it('18. in() + between()', async () => {
     const ids = (
       await h.orm
-        .single(UserModel)
+        .select(UserModel)
         .where((u) => u.name.in(['Alice', 'Bob']))
-        .select((u) => [u.id])
+        .fields((u) => [u.id])
         .go()
     ).map((r) => r.id);
 
     const q = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.id.in(ids))
-      .select((u) => [u.name, u.age])
+      .fields((u) => [u.name, u.age])
       .order((u) => [u.name.asc]);
     log('18a. in()', q.toSql());
 
@@ -533,9 +532,9 @@ describe('kitchen-sink: full API integration', () => {
     expect(rows.map((r) => r.name)).toEqual(['Alice', 'Bob']);
 
     const qb = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.age.between(25, 35))
-      .select((u) => [u.name, u.age])
+      .fields((u) => [u.name, u.age])
       .order((u) => [u.age.asc]);
     log('18b. between()', qb.toSql());
 
@@ -546,18 +545,18 @@ describe('kitchen-sink: full API integration', () => {
   // ── string filters ────────────────────────────────────────────────
   it('19. start() + ilike()', async () => {
     const q = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.start('A'))
-      .select((u) => [u.name]);
+      .fields((u) => [u.name]);
     log('19. start(A)', q.toSql());
 
     const rows = await q.go();
     expect(rows.map((r) => r.name)).toEqual(['Alice']);
 
     const rowsB = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.ilike('%ob'))
-      .select((u) => [u.name])
+      .fields((u) => [u.name])
       .go();
     expect(rowsB.map((r) => r.name)).toEqual(['Bob']);
   });
@@ -565,9 +564,9 @@ describe('kitchen-sink: full API integration', () => {
   // ── everything combined ───────────────────────────────────────────
   it('20. composite: or-where + rank + lead + windowed avg', async () => {
     const q = h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => or(p.published.eq(true), p.views.gt(0)))
-      .select((p, { wf, agg }) => [
+      .fields((p, { wf, agg }) => [
         p.title,
         p.author,
         p.views,

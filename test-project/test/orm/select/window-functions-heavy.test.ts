@@ -19,8 +19,8 @@ beforeAll(async () => {
   ];
   for (const u of roster) {
     await h.orm
-      .single(UserModel)
-      .create({
+      .insert(UserModel)
+      .values({
         ...u,
         registeredAt: new Date('2024-06-01T00:00:00Z'),
       })
@@ -35,10 +35,10 @@ afterAll(async () => {
 describe('window functions: heavy cases', () => {
   it('ntile(3) splits 6 rows into 3 even buckets', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { wf }) => [
+      .fields((u, { wf }) => [
         u.name,
         u.age,
         wf
@@ -53,10 +53,10 @@ describe('window functions: heavy cases', () => {
   it('rank() vs dense_rank() on ties', async () => {
     // Внутри окна ORDER BY только по age — UB/UC становятся равными (rank 2/2).
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { wf }) => [
+      .fields((u, { wf }) => [
         u.name,
         u.age,
         wf.rank().orderBy(u.age.asc).as('rank'),
@@ -69,10 +69,10 @@ describe('window functions: heavy cases', () => {
 
   it('percent_rank() and cume_dist() are bounded and monotonic', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { wf }) => [
+      .fields((u, { wf }) => [
         u.name,
         u.age,
         wf.percentRank().orderBy(u.age.asc).as('pr'),
@@ -85,10 +85,10 @@ describe('window functions: heavy cases', () => {
 
   it('lag(age, 1, -1) over partition returns previous value or default', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { wf }) => [
+      .fields((u, { wf }) => [
         u.name,
         u.age,
         wf
@@ -102,10 +102,10 @@ describe('window functions: heavy cases', () => {
 
   it('nth_value(age, 2) default frame starts at the partition + full frame', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { wf }) => [
+      .fields((u, { wf }) => [
         u.name,
         u.age,
         wf.nthValue(u.age, 2).orderBy(u.age.asc).as('second'),
@@ -124,10 +124,10 @@ describe('window functions: heavy cases', () => {
 
   it('two-column PARTITION BY (active, age) groups correctly', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { wf }) => [
+      .fields((u, { wf }) => [
         u.name,
         u.age,
         u.active,
@@ -144,10 +144,10 @@ describe('window functions: heavy cases', () => {
 
   it('ROWS BETWEEN 1 PRECEDING AND CURRENT ROW builds a sliding sum', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { agg }) => [
+      .fields((u, { agg }) => [
         u.name,
         u.age,
         agg
@@ -164,10 +164,10 @@ describe('window functions: heavy cases', () => {
 
   it('first_value/last_value respect the window frame', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.name.asc])
       .where((u) => u.name.in(['UA', 'UB', 'UC', 'UD', 'UE', 'UF']))
-      .select((u, { wf }) => [
+      .fields((u, { wf }) => [
         u.name,
         u.age,
         wf
@@ -186,8 +186,8 @@ describe('window functions: heavy cases', () => {
 
   it('count(*) OVER () in a grouped query counts groups after HAVING', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .select((u, { agg }) => [
+      .select(UserModel)
+      .fields((u, { agg }) => [
         u.age,
         agg.count('*').as('cnt'),
         agg.count('*').over().as('totalGroups'),
@@ -205,8 +205,8 @@ describe('window functions: heavy cases', () => {
 
   it('grouped query with a window on an ungrouped column throws', async () => {
     const q = h.orm
-      .single(UserModel)
-      .select((u, { agg }) => [u.age, agg.sum(u.age).over().as('sumAll')])
+      .select(UserModel)
+      .fields((u, { agg }) => [u.age, agg.sum(u.age).over().as('sumAll')])
       .groupBy((u) => [u.active]);
     await expect(q.go()).rejects.toThrow(/GROUP BY/);
   });

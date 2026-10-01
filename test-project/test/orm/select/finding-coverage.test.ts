@@ -26,16 +26,16 @@ afterAll(async () => {
 describe('returning() when the DB column differs from the property name', () => {
   it('keeps displayLabel (column display_label) in the projected row', async () => {
     const created = await h.orm
-      .single(UserAccountModel)
-      .create({
+      .insert(UserAccountModel)
+      .values({
         id: '00000000-0000-4000-8000-000000000011',
         displayLabel: 'Acc',
         createdBy: 1,
       })
       .go();
     const rows = await h.orm
-      .single(UserAccountModel)
-      .update({ displayLabel: 'Acc2' })
+      .update(UserAccountModel)
+      .set({ displayLabel: 'Acc2' })
       .where((u) => u.displayLabel.eq('Acc'))
       .returning((u) => [u.id, u.displayLabel])
       .go();
@@ -48,21 +48,21 @@ describe('returning() when the DB column differs from the property name', () => 
 describe('having() referencing an aggregate over an aliased column', () => {
   it('aggregates flagged comments by is_flagged', async () => {
     const [alice] = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
-      .select((u) => [u.id])
+      .fields((u) => [u.id])
       .go();
     const post = await h.orm
-      .single(PostModel)
-      .create({ title: 'Flagged Post', content: 'body', author: alice.id })
+      .insert(PostModel)
+      .values({ title: 'Flagged Post', content: 'body', author: alice.id })
       .go();
     const other = await h.orm
-      .single(PostModel)
-      .create({ title: 'Other Post', content: 'body', author: alice.id })
+      .insert(PostModel)
+      .values({ title: 'Other Post', content: 'body', author: alice.id })
       .go();
     await h.orm
-      .single(CommentModel)
-      .createMany([
+      .insertMany(CommentModel)
+      .values([
         { text: 'flag1', flagged: true, post: post.id, user: alice.id },
         { text: 'flag2', flagged: true, post: post.id, user: alice.id },
         { text: 'flag3', flagged: false, post: post.id, user: alice.id },
@@ -70,9 +70,9 @@ describe('having() referencing an aggregate over an aliased column', () => {
       ])
       .go();
     const rows = await h.orm
-      .single(CommentModel)
+      .select(CommentModel)
       .where((c) => c.post.in([post.id, other.id]))
-      .select((c, { agg }) => [
+      .fields((c, { agg }) => [
         c.post,
         agg.count(c.flagged).as('flaggedCount'),
       ])
@@ -88,19 +88,19 @@ describe('having() referencing an aggregate over an aliased column', () => {
 describe('nested to-one include at depth 3', () => {
   it('unpacks region.country.gov into plain objects', async () => {
     const bureau = await h.orm
-      .single(BureauModel)
-      .create({ name: 'Budget Office' })
+      .insert(BureauModel)
+      .values({ name: 'Budget Office' })
       .go();
     const country = await h.orm
-      .single(CountryModel)
-      .create({ name: 'France', gov: bureau.id })
+      .insert(CountryModel)
+      .values({ name: 'France', gov: bureau.id })
       .go();
     const region = await h.orm
-      .single(RegionModel)
-      .create({ name: 'Ile-de-France', country: country.id })
+      .insert(RegionModel)
+      .values({ name: 'Ile-de-France', country: country.id })
       .go();
     const rows = await h.orm
-      .single(RegionModel)
+      .select(RegionModel)
       .where((r) => r.id.eq(region.id))
       .include({ country: { include: { gov: true } } })
       .go();
@@ -117,13 +117,13 @@ describe('uuid primary key', () => {
   it('supports filtering via u.id.eq()', async () => {
     const id = '00000000-0000-4000-8000-000000000013';
     await h.orm
-      .single(UserAccountModel)
-      .create({ id, displayLabel: 'FilterMe', createdBy: 1 })
+      .insert(UserAccountModel)
+      .values({ id, displayLabel: 'FilterMe', createdBy: 1 })
       .go();
     const rows = await h.orm
-      .single(UserAccountModel)
+      .select(UserAccountModel)
       .where((u) => u.id.eq(id))
-      .select((u) => [u.id, u.displayLabel])
+      .fields((u) => [u.id, u.displayLabel])
       .go();
     expect(rows).toHaveLength(1);
     expect(rows[0].displayLabel).toBe('FilterMe');
@@ -134,8 +134,8 @@ describe('multiword model: uuid pk, aliased column, snake_case collection', () =
   it('round-trips UserAccount via user_account with display_label', async () => {
     const id = '00000000-0000-4000-8000-000000000014';
     const created = await h.orm
-      .single(UserAccountModel)
-      .create({
+      .insert(UserAccountModel)
+      .values({
         id,
         displayLabel: 'Account One',
         createdBy: 1,
@@ -144,8 +144,8 @@ describe('multiword model: uuid pk, aliased column, snake_case collection', () =
     expect(created.id).toBe(id);
     expect(created.createdBy).toBe(1);
     const fetched = await h.orm
-      .single(UserAccountModel)
-      .select((u) => [u.id, u.displayLabel])
+      .select(UserAccountModel)
+      .fields((u) => [u.id, u.displayLabel])
       .go();
     const mine = fetched.filter((r) => r.id === id);
     expect(mine).toHaveLength(1);
@@ -158,17 +158,17 @@ describe('multiword model: uuid pk, aliased column, snake_case collection', () =
 describe('inverse one-to-one include', () => {
   it('resolves User.profile as a singular object, not an array', async () => {
     const [alice] = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
-      .select((u) => [u.id])
+      .fields((u) => [u.id])
       .go();
     const profile = await h.orm
-      .single(ProfileModel)
-      .create({ displayName: 'Alice Profile', user: alice.id })
+      .insert(ProfileModel)
+      .values({ displayName: 'Alice Profile', user: alice.id })
       .go();
     expect(profile.user).toBe(alice.id);
     const [user] = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.id.eq(alice.id))
       .include({ profile: true })
       .go();
