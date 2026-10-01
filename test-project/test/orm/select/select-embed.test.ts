@@ -18,8 +18,8 @@ afterAll(async () => {
 describe('select — sql-фрагмент в SELECT против PG', () => {
   it('колбек: прокси-поле инлайнится, результат резолвится по алиасу', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .select((u) => [
+      .select(UserModel)
+      .fields((u) => [
         u.name,
         sql<number>`EXTRACT(YEAR FROM ${u.registeredAt})::int`.as('year'),
       ])
@@ -34,8 +34,8 @@ describe('select — sql-фрагмент в SELECT против PG', () => {
 
   it('compile(): текст содержит фрагмент и алиас', async () => {
     const c = h.orm
-      .single(UserModel)
-      .select((u) => [
+      .select(UserModel)
+      .fields((u) => [
         u.name,
         sql<number>`EXTRACT(YEAR FROM ${u.registeredAt})::int`.as('year'),
       ])
@@ -49,8 +49,8 @@ describe('select — sql-фрагмент в SELECT против PG', () => {
   it('готовый список без колбека: sql-фрагмент + поле', async () => {
     const registeredAt = new SelectableField('User', 'registeredAt');
     const rows = await h.orm
-      .single(UserModel)
-      .select([
+      .select(UserModel)
+      .fields([
         sql<number>`EXTRACT(YEAR FROM ${registeredAt})::int`.as('year'),
       ])
       .order((u) => [u.name.asc])
@@ -62,7 +62,7 @@ describe('select — sql-фрагмент в SELECT против PG', () => {
 
   it('first(): один элемент, limit вниз, разворачивание объекта', async () => {
     const row = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.name.asc])
       .first(
         sql<number>`EXTRACT(YEAR FROM "User"."registeredAt")::int`.as('year'),

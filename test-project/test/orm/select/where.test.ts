@@ -18,7 +18,7 @@ afterAll(async () => {
 describe('where: filters, groups, ordering, pagination', () => {
   it('eq filter returns matching rows', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .go();
     expect(rows.length).toBe(1);
@@ -27,7 +27,7 @@ describe('where: filters, groups, ordering, pagination', () => {
 
   it('gt / lt numeric filter', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.age.gt(25))
       .go();
     expect(rows.map((r) => r.name).sort()).toEqual(['Alice', 'Carol']);
@@ -35,7 +35,7 @@ describe('where: filters, groups, ordering, pagination', () => {
 
   it('like string filter', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.like('%ob'))
       .go();
     expect(rows.length).toBe(1);
@@ -44,7 +44,7 @@ describe('where: filters, groups, ordering, pagination', () => {
 
   it('and + or composition with correct precedence', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.age.gt(20))
       .and((u) => u.active.eq(true))
       .or((u) => u.name.eq('Bob'))
@@ -55,7 +55,7 @@ describe('where: filters, groups, ordering, pagination', () => {
 
   it('flat sequence follows PG precedence: A OR B AND C = A OR (B AND C)', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Bob'))
       .or((u) => u.age.gt(25))
       .and((u) => u.active.eq(true))
@@ -67,7 +67,7 @@ describe('where: filters, groups, ordering, pagination', () => {
 
   it('and()/or() expressions create parenthesized groups', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) =>
         and(
           p.published.eq(true),
@@ -84,7 +84,7 @@ describe('where: filters, groups, ordering, pagination', () => {
 
   it('order + limit + offset', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.desc])
       .limit(2)
       .offset(1)
@@ -97,8 +97,8 @@ describe('where: filters, groups, ordering, pagination', () => {
     // ORDER BY обязателен: без него PG вернёт строки в произвольном порядке
     // и проверка конкретного имени была бы проверкой раскладки кучи.
     const page = await h.orm
-      .single(UserModel)
-      .select((u) => [u.name])
+      .select(UserModel)
+      .fields((u) => [u.name])
       .order((u) => [u.name.asc])
       .page(2, 2)
       .go();
@@ -106,22 +106,26 @@ describe('where: filters, groups, ordering, pagination', () => {
     expect(page[0].name).toBe('Carol');
   });
 
-  it('findById returns the row or undefined', async () => {
-    const found = await h.orm.single(UserModel).findById(1).go();
+  it('first() returns the row or undefined', async () => {
+    const found = await h.orm.select(UserModel).where((u) => u.id.eq(1)).first().go();
     expect(found?.name).toBeTruthy();
-    const missing = await h.orm.single(UserModel).findById(999999).go();
+    const missing = await h.orm
+      .select(UserModel)
+      .where((u) => u.id.eq(999999))
+      .first()
+      .go();
     expect(missing).toBeUndefined();
   });
 
   it('exists() reflects row presence', async () => {
     const yes = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .exists()
       .go();
     expect(yes).toBe(true);
     const no = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Nobody'))
       .exists()
       .go();
@@ -130,8 +134,8 @@ describe('where: filters, groups, ordering, pagination', () => {
 
   it('.null / .notNull filter NULL values like IS NULL / IS NOT NULL (TG11)', async () => {
     await h.orm
-      .single(UserModel)
-      .create({
+      .insert(UserModel)
+      .values({
         name: 'NullAge',
         email: 'nullage@test.com',
         age: null,
@@ -141,28 +145,27 @@ describe('where: filters, groups, ordering, pagination', () => {
       .go();
     try {
       const nulls = await h.orm
-        .single(UserModel)
+        .select(UserModel)
         .where((u) => u.age.null)
         .go();
       expect(nulls.map((r) => r.name)).toContain('NullAge');
 
       const nonNulls = await h.orm
-        .single(UserModel)
+        .select(UserModel)
         .where((u) => u.age.notNull)
         .go();
       expect(nonNulls.some((r) => r.name === 'NullAge')).toBe(false);
       expect(nonNulls.every((r) => r.age !== null)).toBe(true);
     } finally {
       await h.orm
-        .single(UserModel)
-        .delete()
+        .delete(UserModel)
         .where((u) => u.email.eq('nullage@test.com'))
         .go();
     }
   });
 
   it('count() combines with where and keeps the builder select', async () => {
-    const q = h.orm.single(UserModel).where((u) => u.active.eq(true));
+    const q = h.orm.select(UserModel).where((u) => u.active.eq(true));
     const n = await q.count().go();
     expect(n).toBe(2); // Alice, Carol активны; Bob — нет
     const rows = await q.go();

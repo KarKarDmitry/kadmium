@@ -18,8 +18,8 @@ afterAll(async () => {
 describe('having: filter grouped aggregates', () => {
   it('filters groups by COUNT(*) alias', async () => {
     const rows = await h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [p.author, agg.count('*').as('cnt')])
+      .select(PostModel)
+      .fields((p, { agg }) => [p.author, agg.count('*').as('cnt')])
       .groupBy((p) => [p.author])
       .having((t) => t.cnt.gt(1))
       .go();
@@ -31,8 +31,8 @@ describe('having: filter grouped aggregates', () => {
 
   it('filters groups by SUM() with a numeric comparison', async () => {
     const rows = await h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [p.author, agg.sum(p.views).as('totalViews')])
+      .select(PostModel)
+      .fields((p, { agg }) => [p.author, agg.sum(p.views).as('totalViews')])
       .groupBy((p) => [p.author])
       .having((t) => t.totalViews.gt(5))
       .go();
@@ -43,9 +43,9 @@ describe('having: filter grouped aggregates', () => {
 
   it('WHERE applies before grouping (aggregate sees only filtered rows)', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.published.eq(true))
-      .select((p, { agg }) => [p.author, agg.count('*').as('cnt')])
+      .fields((p, { agg }) => [p.author, agg.count('*').as('cnt')])
       .groupBy((p) => [p.author])
       .having((t) => t.cnt.gt(1))
       .go();
@@ -55,8 +55,8 @@ describe('having: filter grouped aggregates', () => {
 
   it('multiple having() calls combine with AND', async () => {
     const rows = await h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [
+      .select(PostModel)
+      .fields((p, { agg }) => [
         p.author,
         agg.count('*').as('cnt'),
         agg.sum(p.views).as('totalViews'),
@@ -73,8 +73,8 @@ describe('having: filter grouped aggregates', () => {
 
   it('havingOr composes OR across aggregate aliases', async () => {
     const rows = await h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [
+      .select(PostModel)
+      .fields((p, { agg }) => [
         p.author,
         agg.count('*').as('cnt'),
         agg.sum(p.views).as('totalViews'),
@@ -89,8 +89,8 @@ describe('having: filter grouped aggregates', () => {
 
   it('or() expression nests a parenthesized subclause', async () => {
     const rows = await h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [
+      .select(PostModel)
+      .fields((p, { agg }) => [
         p.author,
         agg.count('*').as('cnt'),
         agg.sum(p.views).as('totalViews'),

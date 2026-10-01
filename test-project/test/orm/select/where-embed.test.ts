@@ -19,9 +19,9 @@ afterAll(async () => {
 describe('where — sql-фрагмент в WHERE против PG (E)', () => {
   it('одиночный фрагмент без скобок + параметр', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where(() => sql`"User"."age" > ${25}`)
-      .select((t) => [t.name])
+      .fields((t) => [t.name])
       // ORDER BY обязателен: тест сверяет конкретный порядок имён, а без
       // сортировки PG отдаёт строки в произвольном порядке.
       .order((t) => [t.name.asc])
@@ -31,19 +31,19 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
 
   it('P1: AND-сосед + OR-внутри-фрагмента → фрагмент в скобках', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.active.eq(true))
       .and(() => sql`"User"."age" = ${25} OR "User"."age" = ${40}`)
-      .select((t) => [t.name])
+      .fields((t) => [t.name])
       .go();
     expect(rows.map((r) => r.name)).toEqual(['Carol']);
   });
 
   it('типизированное поле через proxy ($ {t.field})', async () => {
     const rows = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => sql`${p.views} >= ${5}`)
-      .select((p) => [p.title])
+      .fields((p) => [p.title])
       .go();
     expect(rows.map((r) => r.title).sort()).toEqual([
       'Bob Writes',
@@ -53,58 +53,58 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
 
   it('ILIKE во фрагменте', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => sql`${u.name} ILIKE ${'a%'}`)
-      .select((t) => [t.name])
+      .fields((t) => [t.name])
       .go();
     expect(rows.map((r) => r.name)).toEqual(['Alice']);
   });
 
   it('каст/функция во фрагменте: EXTRACT(MONTH FROM ...)', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => sql`EXTRACT(MONTH FROM ${u.registeredAt}) = ${2}`)
-      .select((t) => [t.name])
+      .fields((t) => [t.name])
       .go();
     expect(rows.map((r) => r.name)).toEqual(['Bob']);
   });
 
   it('коррелированный EXISTS с параметром внутри фрагмента', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where(
         () =>
           sql`EXISTS (SELECT 1 FROM "post" p_hot WHERE p_hot."author" = "User"."id" AND p_hot."views" > ${5})`,
       )
-      .select((t) => [t.name])
+      .fields((t) => [t.name])
       .go();
     expect(rows.map((r) => r.name)).toEqual(['Alice']);
   });
 
   it('or()-выражение с фрагментом и условием', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) =>
         or(sql`"User"."name" = ${'Alice'}`, u.email.eq('bob@test.com')),
       )
-      .select((t) => [t.name])
+      .fields((t) => [t.name])
       .go();
     expect(rows.map((r) => r.name).sort()).toEqual(['Alice', 'Bob']);
   });
 
   it('and-цепочка через .and() с фрагментом', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.active.eq(true))
       .and(() => sql`"User"."age" = ${40}`)
-      .select((t) => [t.name])
+      .fields((t) => [t.name])
       .go();
     expect(rows.map((r) => r.name)).toEqual(['Carol']);
   });
 
   it('include: where-фрагмент внутри LATERAL-подзапроса', async () => {
     const alice = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({
         posts: {
@@ -133,7 +133,7 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
 
   it('count().where(фрагмент)', async () => {
     const n = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where(() => sql`"User"."age" >= ${30}`)
       .count()
       .go();
@@ -142,8 +142,8 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
 
   it('having: фрагмент с COUNT(*) и параметром', async () => {
     const rows = await h.orm
-      .single(PostModel)
-      .select((p, { agg }) => [p.author, agg.count('*').as('cnt')])
+      .select(PostModel)
+      .fields((p, { agg }) => [p.author, agg.count('*').as('cnt')])
       .groupBy((p) => [p.author])
       .having(() => sql`COUNT(*) > ${1}`)
       .go();
@@ -155,13 +155,13 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
     const id = seedData.bob.id as number;
     const S = new QuerySlots(UserModel).push((u) => [u.id]);
     const direct = await h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where((u) => u.id.eq(id))
       .go();
     const c = h.orm
-      .single(UserModel)
-      .select((u) => [u.id, u.name])
+      .select(UserModel)
+      .fields((u) => [u.id, u.name])
       .where(() => sql`"User"."id" = ${S.slot('id')}`)
       .compile(S);
     const viaRun = await h.orm.run(c).fill({ id }).go();
@@ -171,8 +171,8 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
 
   it('update().where(фрагмент) применяет фильтр', async () => {
     const res = await h.orm
-      .single(UserModel)
-      .update({ active: false })
+      .update(UserModel)
+      .set({ active: false })
       .where(() => sql`"User"."name" = ${'Carol'}`)
       .go();
     expect(res).toHaveLength(1);
