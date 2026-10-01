@@ -110,6 +110,11 @@ type Mode = 'many' | 'first';
  * groupBy → update ловится только runtime-гардом.
  */
 export interface SingleDml<M extends Shape> {
+  /**
+   * @deprecated Используйте `orm.insert(Model).values(data)`.
+   *   Данные — шаг, а не аргумент входа: порядок `values → onConflict →
+   *   returning` читается как клаузы SQL. См. `plans/crud-api.md`.
+   */
   create(data: DmlData<M>): CreateFinalizer<M>;
   createMany(
     data: Record<string, unknown>[],

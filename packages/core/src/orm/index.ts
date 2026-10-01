@@ -8,6 +8,8 @@ export { UpdateQueryBuilder } from './builders/update';
 export type { UpdateHandle, SetData } from './builders/update';
 export { DeleteQueryBuilder } from './builders/delete';
 export type { DeleteHandle } from './builders/delete';
+export { InsertBuilder } from './builders/insert';
+export type { InsertHandle, InsertData } from './builders/insert';
 export type { MultiSelectResult } from './builders/multi';
 export type {
   SingleShared,

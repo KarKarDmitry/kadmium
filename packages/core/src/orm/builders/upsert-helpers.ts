@@ -65,6 +65,44 @@ export interface CreateManyOptions {
   transaction?: boolean;
 }
 
+/** Три конфликтных шага, общих для `create` и `createMany`. */
+export interface ConflictSteps<TModel extends Model, TFinal> {
+  onConflict: (
+    fn: (t: SelectProxy<TModel>) => readonly SelectableField[],
+  ) => TFinal;
+  doNothing: () => TFinal;
+  set: (data: DmlData<TModel>) => TFinal;
+}
+
+/**
+ * Собрать конфликтные шаги для финализатора. `rebuild` возвращает новый
+ * экземпляр финализатора, поэтому шаги остаются флоушими.
+ *
+ * Вынесено отдельно от двух `build*Finalizer`: иначе `onConflict`/`doNothing`/
+ * `set` дублируются почти слово в слово, а правка в одной копии молча
+ * разъезжается со второй.
+ */
+export function buildConflictSteps<TModel extends Model, TFinal>(
+  sqb: KadmiumSqb,
+  ir: ModelIR,
+  rebuild: () => TFinal,
+): ConflictSteps<TModel, TFinal> {
+  return {
+    onConflict: (fn) => {
+      sqb.conflictTarget = extractFieldNames<TModel>(ir, fn);
+      return rebuild();
+    },
+    doNothing: () => {
+      sqb.doNothing = true;
+      return rebuild();
+    },
+    set: (data) => {
+      applySet<TModel>(sqb, ir, data);
+      return rebuild();
+    },
+  };
+}
+
 // ── Helpers ──
 
 function extractFieldNames<TModel extends Model>(
@@ -165,18 +203,7 @@ export function buildCreateFinalizer<TModel extends Model>(
   const _finalize = <
     S extends readonly AnySelectable[],
   >(): CreateFinalizer<TModel> => ({
-    onConflict: (fn) => {
-      sqb.conflictTarget = extractFieldNames(ir, fn);
-      return _finalize();
-    },
-    doNothing: () => {
-      sqb.doNothing = true;
-      return _finalize();
-    },
-    set: (data) => {
-      applySet<TModel>(sqb, ir, data);
-      return _finalize();
-    },
+    ...buildConflictSteps<TModel, CreateFinalizer<TModel>>(sqb, ir, _finalize),
     returning: (fn) => {
       const selects = applyReturning<TModel>(sqb, ir, fn);
       const finalizer: CreateReturningFinalizer<S> = {
@@ -243,18 +270,11 @@ export function buildCreateManyFinalizer<TModel extends Model>(
   const _finalize = <
     S extends readonly AnySelectable[],
   >(): CreateManyFinalizer<TModel> => ({
-    onConflict: (fn) => {
-      baseSqb.conflictTarget = extractFieldNames(ir, fn);
-      return _finalize();
-    },
-    doNothing: () => {
-      baseSqb.doNothing = true;
-      return _finalize();
-    },
-    set: (data) => {
-      applySet<TModel>(baseSqb, ir, data);
-      return _finalize();
-    },
+    ...buildConflictSteps<TModel, CreateManyFinalizer<TModel>>(
+      baseSqb,
+      ir,
+      _finalize,
+    ),
     returning: (fn) => {
       returningSelects = applyReturning<TModel>(baseSqb, ir, fn);
       return {

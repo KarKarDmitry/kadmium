@@ -3,6 +3,7 @@ import { MultiQueryBuilder } from './builders/multi';
 import { SelectQueryBuilder, type SelectHandle } from './builders/select';
 import { UpdateQueryBuilder, type UpdateHandle } from './builders/update';
 import { DeleteQueryBuilder, type DeleteHandle } from './builders/delete';
+import { InsertBuilder, type InsertHandle } from './builders/insert';
 import type { DmlConfigHandle, MultiConfigHandle } from './builders/handles';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
@@ -167,6 +168,37 @@ export class OrmManager {
       this._irLookup,
       this._adapter,
     ) as unknown as DeleteHandle<TModel>;
+  }
+
+  /**
+   * Вход операции INSERT — новая явная поверхность CRUD API.
+   *
+   * Цепочка: `values(data)` → `onConflict(...)` → `set(...)`/`doNothing()`
+   * → `returning(...)` → `go()`.
+   *
+   * `values` обязателен: без него sync-throw — ошибка ловится в точке вызова,
+   * как гарды DML, а не всплывает в терминале. Данные принимаются шагом, а не
+   * аргументом входа: так же, как `update` берёт их в `.set()`, и имена
+   * зеркалят SQL — VALUES и SET.
+   *
+   * @example
+   * const user = await orm.insert(User)
+   *   .values({ name: 'Alice', email: 'alice@test.com' })
+   *   .go();
+   */
+  insert<
+    TModel extends {
+      ['~shape']: Record<string, unknown>;
+      ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
+    },
+  >(modelClass: { new (): TModel }, ir?: ModelIR): InsertHandle<TModel> {
+    const compiled = ir ?? this._irFor(modelClass);
+    return new InsertBuilder<TModel>(
+      compiled,
+      this._irLookup,
+      this._adapter,
+    ) as unknown as InsertHandle<TModel>;
   }
 
   /**

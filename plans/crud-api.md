@@ -103,43 +103,62 @@ orm.select(User).compile(S);          // слоты — без изменени�
 
 ```ts
 orm
-  .insert(User, { name, email })
+  .insert(User)
+  .values({ name, email })
   .returning((t) => [t.id])
   .go(); // проекция
 
-orm.insert(User, { name, email }).go(); // полная строка
-orm.insert(User, {}).go(); // → {} (см. C10)
+orm.insert(User).values(data).go(); // полная строка
 ```
+
+`values()` — обязательный шаг, данные на входе не принимаются: `update` тоже
+берёт данные шагом (`.set()`), и смешивать «данные аргументом» с «данные шагом»
+между двумя write-входами — та же болезнь, что лечили в PR1–PR3. Имя метода
+не выбрано случайно: `values()` — это VALUES, `set()` — это SET, оба ключевые
+слова SQL, так что имя отвечает на вопрос «какая клауза будет в тексте».
+Это же делает kysely (`.insertInto(T).values(data)`), чей порядок шагов мы
+перенимаем.
+
+Без `values()` доступен только `sql()`/броок; терминалы зовут
+`_requireValues()` и кидают sync-throw — тем же приёмом, что `_requireSet()` в
+`update.ts`.
 
 ### Upsert
 
 ```ts
 orm
-  .insert(User, { name, email })
+  .insert(User)
+  .values({ name, email })
   .onConflict((t) => [t.email])
   .set({ name: sql`${t.name}` }) // DO UPDATE SET
   .returning((t) => [t.id])
   .go();
 
 orm
-  .insert(User, { name, email })
+  .insert(User)
+  .values({ name, email })
   .onConflict((t) => [t.email])
   .doNothing() // DO NOTHING
   .go();
 ```
 
-Порядок kysely-овский: значения переданы на входе, дальше конфликтная клауза.
+Порядок kysely-овский: сначала значения, дальше конфликтная клауза.
 `set()` без `onConflict()` — рантайм-ошибка (сохраняем текущее поведение
 `applySet`).
 
 ### Batch
 
 ```ts
-orm.insertMany(User, [{ ... }, { ... }])
+orm
+  .insertMany(User)
+  .values([{ ... }, { ... }])
   .returning(t => [t.id])
-  .go();                              // проекция[]
+  .go(); // проекция[]
 
-orm.insertMany(User, rows, { transaction: true })
+orm
+  .insertMany(User)
+  .values(rows)
+  .transaction(false)
   .onConflict(t => [t.email])
   .go();
 ```
@@ -147,6 +166,9 @@ orm.insertMany(User, rows, { transaction: true })
 Отдельный вход, а не перегрузка `insert`: список и одиночный объект неоднозначны
 на типах, а у batch-пути своя транзакционная семантика
 (`batchSize`/`needsTransaction` в `TransactionalPgAdapter`).
+
+`{ transaction }` — тоже шаг, а не второй аргумент входа: иначе данные приходят
+шагом, а опции аргументом, и единый стиль разваливается.
 
 ### Update / Delete
 
@@ -239,8 +261,8 @@ packages/core/src/orm/builders/
 | Было                                | Стало                                 |
 | ----------------------------------- | ------------------------------------- |
 | `orm.single(User)`                  | `orm.select(User)`                    |
-| `orm.single(User).create(d)`        | `orm.insert(User, d)`                 |
-| `orm.single(User).createMany(rows)` | `orm.insertMany(User, rows)`          |
+| `orm.single(User).create(d)`        | `orm.insert(User).values(d)`          |
+| `orm.single(User).createMany(rows)` | `orm.insertMany(User).values(rows)`   |
 | `orm.single(User).update(d)`        | `orm.update(User).set(d)`             |
 | `orm.single(User).delete()`         | `orm.delete(User)`                    |
 | `.select(t => [...])` (проекция)    | `.fields(t => [...])`                 |
@@ -294,14 +316,22 @@ packages/core/src/orm/builders/
 **PR4 — `insert.ts` / `orm.insert`**
 
 - `InsertBuilder` поверх `buildCreateFinalizer` + тип `InsertHandle`
-- порядок `values (на входе) → onConflict → set/doNothing → returning`
+- порядок `values → onConflict → set/doNothing → returning`; `values`
+  обязателен (sync-throw `_requireValues()`), данные на входе не принимаются
 - `test-project/test/orm/insert-api.test.ts`
 - Deprecate `SingleDml.create()`
 
 **PR5 — `insert-many.ts` / `orm.insertMany`**
 
 - `InsertManyBuilder` поверх `buildCreateManyFinalizer` + тип `InsertManyHandle`
-- опция `{ transaction }`, батчинг — без изменений в `sql-pg`
+- шаг `.transaction(bool)`, батчинг — без изменений в `sql-pg`
+- пустой батч → finalizer-заглушка: без рекурсии, `set()` бросает
+  (`nothing to insert`), `sql()` отдаёт `-- nothing to insert`, а не пустую
+  строку; `assertDmlInsert` переносится ВЫШЕ проверки пустоты (сейчас
+  `.limit(1).createMany([])` проходит молча)
+- превью батча помечается `-- preview: first of N rows`: у батча нет одного sqb,
+  `buildManyDebugSql` собирает одноразовый по ПЕРВОЙ строке, и молчаливое усечение
+  вводит в заблуждение
 - `test-project/test/orm/insert-many-api.test.ts`
 - Deprecate `SingleDml.createMany()`
 
