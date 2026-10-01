@@ -1,5 +1,6 @@
 import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/multi';
+import { SelectQueryBuilder, type SelectHandle } from './builders/select';
 import type { DmlConfigHandle, MultiConfigHandle } from './builders/handles';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
@@ -70,6 +71,35 @@ export class OrmManager {
       this._irLookup,
       this._adapter,
     ) as unknown as DmlConfigHandle<TModel>;
+  }
+
+  /**
+   * Вход операции SELECT — новая явная поверхность CRUD API.
+   *
+   * Только чтение: ни `update`, ни `delete`, ни `create` здесь не появятся
+   * (см. `plans/crud-api.md`). Отличие от `single()` — проектция называется
+   * `fields()`, а include принимает объект `{ posts: ... }`.
+   *
+   * @example
+   * const active = await orm.select(User)
+   *   .where(t => t.active.eq(true))
+   *   .fields(t => [t.id, t.name])
+   *   .order(t => [t.name.desc])
+   *   .go();
+   */
+  select<
+    TModel extends {
+      ['~shape']: Record<string, unknown>;
+      ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
+    },
+  >(modelClass: { new (): TModel }, ir?: ModelIR): SelectHandle<TModel> {
+    const compiled = ir ?? this._irFor(modelClass);
+    return new SelectQueryBuilder<TModel>(
+      compiled,
+      this._irLookup,
+      this._adapter,
+    ) as unknown as SelectHandle<TModel>;
   }
 
   /**

@@ -2,6 +2,8 @@ export { OrmManager } from './orm';
 export type { RawRunner } from './compiled-query';
 export { SingleQueryBuilder } from './builders/single';
 export { MultiQueryBuilder } from './builders/multi';
+export { SelectQueryBuilder } from './builders/select';
+export type { SelectHandle } from './builders/select';
 export type { MultiSelectResult } from './builders/multi';
 export type {
   SingleShared,

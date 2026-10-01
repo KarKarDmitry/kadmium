@@ -124,13 +124,22 @@ export interface SingleDml<M extends Shape> {
   I = {},
   Mo extends Mode = 'many',
 > extends SingleShared<M, S, I, Mo, SingleConfigHandle<M, S, I, Mo>> {
+  /**
+   * @deprecated Используйте `orm.select(Model).fields(...)`.
+   *   Имя разделено по операциям: `fields` — проекция в новом
+   *   select-API, а `SingleDml.select` остаётся (там это RETURNING).
+   *   См. `plans/crud-api.md`.
+   */
   select(): SingleConfigHandle<M, AllFields, I, Mo>;
+  /** @deprecated Используйте `orm.select(Model).fields(...)`. */
   select<NS extends readonly AnySelectable[]>(
     fn: (t: SelectProxy<M>, tools: SelectTools) => NS,
   ): SingleConfigHandle<M, NS, I, Mo>;
+  /** @deprecated Используйте `orm.select(Model).fields(...)`. */
   select<NS extends readonly AnySelectable[]>(
     items: NS,
   ): SingleConfigHandle<M, NS, I, Mo>;
+  /** @deprecated Используйте `orm.select(Model).fields(...)`. */
   select<NS extends AnySelectable>(
     item: NS,
   ): SingleConfigHandle<M, [NS], I, Mo>;
