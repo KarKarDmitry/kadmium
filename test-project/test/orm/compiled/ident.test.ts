@@ -39,9 +39,9 @@ describe('ident() — динамические идентификаторы пр
 
   it('динамическая сортировка через билдер: order(sql`${ident(...)}`.desc)', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order(() => [sql`${ident('age')}`.desc])
-      .select((u) => [u.name, u.age])
+      .fields((u) => [u.name, u.age])
       .go();
     expect(rows.map((r) => ({ name: r.name, age: r.age }))).toEqual([
       { name: 'Carol', age: 40 },
@@ -52,19 +52,19 @@ describe('ident() — динамические идентификаторы пр
 
   it('динамическая колонка в WHERE с квалификацией', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where(() => sql`"User".${ident('name')} ILIKE ${'a%'}`)
-      .select((u) => [u.name])
+      .fields((u) => [u.name])
       .go();
     expect(rows.map((r) => r.name)).toEqual(['Alice']);
   });
 
-  it('ident в DML-значении: update({ views: sql`${ident(...)} + $N::int` })', async () => {
+  it('ident в DML-значении: set({ views: sql`${ident(...)} + $N::int` })', async () => {
     const before = seed.p1.views as number;
     const res = await h.orm
-      .single(PostModel)
+      .update(PostModel)
+      .set({ views: sql`${ident('views')} + ${1}::int` })
       .where((p) => p.id.eq(seed.p1.id as number))
-      .update({ views: sql`${ident('views')} + ${1}::int` })
       .go();
     expect(res[0].views).toBe(before + 1);
   });

@@ -24,10 +24,10 @@ describe('orm.raw — raw-фрагменты против PG', () => {
       )
       .go();
     const built = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.active.eq(true))
       .order((u) => [u.name.asc])
-      .select((u) => [u.name])
+      .fields((u) => [u.name])
       .go();
     expect(frag).toEqual(built);
     expect(frag.map((r) => r.name)).toEqual(['Alice', 'Carol']);
