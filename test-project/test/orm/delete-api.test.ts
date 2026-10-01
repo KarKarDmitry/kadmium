@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from 'vitest';
 import {
   User as UserModel,
   Post as PostModel,
   Comment as CommentModel,
+  UserAccount as UserAccountModel,
 } from '../../src/models';
 import { makeHarness, type Harness } from '../helpers';
 import { resetAndSeed, type SeedData } from '../fixtures';
@@ -23,24 +25,13 @@ beforeEach(async () => {
 });
 
 /**
- * Снести всё, что ссылается на User: комментарии И посты.
+ * Только комментарии — когда цель удаления сами посты.
  *
- * Не обход каскада: в model DSL referential-действий нет вообще —
- * `ReferenceFieldBuilder` не имеет `onDelete()`, а `expectedForeignKeys()`
- * (sql-pg/src/diff/types.ts) хардкодит `ON DELETE NO ACTION`. Каскадные
- * `ON DELETE CASCADE` достижимы только через ручной `applyDiff`, минуя DSL.
- * Поэтому FK честно блокирует удаление родителя, и тест обязан удалять
- * детей первыми — именно это поведение он и фиксирует.
- *
- * Порядок важен: `comment` ссылается и на `post`, и на `user`, поэтому
- * comments сносятся раньше постов.
+ * Поста с комментариями удалить нельзя: `Comment.post` объявлен с
+ * `onDelete('cascade')`, поэтому комментарии уйдут вместе с постом, а
+ * `returning` вернёт только строки постов. Чтобы число возвращённых строк
+ * соответствовало сидам, дети сносятся заранее.
  */
-async function clearDependents(): Promise<void> {
-  await h.orm.delete(CommentModel).go();
-  await h.orm.delete(PostModel).go();
-}
-
-/** Только комментарии — когда цель удаления сами посты. */
 async function clearComments(): Promise<void> {
   await h.orm.delete(CommentModel).go();
 }
@@ -80,7 +71,6 @@ describe('delete API: entry point', () => {
 
 describe('delete API: where + go', () => {
   it('where().go() deletes only matching rows', async () => {
-    await clearDependents();
     const removed = await h.orm
       .delete(UserModel)
       .where((u) => u.name.eq('Bob'))
@@ -93,15 +83,18 @@ describe('delete API: where + go', () => {
   });
 
   it('deleted row is really gone from the table', async () => {
-    await clearDependents();
-    await h.orm.delete(UserModel).where((u) => u.name.eq('Carol')).go();
+    await h.orm
+      .delete(UserModel)
+      .where((u) => u.name.eq('Carol'))
+      .go();
     const stillThere = await h.orm
       .select(UserModel)
       .where((u) => u.name.eq('Carol'))
       .go();
     expect(stillThere).toEqual([]);
     // Из трёх засеянных пользователей удалён один — остаются Alice и Bob.
-    // (clearDependents сносит только посты и комментарии, не пользователей.)
+    // Каскада по постам у Carol нет, а её комментарий переживает удаление:
+    // Comment.user объявлен с onDelete('set null'), а не cascade.
     expect(await h.orm.select(UserModel).count().go()).toBe(2);
   });
 
@@ -135,7 +128,6 @@ describe('delete API: where + go', () => {
 
 describe('delete API: returning', () => {
   it('returning() projects only the selected columns', async () => {
-    await clearDependents();
     const removed = await h.orm
       .delete(UserModel)
       .where((u) => u.name.eq('Alice'))
@@ -145,7 +137,6 @@ describe('delete API: returning', () => {
   });
 
   it('returning() with .as() uses the alias as key', async () => {
-    await clearDependents();
     const removed = await h.orm
       .delete(UserModel)
       .where((u) => u.name.eq('Alice'))
@@ -155,7 +146,6 @@ describe('delete API: returning', () => {
   });
 
   it('returning() works without where()', async () => {
-    await clearDependents();
     const removed = await h.orm
       .delete(UserModel)
       .returning((u) => [u.id])
@@ -166,7 +156,10 @@ describe('delete API: returning', () => {
 
 describe('delete API: sql preview', () => {
   it('sql() renders a readable preview of DELETE', () => {
-    const text = h.orm.delete(UserModel).where((u) => u.name.eq('Alice')).sql();
+    const text = h.orm
+      .delete(UserModel)
+      .where((u) => u.name.eq('Alice'))
+      .sql();
     expect(text).toContain('DELETE FROM "user"');
     expect(text).toContain('WHERE');
   });
@@ -174,7 +167,6 @@ describe('delete API: sql preview', () => {
 
 describe('delete API: builder reuse', () => {
   it('go() does not mutate the builder', async () => {
-    await clearDependents();
     const base = h.orm.delete(UserModel).where((u) => u.active.eq(true));
     // active: alice + carol. Первый go() удалит их.
     const first = await base.go();
@@ -186,19 +178,94 @@ describe('delete API: builder reuse', () => {
 });
 
 describe('delete API: referential integrity', () => {
-  it('FK blocks deleting a parent while children reference it', async () => {
-    // Контракт БД, а не ORM: FK всегда ON DELETE NO ACTION — в model DSL
-    // нет ни onDelete(), ни cascade(). Проверка фиксирует границу: ORM
-    // не обходит целостность, а отдаёт ошибку Postgres.
+  /**
+   * Действия объявлены в моделях: `Post.author` → cascade, `Comment.post` →
+   * cascade, `Comment.user` → set null. Всё, что ниже, — поведение Postgres,
+   * а не ORM: ORM отдаёт DELETE и не обходит целостность.
+   */
+  it('ON DELETE CASCADE takes the children of Post.author with the user', async () => {
+    await h.orm
+      .delete(UserModel)
+      .where((u) => u.name.eq('Alice'))
+      .go();
+
+    const posts = await h.orm.select(PostModel).go();
+    expect(posts.map((p) => p.title)).toEqual(['Bob Writes']);
+  });
+
+  it('the cascade is transitive — comments of the deleted posts go too', async () => {
+    await h.orm
+      .delete(UserModel)
+      .where((u) => u.name.eq('Alice'))
+      .go();
+
+    const comments = await h.orm.select(CommentModel).go();
+    // 'nice!' и 'lgtm' висели на p1/p2 автора Alice, 'meh' — на p3 Bob.
+    expect(comments.map((c) => c.text)).toEqual(['meh']);
+  });
+
+  it('ON DELETE SET NULL keeps the row and clears only the FK', async () => {
+    // Комментарий Алисы на посте Боба: его пост переживёт удаление Алисы,
+    // поэтому SET NULL сработает на Comment.user, а не на Comment.post.
+    await h.orm
+      .insert(CommentModel)
+      .values({
+        text: 'alice on bob post',
+        post: seed.p3.id,
+        user: seed.alice.id,
+      })
+      .go();
+
+    await h.orm
+      .delete(UserModel)
+      .where((u) => u.name.eq('Alice'))
+      .go();
+
+    const kept = await h.orm
+      .select(CommentModel)
+      .where((c) => c.text.eq('alice on bob post'))
+      .go();
+    expect(kept).toHaveLength(1);
+    expect(kept[0].user).toBeNull();
+    expect(kept[0].post).toBe(seed.p3.id);
+  });
+
+  it('NO ACTION still blocks where the DSL says nothing', async () => {
+    // UserAccount.createdBy — единственный ref без onDelete(): отсутствие
+    // вызова означает NO ACTION, а не «действия нет».
+    await h.orm
+      .insert(UserAccountModel)
+      .values({
+        id: randomUUID(),
+        displayLabel: 'alice account',
+        createdBy: seed.alice.id,
+      })
+      .go();
+
     await expect(
-      h.orm.delete(UserModel).where((u) => u.name.eq('Alice')).go(),
+      h.orm
+        .delete(UserModel)
+        .where((u) => u.name.eq('Alice'))
+        .go(),
     ).rejects.toThrow(/foreign key/i);
   });
 
-  it('the same delete succeeds once children are gone', async () => {
-    await clearDependents();
+  it('the blocking delete succeeds once the blocking child is gone', async () => {
+    await h.orm
+      .insert(UserAccountModel)
+      .values({
+        id: randomUUID(),
+        displayLabel: 'alice account',
+        createdBy: seed.alice.id,
+      })
+      .go();
+    await h.orm.delete(UserAccountModel).go();
+
     await expect(
-      h.orm.delete(UserModel).where((u) => u.name.eq('Alice')).go(),
+      h.orm
+        .delete(UserModel)
+        .where((u) => u.name.eq('Alice'))
+        .go(),
     ).resolves.toHaveLength(1);
   });
 });

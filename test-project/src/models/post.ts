@@ -6,5 +6,5 @@ export class Post extends Model {
   content = f.string;
   published = f.bool.notNull().default(true);
   views = f.number.notNull().default(0);
-  author = f.ref.target(User, 'posts');
+  author = f.ref.target(User, 'posts').onDelete('cascade');
 }
