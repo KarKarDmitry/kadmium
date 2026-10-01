@@ -5,13 +5,21 @@ import {
 } from '../src/models';
 import { type Harness } from './helpers';
 
+/**
+ * Засеянные строки по именам.
+ *
+ * Типы — `~shape` моделей, а не `Record<string, unknown>`: сид возвращает
+ * ровно то, что лежит в колонках, поэтому `seed.alice.id` должен быть `number`
+ * без каста, а опечатка в имени поля падала бы на чтении, а не молча давала
+ * `unknown`.
+ */
 export interface SeedData {
-  alice: Record<string, unknown>;
-  bob: Record<string, unknown>;
-  carol: Record<string, unknown>;
-  p1: Record<string, unknown>;
-  p2: Record<string, unknown>;
-  p3: Record<string, unknown>;
+  alice: UserModel['~shape'];
+  bob: UserModel['~shape'];
+  carol: UserModel['~shape'];
+  p1: PostModel['~shape'];
+  p2: PostModel['~shape'];
+  p3: PostModel['~shape'];
 }
 
 /**

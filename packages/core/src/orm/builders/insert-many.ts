@@ -5,7 +5,7 @@ import type { FilterProxy, ReturningTools, SelectProxy } from '../types/proxy';
 import { toSqlValue } from '../sql-fragment';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { SelectableField } from '../ast/selectable';
-import type { InsertData } from './insert';
+import type { InsertValuesData, RawDmlData, SetData } from '../types/dml-data';
 import { createFilterProxy } from './query-proxies';
 import {
   buildConflictSteps,
@@ -37,7 +37,13 @@ export interface InsertManyHandle<TModel extends Model> {
    * Строки VALUES — обязательный шаг. Пустой массив — ошибка (см.
    * `InsertManyBuilder._requireValues`).
    */
-  values(data: InsertData<TModel>[]): InsertManyHandle<TModel>;
+  values(data: InsertValuesData<TModel>[]): InsertManyHandle<TModel>;
+
+  /**
+   * Как `values()`, но для колонок, которых нет в модели — типизированный вход
+   * такую колонку не пропустит. Пустой массив — та же ошибка.
+   */
+  valuesRaw(data: RawDmlData[]): InsertManyHandle<TModel>;
 
   /** Конфликтная клауза: `(t) => [t.email]` → `ON CONFLICT ("email")`. */
   onConflict(
@@ -45,7 +51,10 @@ export interface InsertManyHandle<TModel extends Model> {
   ): InsertManyHandle<TModel>;
 
   /** DO UPDATE SET для найденных конфликтов. Требует `onConflict()`. */
-  set(data: InsertData<TModel>): InsertManyHandle<TModel>;
+  set(data: SetData<TModel>): InsertManyHandle<TModel>;
+
+  /** Как `set()`, но для колонок, которых нет в модели. */
+  setRaw(data: RawDmlData): InsertManyHandle<TModel>;
 
   /** DO NOTHING — побеждает `set()` на рендере. Требует `onConflict()`. */
   doNothing(): InsertManyHandle<TModel>;
@@ -112,7 +121,11 @@ export class InsertManyBuilder<TModel extends Model> {
     this.sqb.operation = 'upsert';
   }
 
-  values(data: InsertData<TModel>[]): InsertManyHandle<TModel> {
+  values(data: InsertValuesData<TModel>[]): InsertManyHandle<TModel> {
+    return this.valuesRaw(data as RawDmlData[]);
+  }
+
+  valuesRaw(data: RawDmlData[]): InsertManyHandle<TModel> {
     assertDmlInsert(this.sqb);
     this.mappedRows = data.map((row) => this._mapData(row));
     return this as unknown as InsertManyHandle<TModel>;
@@ -126,7 +139,11 @@ export class InsertManyBuilder<TModel extends Model> {
     return this as unknown as InsertManyHandle<TModel>;
   }
 
-  set(data: InsertData<TModel>): InsertManyHandle<TModel> {
+  set(data: SetData<TModel>): InsertManyHandle<TModel> {
+    return this.setRaw(data as RawDmlData);
+  }
+
+  setRaw(data: RawDmlData): InsertManyHandle<TModel> {
     this._requireValues();
     this._conflict().set(data as never);
     return this as unknown as InsertManyHandle<TModel>;
@@ -183,12 +200,15 @@ export class InsertManyBuilder<TModel extends Model> {
     );
   }
 
-  /** Раскладка ключей: имя поля → алиас колонки + нормализация значения. */
-  private _mapData(data: InsertData<TModel>): Record<string, unknown> {
-    const values =
-      typeof data === 'function' ? data(this._createFilterProxy()) : data;
+  /**
+   * Раскладка ключей строки: имя поля → алиас колонки + нормализация значения.
+   *
+   * Вход всегда объект — коллбэк у VALUES убран (см. `types/dml-data`), а
+   * коллбэк конфликтного `set()` раскладывает `upsert-helpers`.
+   */
+  private _mapData(data: RawDmlData): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(values)) {
+    for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = toSqlValue(v);
     }
     return mapped;

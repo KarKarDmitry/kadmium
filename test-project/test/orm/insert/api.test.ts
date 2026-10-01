@@ -134,31 +134,27 @@ describe('insert API: values + go', () => {
     expect(created.views).toBe(0);
   });
 
-  it('values() accepts a callback that builds an expression', async () => {
-    // Ограничение VALUES: ссылаться на поля модели нельзя — у INSERT нет
-    // FROM, а рендер квалифицирует ссылку алиасом (PG 42P01). Коллбэк
-    // полезен для фрагментов без полей модели.
-    const created = await h.orm
-      .insert(UserModel)
-      .values(() => ({
-        name: sql`upper(${'cb'})`,
-        email: 'cb@test.com',
-      }))
-      .go();
-
-    expect(created.name).toBe('CB');
+  it('values() rejects a callback — VALUES has no FROM to qualify a field ref', () => {
+    // Коллбэк у values() убран: VALUES описывает ещё не существующую строку, а
+    // рендер квалифицирует ссылку алиасом (`"User"."name"`) — у INSERT нет
+    // FROM, поэтому PG отвечал бы 42P01. Полезные фрагменты (без полей
+    // модели) принимаются как значения объекта — см. следующий тест.
+    // @ts-expect-error у values() нет коллбэк-формы
+    const built = h.orm.insert(UserModel).values(() => ({ name: 'x' }));
+    expect(built).toBeDefined();
   });
 
   it('values() accepts a fieldless sql fragment', async () => {
     const created = await h.orm
       .insert(UserModel)
       .values({
-        name: 'Now',
+        name: sql`upper(${'now'})`,
         email: 'now@test.com',
         registeredAt: sql`now()`,
       })
       .go();
 
+    expect(created.name).toBe('NOW');
     expect(created.registeredAt).toBeInstanceOf(Date);
   });
 

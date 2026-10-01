@@ -2,6 +2,7 @@ import { beforeAll, afterAll, beforeEach, describe, it, expect } from 'vitest';
 import { User as UserModel, Post as PostModel } from '../../../src/models';
 import { makeHarness, type Harness } from '../../helpers';
 import { resetAndSeed, type SeedData } from '../../fixtures';
+import { sql } from '@karkardmitry/kadmium-core';
 
 let h: Harness;
 let seed: SeedData;
@@ -152,16 +153,16 @@ describe('insertMany API: values + go', () => {
     expect(rows.map((r) => r.views)).toEqual([0, 0]);
   });
 
-  it('accepts callbacks per row', async () => {
+  it('accepts a fieldless sql fragment per row', async () => {
     const rows = await h.orm
       .insertMany(UserModel)
       .values([
-        () => ({ name: 'Cb1', email: 'cb1@test.com' }),
-        () => ({ name: 'Cb2', email: 'cb2@test.com' }),
+        { name: sql`upper(${'cb1'})`, email: 'cb1@test.com' },
+        { name: sql`upper(${'cb2'})`, email: 'cb2@test.com' },
       ])
       .go();
 
-    expect(rows.map((r) => r.name)).toEqual(['Cb1', 'Cb2']);
+    expect(rows.map((r) => r.name)).toEqual(['CB1', 'CB2']);
   });
 
   it('does not consume the builder - a second go() re-inserts', async () => {

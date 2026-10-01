@@ -97,7 +97,7 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
   });
 
   it('слот в join().on — общий paramIndex, parity с go()', async () => {
-    const authorId = seedData.alice.id as number;
+    const authorId = seedData.alice.id;
     const q = () => h.orm.query({ u: UserModel, p: PostModel });
     const direct = await q()
       .join({ left: 'u', right: 'p', on: (t) => t.p.author.eq(authorId) })
@@ -203,7 +203,7 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
   });
 
   it('3 таблицы (comment→post→user) + typed-слот — parity', async () => {
-    const aliceId = seedData.alice.id as number;
+    const aliceId = seedData.alice.id;
     const S = new MultiQuerySlots({
       c: CommentModel,
       p: PostModel,

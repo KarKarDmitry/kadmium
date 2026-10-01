@@ -152,7 +152,7 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
   });
 
   it('typed-слот внутри where-фрагмента: compile(S) + fill', async () => {
-    const id = seedData.bob.id as number;
+    const id = seedData.bob.id;
     const S = new QuerySlots(UserModel).push((u) => [u.id]);
     const direct = await h.orm
       .select(UserModel)

@@ -18,21 +18,21 @@ afterAll(async () => {
 
 describe('update — sql-выражения в значениях (F)', () => {
   it('set({ views: sql fragment }) — инкремент через RETURNING', async () => {
-    const before = seedData.p1.views as number;
+    const before = seedData.p1.views;
     const res = await h.orm
       .update(PostModel)
       .set({ views: sql`"Post"."views" + 1` })
-      .where((p) => p.id.eq(seedData.p1.id as number))
+      .where((p) => p.id.eq(seedData.p1.id))
       .go();
     expect(res[0].views).toBe(before + 1);
   });
 
   it('set((p) => ({ views: sql`${p.views} + 1` })) — proxy-реф', async () => {
-    const before = seedData.p3.views as number;
+    const before = seedData.p3.views;
     const res = await h.orm
       .update(PostModel)
       .set((p) => ({ views: sql`${p.views} + 1` }))
-      .where((p) => p.id.eq(seedData.p3.id as number))
+      .where((p) => p.id.eq(seedData.p3.id))
       .go();
     expect(res[0].views).toBe(before + 1);
   });
@@ -41,7 +41,7 @@ describe('update — sql-выражения в значениях (F)', () => {
     const q = h.orm
       .update(PostModel)
       .set({ views: sql`"Post"."views" + 1` })
-      .where((p) => p.id.eq(seedData.p1.id as number));
+      .where((p) => p.id.eq(seedData.p1.id));
     expect(q.sql()).toContain('SET "views" = "Post"."views" + 1');
   });
 });

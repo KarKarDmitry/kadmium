@@ -5,16 +5,25 @@ export { MultiQueryBuilder } from './builders/query';
 export { SelectQueryBuilder } from './builders/select';
 export type { SelectHandle } from './builders/select';
 export { UpdateQueryBuilder } from './builders/update';
-export type { UpdateHandle, SetData } from './builders/update';
+export type { UpdateHandle } from './builders/update';
 export { DeleteQueryBuilder } from './builders/delete';
 export type { DeleteHandle } from './builders/delete';
 export { InsertBuilder } from './builders/insert';
-export type { InsertHandle, InsertData } from './builders/insert';
+export type { InsertHandle } from './builders/insert';
 export { InsertManyBuilder } from './builders/insert-many';
 export type {
   InsertManyHandle,
   InsertManyReturningTerminal,
 } from './builders/insert-many';
+// Типы данных DML-шагов: ключи берутся из `~shape`, поэтому IDE подсказывает
+// поля, а опечатка ловится компилятором. `*Raw`-входы — для колонок вне модели.
+export type {
+  DmlValue,
+  InsertValuesData,
+  SetValues,
+  SetData,
+  RawDmlData,
+} from './types/dml-data';
 export type { MultiFieldsResult } from './builders/query';
 export type {
   SingleShared,

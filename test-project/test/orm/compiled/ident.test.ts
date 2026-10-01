@@ -60,11 +60,11 @@ describe('ident() — динамические идентификаторы пр
   });
 
   it('ident в DML-значении: set({ views: sql`${ident(...)} + $N::int` })', async () => {
-    const before = seed.p1.views as number;
+    const before = seed.p1.views;
     const res = await h.orm
       .update(PostModel)
       .set({ views: sql`${ident('views')} + ${1}::int` })
-      .where((p) => p.id.eq(seed.p1.id as number))
+      .where((p) => p.id.eq(seed.p1.id))
       .go();
     expect(res[0].views).toBe(before + 1);
   });

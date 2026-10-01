@@ -75,7 +75,7 @@ describe('select: go() vs run(compile()).fill().go()', () => {
   });
 
   it('first() по id (typed-слот) — объект|undefined, TResult миррорит go()', async () => {
-    const id = seedData.alice.id as number;
+    const id = seedData.alice.id;
     const S = new QuerySlots(UserModel).push((u) => [u.id]);
     const direct = await h.orm
       .select(UserModel)
@@ -96,7 +96,7 @@ describe('select: go() vs run(compile()).fill().go()', () => {
   });
 
   it('IN по массиву-слоту (.array.as("ids")) на непустом pk', async () => {
-    const ids = [seedData.alice.id as number, seedData.bob.id as number];
+    const ids = [seedData.alice.id, seedData.bob.id];
     const S = new QuerySlots(UserModel).push((u) => [u.id.array.as('ids')]);
     const direct = await h.orm
       .select(UserModel)
@@ -115,7 +115,7 @@ describe('select: go() vs run(compile()).fill().go()', () => {
   });
 
   it('include (вложенные posts) — reshape через sqb-снапшот не ломает форму', async () => {
-    const id = seedData.alice.id as number;
+    const id = seedData.alice.id;
     const S = new QuerySlots(UserModel).push((u) => [u.id]);
     const direct = await h.orm
       .select(UserModel)
@@ -139,7 +139,7 @@ describe('select: go() vs run(compile()).fill().go()', () => {
   });
 
   it('typed-слот внутри include({ posts: { where } }) — слот из LATERAL попадает в slotOrder, parity с go()', async () => {
-    const id = seedData.alice.id as number;
+    const id = seedData.alice.id;
     const S = new QuerySlots(UserModel).push((u) => [
       u.id,
       u.id.as('minViews'),

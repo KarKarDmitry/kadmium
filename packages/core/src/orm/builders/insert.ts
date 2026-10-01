@@ -4,6 +4,7 @@ import { KadmiumSqb } from '../sqb';
 import type { FilterProxy, ReturningTools, SelectProxy } from '../types/proxy';
 import { toSqlValue } from '../sql-fragment';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
+import type { InsertValuesData, RawDmlData, SetData } from '../types/dml-data';
 import type { SelectableField } from '../ast/selectable';
 import { createFilterProxy, createSelectProxy } from './query-proxies';
 import { buildConflictSteps, buildCreateFinalizer } from './upsert-helpers';
@@ -17,22 +18,20 @@ type Model = {
 };
 
 /**
- * Данные VALUES: объект значений или коллбэк с типизированным proxy.
+ * Данные VALUES: объект со значениями колонок, типизированный по `~shape`.
  *
- * Тот же контракт, что у `DmlData`/`SetData` — все три описывают «значения для
- * записи через колонки модели», и коллбэк нужен ради `sql`-фрагментов:
- * `values({ registeredAt: sql`now()` })` или `values(t => ({ ... }))`.
+ * NOT NULL-поля без DB-default обязательны — неполный INSERT иначе падает в
+ * `23502 not_null_violation`. Nullable-поля и defaulted-поля можно опустить.
  *
- * **Ограничение**: коллбэк НЕ может ссылаться на поля самой модели
- * (`sql`${t.name}``). VALUES описывает ещё не существующую строку, а рендер
- * квалифицирует ссылку алиасом (`"User"."name"`); у INSERT нет FROM, поэтому PG
- * отвечает 42P01. Это то же ограничение, что у RETURNING у INSERT. Полезные
- * фрагменты в VALUES — выражения без полей модели: `now()`, `lower($1)`,
- * арифметика над параметрами.
+ * Коллбэка здесь нет намеренно: VALUES описывает ещё не существующую строку, а
+ * рендер квалифицирует ссылку алиасом (`"User"."name"`); у INSERT нет FROM,
+ * поэтому коллбэк со ссылкой на поле получает 42P01. Полезны фрагменты без
+ * полей модели — `values({ registeredAt: sql`now()` })`.
+ *
+ * Типы живут в `types/dml-data`; здесь ре-экспорт, чтобы публичное имя
+ * осталось на привычном месте.
  */
-export type InsertData<TModel extends Model> =
-  | Record<string, unknown>
-  | ((t: FilterProxy<TModel>) => Record<string, unknown>);
+export type { InsertValuesData } from '../types/dml-data';
 
 /**
  * Публичная поверхность `orm.insert(Model)`.
@@ -51,7 +50,14 @@ export interface InsertHandle<TModel extends Model> {
    * Данные VALUES — обязательный шаг. Ключи — имена полей модели, значения
    * мапятся на алиасы колонок (`{ name }` → колонка `name`).
    */
-  values(data: InsertData<TModel>): InsertHandle<TModel>;
+  values(data: InsertValuesData<TModel>): InsertHandle<TModel>;
+
+  /**
+   * Данные VALUES для колонок, которых нет в модели — `values()` типизирован по
+   * `~shape` и такую колонку не пропустит. Тот же путь сборки, но вход
+   * намеренно без типов.
+   */
+  valuesRaw(data: RawDmlData): InsertHandle<TModel>;
 
   /** Конфликтная клауза: `(t) => [t.email]` → `ON CONFLICT ("email")`. */
   onConflict(
@@ -59,7 +65,10 @@ export interface InsertHandle<TModel extends Model> {
   ): InsertHandle<TModel>;
 
   /** DO UPDATE SET для найденного конфликта. Требует `onConflict()`. */
-  set(data: InsertData<TModel>): InsertHandle<TModel>;
+  set(data: SetData<TModel>): InsertHandle<TModel>;
+
+  /** Как `set()`, но для колонок, которых нет в модели. */
+  setRaw(data: RawDmlData): InsertHandle<TModel>;
 
   /** DO NOTHING — побеждает `set()` на рендере. Требует `onConflict()`. */
   doNothing(): InsertHandle<TModel>;
@@ -120,7 +129,11 @@ export class InsertBuilder<TModel extends Model> {
     this.sqb.operation = 'upsert';
   }
 
-  values(data: InsertData<TModel>): InsertHandle<TModel> {
+  values(data: InsertValuesData<TModel>): InsertHandle<TModel> {
+    return this.valuesRaw(data as RawDmlData);
+  }
+
+  valuesRaw(data: RawDmlData): InsertHandle<TModel> {
     assertDmlInsert(this.sqb);
     this.sqb.upsertData = this._mapData(data);
     this.hasValues = true;
@@ -135,7 +148,11 @@ export class InsertBuilder<TModel extends Model> {
     return this as unknown as InsertHandle<TModel>;
   }
 
-  set(data: InsertData<TModel>): InsertHandle<TModel> {
+  set(data: SetData<TModel>): InsertHandle<TModel> {
+    return this.setRaw(data as RawDmlData);
+  }
+
+  setRaw(data: RawDmlData): InsertHandle<TModel> {
     this._requireValues();
     this._conflict().set(data as never);
     return this as unknown as InsertHandle<TModel>;
@@ -192,12 +209,16 @@ export class InsertBuilder<TModel extends Model> {
     );
   }
 
-  /** Раскладка ключей: имя поля → алиас колонки + нормализация значения. */
-  private _mapData(data: InsertData<TModel>): Record<string, unknown> {
-    const values =
-      typeof data === 'function' ? data(this._createFilterProxy()) : data;
+  /**
+   * Раскладка ключей: имя поля → алиас колонки + нормализация значения.
+   *
+   * Вход всегда объект: коллбэк у VALUES убран (ссылка на поле в VALUES
+   * нерендерится — у INSERT нет FROM), а коллбэк `onConflict().set()`
+   * раскладывает `upsert-helpers`, где целевая таблица доступна по имени.
+   */
+  private _mapData(data: RawDmlData): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(values)) {
+    for (const [k, v] of Object.entries(data)) {
       mapped[this.ir.fields[k]?.alias ?? k] = toSqlValue(v);
     }
     return mapped;

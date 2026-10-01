@@ -5,6 +5,7 @@ import type { FilterProxy, ReturningTools, SelectProxy } from '../types/proxy';
 import type { WhereExpression } from '../ast/where';
 import { toSqlCondition, toSqlValue, type SqlFragment } from '../sql-fragment';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
+import type { RawDmlData, SetData } from '../types/dml-data';
 import { createFilterProxy, createSelectProxy } from './query-proxies';
 import { buildWriteFinalizer } from './write-finalizer';
 import { mapRow } from './utils';
@@ -20,10 +21,11 @@ type Model = {
 /**
  * Данные SET: объект значений или коллбэк с типизированным proxy (F),
  * чтобы внутри sql-фрагмента сослаться на колонку: `sql`${t.views} + 1``.
+ *
+ * Типы живут в `types/dml-data`; здесь ре-экспорт, чтобы публичное имя
+ * `SetData` осталось на привычном месте.
  */
-export type SetData<TModel extends Model> =
-  | Record<string, unknown>
-  | ((t: FilterProxy<TModel>) => Record<string, unknown>);
+export type { SetData } from '../types/dml-data';
 
 /**
  * Публичная поверхность `orm.update(Model)`.
@@ -40,6 +42,14 @@ export interface UpdateHandle<TModel extends Model> {
    * значения мапятся на алиасы колонок (`{ views }` → колонка `views`).
    */
   set(data: SetData<TModel>): UpdateHandle<TModel>;
+
+  /**
+   * Данные SET для колонок, которых нет в модели (`values`/`set` типизированы
+   * по `~shape` и такую колонку не пропустят). Тот же путь сборки, но вход
+   * намеренно без типов — используйте, когда пишете в колонку, которой ещё
+   * нет в модели.
+   */
+  setRaw(data: RawDmlData): UpdateHandle<TModel>;
 
   /** Фильтр строк. Не обязателен: UPDATE без where меняет все строки. */
   where(
@@ -101,6 +111,10 @@ export class UpdateQueryBuilder<TModel extends Model> {
   }
 
   set(data: SetData<TModel>): UpdateHandle<TModel> {
+    return this.setRaw(data as RawDmlData);
+  }
+
+  setRaw(data: RawDmlData): UpdateHandle<TModel> {
     assertDmlUpdate(this.sqb);
     this.sqb.updateData = this._mapData(data);
     this.hasSet = true;
@@ -155,7 +169,9 @@ export class UpdateQueryBuilder<TModel extends Model> {
   }
 
   /** Раскладка ключей SET: имя поля → алиас колонки + нормализация значения. */
-  private _mapData(data: SetData<TModel>): Record<string, unknown> {
+  private _mapData(
+    data: SetData<TModel> | RawDmlData,
+  ): Record<string, unknown> {
     const values =
       typeof data === 'function' ? data(this._createFilterProxy()) : data;
     const mapped: Record<string, unknown> = {};

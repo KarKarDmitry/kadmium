@@ -4,6 +4,7 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { SelectableField } from '../ast/selectable';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { SelectProxy, FilterProxy, ReturningTools } from '../types/proxy';
+import type { SetData } from '../types/dml-data';
 import { createSelectProxy, createFilterProxy } from './query-proxies';
 import { toSqlValue } from '../sql-fragment';
 import { aggregates } from '../field-builders/aggregates';
@@ -13,10 +14,14 @@ import { buildDebugSql, mapRow } from './utils';
 
 type Model = { ['~shape']: Record<string, unknown> };
 
-/** Данные DML: объект значений или коллбэк с типизированным proxy (F). */
-type DmlData<TModel extends Model> =
-  | Record<string, unknown>
-  | ((p: FilterProxy<TModel>) => Record<string, unknown>);
+/**
+ * Данные DO UPDATE SET: объект значений или коллбэк с типизированным proxy (F).
+ *
+ * Здесь коллбэк остаётся: в `DO UPDATE SET` доступна целевая таблица, поэтому
+ * ссылка на колонку валидна — `set((p) => ({ views: sql`${p.views} + 1` }))`.
+ * В `values()` его нет (см. `types/dml-data`).
+ */
+type DmlData<TModel extends Model> = SetData<TModel>;
 
 export interface CreateFinalizer<TModel extends Model> {
   onConflict: (
