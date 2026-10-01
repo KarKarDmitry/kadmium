@@ -6,6 +6,7 @@ import type {
   DbColumn,
   DbIndex,
   DbForeignKey,
+  ReferentialAction,
 } from '@karkardmitry/kadmium-sql-types';
 
 /* ── Diff Operation Types ── */
@@ -121,6 +122,10 @@ export type IrField = {
   isPrimary?: boolean;
   alias?: string;
   spec?: Record<string, unknown>;
+  /** ON DELETE из model DSL; уже в канонической форме, маппинг — в core. */
+  onDelete?: ReferentialAction;
+  /** ON UPDATE из model DSL; уже в канонической форме, маппинг — в core. */
+  onUpdate?: ReferentialAction;
 };
 
 export function pgType(
@@ -274,8 +279,11 @@ export function expectedForeignKeys(
       columns: [f.alias ?? name],
       refTable: f.ref.toLowerCase(),
       refColumns: [pkName],
-      onDelete: 'NO ACTION',
-      onUpdate: 'NO ACTION',
+      // Отсутствие действия в модели — это NO ACTION, а не «действия нет»:
+      // так ведёт себя Postgres по умолчанию, и миграции не появляются там,
+      // где onDelete() не вызван.
+      onDelete: f.onDelete ?? 'NO ACTION',
+      onUpdate: f.onUpdate ?? 'NO ACTION',
     });
   }
   return fks;

@@ -9,6 +9,7 @@ import {
   expectedForeignKeys,
 } from '../../src/diff/types';
 import type { IrField } from '../../src/diff/types';
+import type { ReferentialAction } from '@karkardmitry/kadmium-sql-types';
 
 const irs = [
   {
@@ -541,5 +542,88 @@ describe('expectedForeignKeys', () => {
     };
     const fks = expectedForeignKeys('posts', fields, irs);
     expect(fks[0].name).toBe('fk_posts_user_id');
+  });
+
+  describe('referential actions', () => {
+    const withActions = (
+      onDelete?: ReferentialAction,
+      onUpdate?: ReferentialAction,
+    ): Record<string, IrField> => ({
+      author: {
+        type: 'ref',
+        ref: 'User',
+        nullable: false,
+        unique: false,
+        onDelete,
+        onUpdate,
+      },
+    });
+
+    it('reads onDelete from the field', () => {
+      const fks = expectedForeignKeys('posts', withActions('CASCADE'), irs);
+      expect(fks[0].onDelete).toBe('CASCADE');
+    });
+
+    it('reads onUpdate from the field', () => {
+      const fks = expectedForeignKeys(
+        'posts',
+        withActions(undefined, 'RESTRICT'),
+        irs,
+      );
+      expect(fks[0].onUpdate).toBe('RESTRICT');
+    });
+
+    it('carries both independently', () => {
+      const fks = expectedForeignKeys(
+        'posts',
+        withActions('SET NULL', 'NO ACTION'),
+        irs,
+      );
+      expect(fks[0].onDelete).toBe('SET NULL');
+      expect(fks[0].onUpdate).toBe('NO ACTION');
+    });
+
+    it('every action passes through untouched', () => {
+      for (const action of [
+        'NO ACTION',
+        'CASCADE',
+        'SET NULL',
+        'RESTRICT',
+        'SET DEFAULT',
+      ] as const) {
+        expect(
+          expectedForeignKeys('posts', withActions(action), irs)[0].onDelete,
+        ).toBe(action);
+        expect(
+          expectedForeignKeys('posts', withActions(undefined, action), irs)[0]
+            .onUpdate,
+        ).toBe(action);
+      }
+    });
+
+    it('absent action becomes NO ACTION — what Postgres does by default', () => {
+      const fks = expectedForeignKeys('posts', withActions(), irs);
+      expect(fks[0].onDelete).toBe('NO ACTION');
+      expect(fks[0].onUpdate).toBe('NO ACTION');
+    });
+
+    it('only onDelete set leaves onUpdate at the default', () => {
+      const fks = expectedForeignKeys('posts', withActions('CASCADE'), irs);
+      expect(fks[0].onUpdate).toBe('NO ACTION');
+    });
+
+    it('inverse ref with an action still produces no FK', () => {
+      const fields: Record<string, IrField> = {
+        posts: {
+          type: 'ref',
+          ref: 'Post',
+          nullable: false,
+          unique: false,
+          sourceModel: 'Post',
+          onDelete: 'CASCADE',
+        },
+      };
+      expect(expectedForeignKeys('user', fields, irs)).toHaveLength(0);
+    });
   });
 });
