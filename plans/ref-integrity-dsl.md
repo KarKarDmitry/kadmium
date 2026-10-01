@@ -1,6 +1,6 @@
 # Расширение DSL ссылочных данных — `onDelete` / `onUpdate` в `f.ref`
 
-**Статус:** 📋 план готов, реализация не начата.
+**Статус:** 📋 решения приняты, реализация не начата. PR1 — DSL.
 
 **Суть:** `f.ref` сегодня умеет только геометрию связи (`target`/`inverse`/`fk`/
 `oneToOne`/`manyToOne`) и ничего не говорит о том, что происходит с детьми при
@@ -41,16 +41,15 @@
 выразить ещё одно намерение: **колонка обязана быть nullable**. Сегодня
 `nullable` задаётся независимо (`f.ref...notNull()` / дефолт `nullable: true` в
 `StandartFieldBuilder`), поэтому `onDelete: 'set null'` на `notNull()`-колонке —
-это заведомо падающая миграция: Postgres даст `ERROR: column "x" must be
-nullable to use SET NULL` в момент `ALTER TABLE`, то есть ошибка всплывает
-поздно и вне контекста.
+это заведомо падающая миграция: Postgres отвергает такой FK при создании
+(`column "x" must be nullable to use SET NULL`), то есть ошибка всплывает поздно
+и вне контекста — в момент `ALTER TABLE`.
 
 ### 3. `no action` и `restrict` для пользователя неразличимы
 
 Оба запрещают удаление родителя при живых детях, различаясь лишь таймингом
-проверки (end-of-statement vs немедленно). В DSL они сейчас не выразимы вовсе,
-и когда появятся — надо понимать, что именно попадёт в `ON UPDATE`: смена
-PK родителя по умолчанию ломает FK, но `onUpdate` тоже молчит.
+проверки. В DSL они сейчас не выразимы вовсе. Отдельно: смена PK родителя по
+умолчанию ломает FK, и `onUpdate` тоже молчит.
 
 ---
 
@@ -59,53 +58,131 @@ PK родителя по умолчанию ломает FK, но `onUpdate` т�
 ### DSL
 
 ```typescript
-class Post extends Model {
-  author = f.ref
-    .target(User, 'posts')
-    .manyToOne()
-    .onDelete('cascade')       // NO ACTION | CASCADE | SET NULL | RESTRICT | SET DEFAULT
-    .onUpdate('cascade');      // по умолчанию NO ACTION
+class Comment extends Model {
+  post = f.ref.target(Post, 'comments').onDelete('cascade');
+  user = f.ref.target(User, 'comments').onDelete('set null');
 }
 
-class Comment extends Model {
-  post = f.ref.target(Post, 'comments').manyToOne().onDelete('set null');
+class Post extends Model {
+  author = f.ref.target(User, 'posts').onDelete('cascade');
+  // по умолчанию onUpdate — 'no action'
 }
 ```
 
-Методы принимают **строки в нижнем регистре** (`'cascade'`), потому что это
-то, что читается в модели; в IR и SQL уходит канонический регистр
-(`'CASCADE'`). Свободный регистр принимается и приводится к нижнему — иначе
-пришлось бы писать `'cascade' | 'CASCADE' | 'Cascade'` в типе.
+Аргумент — **union в нижнем регистре**:
 
-Дефолты: `onDelete` → `'no action'`, `onUpdate` → `'no action'`. Это сохраняет
-поведение всех существующих моделей байт-в-байт: миграции не появятся там, где
-`onDelete` не написан.
+```ts
+type ReferentialActionInput =
+  | 'no action'
+  | 'cascade'
+  | 'set null'
+  | 'restrict'
+  | 'set default';
+```
 
-**Инверсия не транслируется.** `post.onDelete('cascade')` означает «при удалении
-Post удалять Comment». На стороне `User.posts` (обратная связь, one-to-many)
-действие не задаётся: FK живёт на стороне владельца. Если бы оно туда
-прокидывалось, пришлось бы решить, что делать с двумя FK на одну пару таблиц —
-вопрос, не относящийся к этой задаче.
+Нижний регистр — потому что это то, что читается в модели. `'CASCADE'` и
+`'cascde'` отвергаются компилятором, импортировать тип в модель не нужно: он
+реэкспортируется из корня пакета. Нормализация в runtime остаётся только для JS
+и динамики.
+
+### Почему не сахар `.cascade()` и не связка `onAction`
+
+**Сахар.** Именованное действие как настоящий метод требует либо второго словаря
+(`.cascade().onUpdate('cascade')`), либо плоских `.onUpdateCascade()` — десять
+методов на матрицу 5×2, работающих наполовину. `onDelete`/`onUpdate` покрывают
+её двумя методами. И `.restrict` на ref-поле читается как «что ограничивает?».
+
+**Связка `onAction`.** События разные, а значения типично противоположны:
+`ON DELETE CASCADE` (удалить родителя → удалить детей) против `ON UPDATE
+RESTRICT`/`NO ACTION` (не дать сдвинуть PK под живыми детьми). Связывание ставит
+одно значение по обе стороны, а правильные почти всегда разные — и правильная
+пара `onDelete('cascade') + onUpdate('restrict')` через `onAction` не выражается
+без дополнительных вызовов. Хуже: `ON UPDATE CASCADE` означает, что
+`orm.update(User).set({ id })` молча перепишет FK-колонку у всех детей в одной
+транзакции. PK в kadmium мутируемый (`immutable()` в DSL нет), так что это не
+теоретический риск.
+
+### Каноническая форма живёт в IR, нижняя — на границе модели
+
+| Слой | Форма | Где |
+|------|-------|-----|
+| DSL | `ReferentialActionInput` (нижний регистр) | `ReferenceField.onDelete` |
+| IR | `ReferentialAction` (верхний регистр) | `FieldIR.onDelete` |
+| DDL | `DbForeignKey['onDelete']` | тот же тип |
+
+`ReferentialAction` выносится в `sql-types` и заменяет инлайн-union в
+`DbForeignKey` (`sql-types/src/index.ts:347`). Обе зависимости уже есть, ядро
+`core → sql-types ← sql-pg`.
+
+**Маппинга в sql-pg нет.** `ReferentialActionInput` и `toReferentialAction()`
+живут в `ir/index.ts` (единственный файл, которому положено знать обе формы);
+`model/types/ref.d.ts` импортирует тип оттуда — направление `model → ir` уже
+существует (`compile.ts:4`), обратного импорта не появляется. `expectedForeignKeys`
+становится `onDelete: f.onDelete ?? 'NO ACTION'` — те же строки, что сейчас,
+только из поля.
+
+### Инверсия не транслируется
+
+`Post.author.onDelete('cascade')` означает «при удалении Post удалить Comment»
+(если действие стоит на `Comment.post`). На стороне `User.posts` — обратной
+связи — действие не задаётся: FK живёт на стороне владельца, и там, где
+объявлено ref-поле, его и пишут. На `User` вообще нет ref-полей, писать нечего и
+терять нечего: имя `'posts'` в `.target(User, 'posts')` — только имя поля для
+`include`, ни колонки, ни FK оно не создаёт.
+
+**«Владелец» определяется не через `relation`, а через `!sourceModel`** — так
+же, как в `irToColumns` (`types.ts:219`) и `expectedForeignKeys` (`types.ts:262`).
+В `test-project/src/models/comment.ts:8` стоит `f.ref.target(Post, 'comments')`
+**без** `.manyToOne()`, а дефолт `relation` — `'one-to-many'` (`ref.ts:8`),
+хотя поле физически владеет колонкой. `relation` про владение не говорит
+ничего.
+
+Поэтому действие копируется в IR **только** для прямых полей — одна правка в
+`compile.ts:56`. Виртуальные inverse-ref'ы (`compile.ts:67` и `compile.ts:98`)
+не получают `onDelete`: они отбрасываются обоими потребителями по `sourceModel`,
+туда действие попасть не может, а `ModelRelation` менять незачем.
+
+Цепочка `User → Post → Comment` с двумя каскадами работает транзитивно силами
+самого Postgres. Порядок операций в диффе безразличен — все FK применяются в
+одной транзакции (`applyDiffTransactional`).
 
 ### Валидация — на билдере, не на рендере
 
-Несовместимые комбинации (`set null` + `notNull()`) отклоняются в
-`$build()`, а не при миграции. Ошибка указывает строку модели, а не
-`ALTER TABLE` в проде. `assertReferentialAction()` в sql-pg остаётся
-defense-in-depth — он защищает ручной `applyDiff`, где валидации модели нет.
+Обе проверки в `$build()` (`model/fields/ref.ts`), а не при миграции: ошибка
+указывает строку модели, а не `ALTER TABLE` в проде.
+
+1. Значение не из пяти → throw. TS отсекает раньше, guard нужен для JS.
+2. `onDelete('set null')` + `notNull()` → throw с указанием причины.
+
+`onUpdate('set null')` проверяется так же: `SET NULL` на `ON UPDATE` требует
+nullable не меньше, чем на `ON DELETE`.
+
+`set default` на `notNull()` **не** проверяем — Postgres создаст ограничение, оно
+упадёт только в момент удаления родителя. Это редкий осознанный случай.
+
+`assertReferentialAction()` в sql-pg остаётся defense-in-depth для ручного
+`applyDiff`, где валидации модели нет.
 
 ### Миграции — через diff, а не через отдельный путь
 
-`expectedForeignKeys()` начинает читать `f.onDelete`/`f.onUpdate`. Действующая
-логика `computeDiff` **не ловит изменение действия** — она сравнивает только
-`fk.name` (`compute.ts:193`), поэтому смена `no action` → `cascade` на
-существующей паре таблиц молча проигнорируется. Поэтому в этом же PR нужен
-`AlterForeignKeyOp`: `DROP CONSTRAINT` + `ADD CONSTRAINT` одной операцией,
-иначе фича работает только на свежих базах.
+`expectedForeignKeys()` начинает читать `f.onDelete` / `f.onUpdate`. Дефолт
+`'NO ACTION'` сохраняет поведение всех существующих моделей байт-в-байт:
+миграции не появятся там, где действие не написано.
 
-Порядок выбран сознательно: `DROP` идёт перед `ADD` в одном diff, обе операции
-применяются транзакционно (`applyDiffTransactional`) — схема не остаётся без FK
-между шагами.
+Действующая логика `computeDiff` **не ловит изменение действия** — она
+сравнивает только `fk.name` (`compute.ts:196`), поэтому смена `no action` →
+`cascade` на существующей паре таблиц молча проигнорировалась бы. Нужен
+`AlterForeignKeyOp`.
+
+**Отдельная операция, а не `drop` + `add`.** Причина — семантика health-check:
+`diffToHealth` (`diff/index.ts:74`) заводит `addedForeignKeys > 0` как «foreign
+key(s) missing», и `db check` покраснел бы на исправной схеме. Отсюда же
+собственный счётчик `alteredForeignKeys`, своя строка в health и в сводке
+`dbPush`.
+
+`DROP` идёт перед `ADD` внутри одного op, обе статменты в одной транзакции —
+схема не остаётся без FK между шагами. Рендер — через существующие
+`dropForeignKeySql` + `addForeignKeySql`, нового SQL-строителя не появляется.
 
 ---
 
@@ -115,102 +192,135 @@ defense-in-depth — он защищает ручной `applyDiff`, где ва
 
 ### PR1 — DSL: `onDelete`/`onUpdate` в `ReferenceFieldBuilder`
 
-- `ReferenceFieldBuilder.onDelete(action)` / `.onUpdate(action)` +
-  приватные поля в `model/fields/ref.ts`, проброс в `$build()`
-- `ReferenceField.onDelete`/`onUpdate` в `model/types/ref.d.ts` — тип
-  `ReferentialAction` в нижнем регистре
-- Тесты: `packages/core/test/model/fields/ref.test.ts` — значения, дефолты,
-  цепочка с `target`/`fk`/`inverse`, `set null` + `notNull()` бросает
+- `ReferentialActionInput` в `ir/index.ts` — только форма, которую пишет модель;
+  каноническая форма в этом PR ещё не нужна
+- `ReferenceFieldBuilder.onDelete(action)` / `.onUpdate(action)`, приватные
+  поля, проброс в `$build()`
+- `ReferenceField.onDelete`/`onUpdate` в `model/types/ref.d.ts`
+- Две проверки в `$build()`: значение не из пяти, `set null` + `notNull()`
+- Тесты: `packages/core/test/model/fields/ref.test.ts` — пять значений,
+  дефолты (поля отсутствуют), цепочка с `target`/`fk`/`inverse`, `set null` +
+  `notNull()` бросает в любом порядке вызовов, `set default` + `notNull()`
+  разрешён, повторный вызов — последний побеждает
 
-**Не трогаем** IR, diff, DDL: билдер производит поле, которое пока никто не
-читает. Это законченный вертикальный срез, который коммитится, даже если
-следующие PR задержатся.
+**Не трогаем** IR-поля, diff, DDL: билдер производит поле, которое пока никто не
+читает. Законченный вертикальный срез, который коммитится, даже если следующие
+PR задержатся. `ReferentialActionInput` локальный — core от этого PR не зависит
+от нового контракта sql-types.
 
-### PR2 — IR: проброс в `FieldIR`
+### PR2 — контракт: `ReferentialAction` и проброс в `FieldIR`
 
-- `ReferentialAction` в `ir/index.ts` (единственный источник истины для формы
-  действия), `FieldIR.onDelete`/`onUpdate`
-- `compile.ts`: копирование в `base.onDelete`/`base.onUpdate` — для прямых полей
-  **и** для виртуальных inverse-ref'ов из `$refs()` и из прототипа родителя
-  (три места: строки ~55, ~79, ~110)
-- `ModelRelation` в `model/types/model.d.ts`: `onDelete`/`onUpdate` —
-  `$refs()` теряет их, если не пробросить; без этого inverse-поля в IR будут
-  без действия
-- Тесты: `packages/core/test/model/compile.test.ts` — прямое поле, наследование
+- `ReferentialAction` в `sql-types/src/index.ts`, `DbForeignKey` ссылается на
+  него вместо инлайн-union
+- `toReferentialAction()` в `ir/index.ts` — единственный маппинг нижней формы в
+  каноническую, `ir/index.ts` реэкспортирует `ReferentialAction`
+- `FieldIR.onDelete`/`onUpdate`
+- `compile.ts:56` — копирование в `base.onDelete`/`base.onUpdate` для прямых
+  полей. **Одно место**, не три: inverse-ref'ы отбрасываются по `sourceModel`
+- `ModelRelation` не меняется
+- Тесты: `packages/core/test/model/compile.test.ts` — прямое поле с
+  uppercase-формой, поле без действий, обратная связь без действия, наследование
   от родителя, one-to-one vs one-to-many
 
-### PR3 — diff: чтение действия + `AlterForeignKeyOp`
+Порядок сборки (`sql-types → sql-pg → core`) уже верный, но после правки
+`sql-types/src` нужен `npm run build` до `check:type`: пакеты — джункшены, типы
+core резолвятся из `sql-types/dist/index.d.ts`.
 
-- `expectedForeignKeys()` читает `f.onDelete ?? 'NO ACTION'` (нормализация в
-  верхний регистр — на границе IR, не в DDL)
-- `AlterForeignKeyOp` в `sql-pg/src/diff/types.ts`: `{ type, fkName, tableName,
-  oldFk, newFk }`
-- `compute.ts`: сравнение по `name` **и** по `onDelete`/`onUpdate`/`refTable`/
-  `columns` — расхождение даёт `alter-foreign-key` вместо `drop` + `add`
-  (иначе на существующей паре таблиц смена действия не применится)
-- `ddl-sql.ts`: `ALTER CONSTRAINT` не нужен — рендер через существующие
-  `dropForeignKeySql` + `addForeignKeySql`
-- `apply.ts`: case `alter-foreign-key` → два вызова ddl
-- `ddl-validate.ts`: case `alter-foreign-key` → валидация обоих FK
-- Тесты: `packages/sql-pg/test/diff/{types,compute,render}.test.ts` +
-  фикстуры с непустым `onDelete` (сейчас все фикстуры — `NO ACTION`, смена
-  действия не проверена нигде)
+### PR3 — sql-pg: чтение действия
 
-### PR4 — DDL: применение и интеграция
+- `expectedForeignKeys()` читает `f.onDelete ?? 'NO ACTION'` / `f.onUpdate ??
+  'NO ACTION'`; `IrField` получает два необязательных поля
+- Тесты: `packages/sql-pg/test/diff/types.test.ts` — действие из поля, дефолт
+  `NO ACTION`, passthrough всех пяти (сейчас `expectedForeignKeys` проверяет
+  только имя/колонки)
 
-- `DbForeignKey` в `apply.ts`/`renderSql` уже принимает любой action —
-  проверяем, что `addForeignKeySql` печатает `ON DELETE CASCADE`
-- `test-project/test/db.test.ts` (или новый `test/ddl-fk.test.ts`):
-  миграция на существующей базе меняет действие; `delete-api.test.ts` переводится
-  с `clearDependents()` на каскад и теряет этот хелпер
-- Модель `Comment.post` в `test-project/src/models/comment.ts` получает
-  `onDelete('cascade')`, `Comment.user` — `set null` с nullable-колонкой
+### PR4 — diff: `AlterForeignKeyOp`
 
-### PR5 — `SET NULL` требует nullable
+- `AlterForeignKeyOp { type, tableName, fkName, oldFk, newFk }` в
+  `sql-pg/src/diff/types.ts`, добавление в `DiffOp` и в реэкспорт `diff/index.ts`
+- `summary.alteredForeignKeys`
+- `compute.ts`: расхождение по `onDelete`/`onUpdate`/`refTable`/`columns`/
+  `refColumns` при совпавшем имени даёт `alter-foreign-key` вместо отсутствия
+  операции. Имя FK зависит только от таблицы и колонки, поэтому смена действия
+  его не затрагивает и соседние FK не шевелятся
+- `diffToHealth()` — своя строка issue
+- `apply.ts` `opToString` — `ALTER FK <name> on <table>: ON DELETE a → b`
+  (и `ON UPDATE` тоже, если изменилось)
+- Тесты: `packages/sql-pg/test/diff/{types,compute,health}.test.ts` —
+  `alter-foreign-key` на смене действия, отсутствие op при совпадении, `add`
+  при отсутствии FK, `drop` при лишнем, оба счётчика
 
-Отдельный PR, потому что меняет **тип** полей, а не только DDL.
+### PR5 — render, apply, validate
 
-- Валидация уже в PR1; здесь — решение на уровне IR: `notNull()` +
-  `onDelete('set null')` → либо авто-понижение `nullable`, либо sync-throw.
-  Выбор: **sync-throw в `$build()`** — молча менять nullability нельзя, это
-  ослабляет инвариант модели без ведома автора
-- Кодоген: `codegen/generate-model.ts` — forward-ref уже печатается как
-  `number | undefined` по `field.nullable`; проверяем, что `set null` не требует
-  правок, иначе добавляем
+- `render.ts`: op возвращает две статменты — `dropForeignKeySql`, затем
+  `addForeignKeySql(newFk)`. `renderSql` джойнит операции через `\n\n`
+  (`render.ts:51`), поэтому многострочный возврат из `opToSql` допустим
+- `apply.ts` `executeOp`: `alter-foreign-key` → `dropForeignKey` + `addForeignKey`
+- `ddl-validate.ts` `assertDiffOpSqlSafe`: валидация **обоих** FK
+- Тесты: `render.test.ts` (порядок и текст обеих статмент), `apply.test.ts`
+  (порядок вызовов ddl), `ddl-validate.test.ts` (отравленный `newFk` бросает)
 
-### PR6 — `one-to-one` и `unique` (по необходимости)
+### PR6 — интеграция
 
-`one-to-one` на стороне владельца требует `UNIQUE` на FK-колонке, иначе это
-`many-to-one` в БД при заявленном `one-to-one` в DSL. Сейчас
+- Модели `test-project`: `Post.author` → `cascade`, `Comment.post` → `cascade`,
+  `Comment.user` → `set null` (колонка nullable по умолчанию)
+- `test-project/test/ddl-fk.test.ts`: миграция на существующей базе меняет
+  действие — проверка через `information_schema.referential_constraints`, а не
+  только текст SQL; `cascade` удаляет детей; `set null` обнуляет; `no action` по
+  прежнему блокирует удаление родителя
+- `delete-api.test.ts`: `clearDependents()` снимается вместе с докблоком,
+  объясняющим его вынужденность
+- `RESTRICT` vs `NO ACTION` проверяется **на уровне DDL**: разница в Postgres
+  наблюдаема только через deferral или нечувствительную к регистру коллацию, и
+  ни того, ни другого в kadmium нет. `render.test.ts:80` расширяется литералами
+
+### PR7 — документация
+
+- `packages/core/AGENTS.md`: форма `.onDelete()`, правило «действие на владельце
+  колонки», цепочка `User → Post → Comment`
+- `packages/sql-pg/AGENTS.md`: `expectedForeignKeys` больше не хардкодит,
+  `alter-foreign-key` в diff, сравнение по действию
+- Докблоки в `delete-api.test.ts` и `insert-api.test.ts`, где описана граница
+  «FK всегда NO ACTION»
+- Статус этого плана
+
+### Вне этого цикла
+
+**`one-to-one` и `UNIQUE`.** `one-to-one` на стороне владельца требует `UNIQUE`
+на FK-колонке, иначе это `many-to-one` в БД при заявленном `one-to-one` в DSL.
 `expectedIndexes()` создаёт индекс для любого ref, но `isUnique` берётся из
-`f.unique`, а не из `relation === 'one-to-one'`. Расхождение уже есть, без
-`onDelete`; здесь оно лишь становится заметнее. Оформить отдельно, если
-тесты покажут реальные проблемы.
+`f.unique`, а не из `relation === 'one-to-one'` (`types.ts:248`). Расхождение
+уже есть и без `onDelete`; здесь оно лишь становится заметнее. Отдельный PR,
+когда тесты покажут реальные проблемы.
 
 ---
 
-## Решения, требующие подтверждения
+## Принятые решения
 
-1. **Строки vs union-типы в DSL.** План берёт строки в нижнем регистре с
-   нормализацией. Альтернатива — `onDelete(ReferentialAction)` с реэкспортом
-   типа из DSL, что даёт compile-time ошибку вместо runtime. Ценой —
-   необходимость импортировать тип в каждой модели. Нужно решение: ergonomics
-   против строгости.
+1. **Форма API:** `onDelete(action)` / `onUpdate(action)`, аргумент — union в
+   нижнем регистре. Без свободного регистра в типе (compile-time строгость
+   важнее терпимости к стилю), без сахар-методов, без связки `onAction`.
+2. **Пять действий** — как в allowlist `assertReferentialAction`, включая
+   `set default`; редкий случай описан в докстринге.
+3. **`set null` + `notNull()` → throw** в `$build()`. Молча понижать nullability
+   нельзя — это ослабляет инвариант модели без веома автора.
+4. **`onUpdate` по умолчанию `NO ACTION`**, как сейчас. `CASCADE` по умолчанию
+   был бы миграцией всех существующих баз и неявным изменением семантики.
+5. **Действие только на ref-поле, владеющем FK-колонкой** (`!sourceModel`), не
+   на обратной связи. Инверсия не транслируется.
+6. **`alter-foreign-key` отдельной операцией**, а не `drop` + `add`, —
+   из-за семантики `checkHealth`.
 
-2. **`SET NULL` + `notNull()` — throw или авто-понижение.** План предлагает
-   throw. Авто-понижение тише, но молча ослабляет модель.
+## Вне области
 
-3. **`onUpdate` по умолчанию.** План: `NO ACTION`, как сейчас. Альтернатива:
-   `CASCADE` для `onUpdate` (смена PK обновляет ссылки) — чаще ожидаемое
-   поведение, но это **миграция всех существующих баз** и неявное изменение
-   семантики. Оставляем `NO ACTION` по умолчанию явно.
-
-4. **Обратная связь.** План: `onDelete` задаётся только на стороне владельца
-   FK, на `one-to-many` поле не действует. Альтернатива — разрешить и там,
-   трактуя как «при удалении родителя этой связи», но тогда нужна явная
-   семантика для случая, когда владелец объявлен с другой стороны.
-
----
+- Каскады в ORM (`orm.delete()` с автоматическим обходом графа) — это отдельная
+  фича поверх DDL-каскадов, а не часть DSL. Cascade в БД уже выполняется
+  сервером; ORM-level обход означал бы выдавать `DELETE FROM` по дереву в обход
+  FK, что меняет семантику транзакций.
+- `Deferrable` / `INITIALLY DEFERRED` — редкий случай, требует поддержки в
+  `ReadonlySqb`; не тянем.
+- Колоночные списки в `SET NULL (col)` / `SET DEFAULT (col)` (PG 18) — для
+  составных FK, в kadmium всегда одна колонка.
 
 ## Проверка
 
@@ -220,20 +330,12 @@ npm run check:type
 npm run format:check
 npm run lint
 npm test --workspace packages/core      # ref.test.ts, compile.test.ts
-npm test --workspace packages/sql-pg    # diff: types, compute, render, apply
+npm test --workspace packages/sql-pg    # diff: types, compute, render, apply, health
 cd test-project && npm run db:up && npm run test:project
 ```
 
+`test-project` использует `dist`, поэтому `npm run build` перед интеграцией
+обязателен. Модели `test-project` меняются — базу надо перемигрировать.
+
 Обязательные регрессии: `set null` на nullable-колонке обнуляет значение при
-удалении родителя; `cascade` удаляет детей; `no action` по-прежнему падает;
-`restrict` отличается от `no action` (на `ON UPDATE` — оба проверяются, так как
-`ON DELETE` разница в PG не наблюдаема в одном запросе).
-
-## Вне области
-
-- Каскады в ORM (`orm.delete()` с автоматическим обходом графа) — это отдельная
-  фича поверх DDL-каскадов, а не часть DSL. Cascade в БД уже выполняется
-  сервером; ORM-level обход означал бы выдавать `DELETE FROM` по дереву в
-  обход FK, что меняет семантику транзакций.
-- `Deferrable`/`INITIALLY DEFERRED` — редкий случай, требует поддержки в
-  `ReadonlySqb`; не тянем.
+удалении родителя; `cascade` удаляет детей; `no action` по-прежнему падает.
