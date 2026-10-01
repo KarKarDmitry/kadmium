@@ -1,6 +1,7 @@
 import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/multi';
 import { SelectQueryBuilder, type SelectHandle } from './builders/select';
+import { UpdateQueryBuilder, type UpdateHandle } from './builders/update';
 import type { DmlConfigHandle, MultiConfigHandle } from './builders/handles';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
@@ -58,6 +59,12 @@ export class OrmManager {
     return ir;
   }
 
+  /**
+   * @deprecated Используйте явные входы по операциям: `select()` для чтения,
+   *   `update()` для записи. `single()` смешивает чтение и запись на одной
+   *   поверхности, поэтому DML-шаги приходится сузить на типах.
+   *   См. `plans/crud-api.md`.
+   */
   single<
     TModel extends {
       ['~shape']: Record<string, unknown>;
@@ -100,6 +107,36 @@ export class OrmManager {
       this._irLookup,
       this._adapter,
     ) as unknown as SelectHandle<TModel>;
+  }
+
+  /**
+   * Вход операции UPDATE — новая явная поверхность CRUD API.
+   *
+   * Цепочка: `set(data)` → `where(...)` → `returning(...)` → `go()`.
+   * `set` обязателен, `where` нет (UPDATE без фильтра меняет все строки).
+   * Шаги, которые sql-pg не рендерит в UPDATE (`order`/`limit`/`offset`/
+   * `cursor`/`groupBy`), на типе отсутствуют.
+   *
+   * @example
+   * const rows = await orm.update(User)
+   *   .set({ age: 31 })
+   *   .where(t => t.name.eq('Alice'))
+   *   .returning(t => [t.id, t.age])
+   *   .go();
+   */
+  update<
+    TModel extends {
+      ['~shape']: Record<string, unknown>;
+      ['~rel']: Record<string, unknown>;
+      ['~relInfo']: Record<string, unknown>;
+    },
+  >(modelClass: { new (): TModel }, ir?: ModelIR): UpdateHandle<TModel> {
+    const compiled = ir ?? this._irFor(modelClass);
+    return new UpdateQueryBuilder<TModel>(
+      compiled,
+      this._irLookup,
+      this._adapter,
+    ) as unknown as UpdateHandle<TModel>;
   }
 
   /**

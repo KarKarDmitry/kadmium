@@ -115,6 +115,11 @@ export interface SingleDml<M extends Shape> {
     data: Record<string, unknown>[],
     options?: CreateManyOptions,
   ): CreateManyFinalizer<M>;
+  /**
+   * @deprecated Используйте `orm.update(Model).set(data)`.
+   *   Имя `set` отделяет данные от фильтра: в новом API это разные шаги.
+   *   См. `plans/crud-api.md`.
+   */
   update(data: DmlData<M>): UpdateFinalizer<M>;
   delete(): UpdateFinalizer<M>;
 }
