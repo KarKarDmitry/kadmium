@@ -19,15 +19,15 @@ describe('IR cache: hot path reuses the registry, no recompilation', () => {
     expect(h.orm.compileCount).toBe(0);
 
     await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .go();
     await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Bob'))
       .go();
     await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({ author: true })
       .go();
@@ -42,8 +42,8 @@ describe('IR cache: hot path reuses the registry, no recompilation', () => {
 
   it('returns correct data after cached IR lookup', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .select((u) => [u.name])
+      .select(UserModel)
+      .fields((u) => [u.name])
       .go();
     expect(rows.length).toBeGreaterThan(0);
   });

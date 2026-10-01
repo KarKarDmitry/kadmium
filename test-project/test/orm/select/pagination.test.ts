@@ -22,8 +22,8 @@ beforeAll(async () => {
   for (let i = 0; i < EXTRA_USERS.length; i++) {
     const u = EXTRA_USERS[i];
     await h.orm
-      .single(UserModel)
-      .create({
+      .insert(UserModel)
+      .values({
         name: u.name,
         email: `${u.name.toLowerCase()}@test.com`,
         age: u.age,
@@ -42,14 +42,14 @@ afterAll(async () => {
 describe('cursor: keyset pagination', () => {
   it('forward single-key by id asc', async () => {
     const page1 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.id.asc])
       .limit(2)
       .go();
     expect(page1.length).toBe(2);
 
     const page2 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.id.asc])
       .cursor((u) => u.id.gt(page1[1].id))
       .limit(2)
@@ -58,7 +58,7 @@ describe('cursor: keyset pagination', () => {
     expect(page2[0].id).toBeGreaterThan(page1[1].id);
 
     const page3 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.id.asc])
       .cursor((u) => u.id.gt(page2[1].id))
       .limit(10)
@@ -71,14 +71,14 @@ describe('cursor: keyset pagination', () => {
 
   it('string key lexicographic cursor via gt', async () => {
     const page1 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.name.asc])
       .limit(3)
       .go();
     expect(page1.map((r) => r.name)).toEqual(['Alice', 'Bob', 'Carol']);
 
     const page2 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.name.asc])
       .cursor((u) => u.name.gt('Carol'))
       .limit(10)
@@ -99,14 +99,14 @@ describe('cursor: keyset pagination', () => {
 
   it('descending feed with lt cursor', async () => {
     const page1 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.desc])
       .limit(3)
       .go();
     const boundary = page1[2].age!;
 
     const page2 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.desc])
       .cursor((u) => u.age.lt(boundary))
       .limit(10)
@@ -122,7 +122,7 @@ describe('cursor: keyset pagination', () => {
 
   it('multi-key composite (age asc, id asc) via or/and', async () => {
     const page1 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .limit(4)
       .go();
@@ -130,7 +130,7 @@ describe('cursor: keyset pagination', () => {
     const last = page1[3];
 
     const page2 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) =>
         or(u.age.gt(last.age!), and(u.age.eq(last.age!), u.id.gt(last.id))),
@@ -141,7 +141,7 @@ describe('cursor: keyset pagination', () => {
     expect(page2[0].id).toBeGreaterThan(last.id);
 
     const page3 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) =>
         or(u.age.gt(page2[3].age!), and(u.age.eq(page2[3].age!), u.id.gt(page2[3].id))),
@@ -153,7 +153,7 @@ describe('cursor: keyset pagination', () => {
 
   it('stable under inserts between pages (vs offset drift)', async () => {
     const page1 = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .limit(3)
       .go();
@@ -161,7 +161,7 @@ describe('cursor: keyset pagination', () => {
     const boundary = page1[2].age!;
 
     const before = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) => u.age.gt(boundary))
       .limit(3)
@@ -169,8 +169,8 @@ describe('cursor: keyset pagination', () => {
     expect(before.map((r) => r.name)).toEqual(['Alice', 'Ivy', 'Jack']);
 
     await h.orm
-      .single(UserModel)
-      .create({
+      .insert(UserModel)
+      .values({
         name: 'Zoe',
         email: 'zoe@test.com',
         age: 26,
@@ -180,7 +180,7 @@ describe('cursor: keyset pagination', () => {
       .go();
 
     const after = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) => u.age.gt(boundary))
       .limit(3)
@@ -188,7 +188,7 @@ describe('cursor: keyset pagination', () => {
     expect(after.map((r) => r.name)).toEqual(['Alice', 'Ivy', 'Jack']);
 
     const offsetDrift = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .offset(3)
       .limit(3)
@@ -198,7 +198,7 @@ describe('cursor: keyset pagination', () => {
 
   it('inclusive boundary via gte', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) => u.age.gte(30))
       .limit(3)
@@ -208,11 +208,11 @@ describe('cursor: keyset pagination', () => {
   });
 
   it('throws without order()', () => {
-    // cursor() недоступен на типе SingleConfigHandle (нужен order()) —
-    // здесь проверяем рантайм-гард, поэтому снимаем тип через as any.
+    // cursor() без order() — рантайм-гард: на типе SelectHandle метод
+    // доступен всегда, поэтому порядок проверяет билдер, а не компилятор.
     expect(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (h.orm.single(UserModel) as any).cursor((u: any) => u.id.gt(1));
+      return (h.orm.select(UserModel) as any).cursor((u: any) => u.id.gt(1));
     }).toThrow(/requires an order/);
   });
 });

@@ -17,7 +17,7 @@ afterAll(async () => {
 describe('include: to-one / to-many / nested', () => {
   it('single-table to-one: Post -> author is a nested object', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({ author: true })
       .first()
@@ -30,7 +30,7 @@ describe('include: to-one / to-many / nested', () => {
 
   it('single-table to-many: User -> posts is an array', async () => {
     const alice = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({
         posts: { select: (p) => [p.author.as('aut'), p.id] },

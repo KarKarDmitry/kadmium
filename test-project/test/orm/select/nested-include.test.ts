@@ -17,7 +17,7 @@ afterAll(async () => {
 describe('nested includes (depth > 1)', () => {
   it('to-one -> to-many: post.author.posts', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({ author: { include: { posts: true } } })
       .first()
@@ -32,7 +32,7 @@ describe('nested includes (depth > 1)', () => {
 
   it('to-many -> to-one: user.posts.author', async () => {
     const alice = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({ posts: { include: { author: true } } })
       .first()
@@ -48,7 +48,7 @@ describe('nested includes (depth > 1)', () => {
 
   it('3 levels: post.author.posts.comments', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({
         author: { include: { posts: { include: { comments: true } } } },
@@ -64,7 +64,7 @@ describe('nested includes (depth > 1)', () => {
 
   it('empty at depth: a post with no comments returns []', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Draft Post'))
       .include({
         author: { include: { posts: { include: { comments: true } } } },
@@ -78,7 +78,7 @@ describe('nested includes (depth > 1)', () => {
 
   it('empty relation: Carol (no posts) returns []', async () => {
     const carol = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Carol'))
       .include({ posts: true })
       .first()
@@ -86,9 +86,9 @@ describe('nested includes (depth > 1)', () => {
     expect(carol!.posts).toEqual([]);
   });
 
-  it('nested with inner .select() limits fields', async () => {
+  it('nested with inner .fields() limits fields', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({
         author: { include: { posts: { select: (pp) => [pp.id] } } },
@@ -118,7 +118,7 @@ describe('nested includes (depth > 1)', () => {
 
   it('deep nesting: alias + as() in selectors at every level', async () => {
     const aliceQ = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({
         posts: {

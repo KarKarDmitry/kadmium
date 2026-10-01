@@ -23,8 +23,8 @@ describe('alias(): property name vs DB column name', () => {
 
   it('create() writes to the aliased column and returns the property key', async () => {
     const comment = await h.orm
-      .single(CommentModel)
-      .create({
+      .insert(CommentModel)
+      .values({
         text: 'flag me',
         flagged: true,
         post: null,
@@ -38,8 +38,8 @@ describe('alias(): property name vs DB column name', () => {
 
   it('select() returns the property key with the aliased column value', async () => {
     await h.orm
-      .single(CommentModel)
-      .create({
+      .insert(CommentModel)
+      .values({
         text: 'flag read',
         flagged: true,
         post: null,
@@ -47,9 +47,9 @@ describe('alias(): property name vs DB column name', () => {
       })
       .go();
     const rows = await h.orm
-      .single(CommentModel)
+      .select(CommentModel)
       .where((c) => c.text.eq('flag read'))
-      .select((c) => [c.text, c.flagged])
+      .fields((c) => [c.text, c.flagged])
       .go();
     expect(rows.length).toBe(1);
     expect('flagged' in rows[0]).toBe(true);
@@ -59,8 +59,8 @@ describe('alias(): property name vs DB column name', () => {
 
   it('filter uses the aliased column name in WHERE', async () => {
     await h.orm
-      .single(CommentModel)
-      .create({
+      .insert(CommentModel)
+      .values({
         text: 'flag filter',
         flagged: true,
         post: null,
@@ -68,8 +68,8 @@ describe('alias(): property name vs DB column name', () => {
       })
       .go();
     await h.orm
-      .single(CommentModel)
-      .create({
+      .insert(CommentModel)
+      .values({
         text: 'no flag',
         flagged: false,
         post: null,
@@ -77,9 +77,9 @@ describe('alias(): property name vs DB column name', () => {
       })
       .go();
     const rows = await h.orm
-      .single(CommentModel)
+      .select(CommentModel)
       .where((c) => c.flagged.eq(true))
-      .select((c) => [c.text])
+      .fields((c) => [c.text])
       .go();
     const texts = rows.map((r) => r.text);
     expect(texts).toContain('flag filter');
@@ -88,8 +88,8 @@ describe('alias(): property name vs DB column name', () => {
 
   it('update() sets the aliased column and returns the property key', async () => {
     const created = await h.orm
-      .single(CommentModel)
-      .create({
+      .insert(CommentModel)
+      .values({
         text: 'flag update',
         flagged: false,
         post: null,
@@ -97,8 +97,8 @@ describe('alias(): property name vs DB column name', () => {
       })
       .go();
     const updated = await h.orm
-      .single(CommentModel)
-      .update({ flagged: true })
+      .update(CommentModel)
+      .set({ flagged: true })
       .where((c) => c.id.eq(created.id))
       .go();
     expect(updated.length).toBe(1);
@@ -107,8 +107,8 @@ describe('alias(): property name vs DB column name', () => {
 
   it('order by aliased column works', async () => {
     const rows = await h.orm
-      .single(CommentModel)
-      .select((c) => [c.text])
+      .select(CommentModel)
+      .fields((c) => [c.text])
       .order((c) => [c.flagged.asc])
       .go();
     expect(Array.isArray(rows)).toBe(true);
@@ -116,8 +116,8 @@ describe('alias(): property name vs DB column name', () => {
 
   it('aggregate over an aliased column uses the DB column name', async () => {
     const rows = await h.orm
-      .single(CommentModel)
-      .select((c, { agg }) => [agg.count(c.flagged).as('flaggedCount')])
+      .select(CommentModel)
+      .fields((c, { agg }) => [agg.count(c.flagged).as('flaggedCount')])
       .go();
     expect(rows.length).toBe(1);
     expect(rows[0].flaggedCount).toBe(8);
@@ -125,10 +125,10 @@ describe('alias(): property name vs DB column name', () => {
 
   it('window aggregate over an aliased column uses the DB column name', async () => {
     const [row] = await h.orm
-      .single(CommentModel)
+      .select(CommentModel)
       .order((c) => [c.id.asc])
       .where((c) => c.flagged.eq(true))
-      .select((c, { agg }) => [
+      .fields((c, { agg }) => [
         c.text,
         c.flagged,
         agg.count(c.flagged).over().orderBy(c.id.asc).as('running'),
@@ -139,9 +139,9 @@ describe('alias(): property name vs DB column name', () => {
 
   it('first_value over an aliased column uses the DB column name', async () => {
     const [row] = await h.orm
-      .single(CommentModel)
+      .select(CommentModel)
       .order((c) => [c.id.asc])
-      .select((c, { wf }) => [
+      .fields((c, { wf }) => [
         c.text,
         wf.firstValue(c.flagged).orderBy(c.id.asc).as('firstFlagged'),
       ])

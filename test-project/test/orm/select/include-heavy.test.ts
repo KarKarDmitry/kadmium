@@ -17,7 +17,7 @@ afterAll(async () => {
 describe('include: heavy combinations', () => {
   it('to-many: inner where + order + limit combine', async () => {
     const alice = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({
         posts: {
@@ -34,7 +34,7 @@ describe('include: heavy combinations', () => {
 
   it('to-many: inner order only (all children must be ordered)', async () => {
     const alice = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({ posts: { order: (p) => [p.views.desc] } })
       .first()
@@ -45,7 +45,7 @@ describe('include: heavy combinations', () => {
 
   it('to-many: inner limit only returns the first children', async () => {
     const alice = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .include({ posts: { limit: 1 } })
       .first()
@@ -55,7 +55,7 @@ describe('include: heavy combinations', () => {
 
   it('to-one: inner where that matches nothing yields null', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({ author: { where: (a) => a.name.eq('Nobody') } })
       .first()
@@ -65,7 +65,7 @@ describe('include: heavy combinations', () => {
 
   it('to-one: include alias config adds a property alias', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({ author: { alias: 'authoredBy' } })
       .first()
@@ -76,7 +76,7 @@ describe('include: heavy combinations', () => {
 
   it('multiple includes on the same parent populate independently', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({ author: true, comments: true })
       .first()
@@ -89,7 +89,7 @@ describe('include: heavy combinations', () => {
 
   it('parent pagination keeps full children on every row', async () => {
     const posts = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .order((p) => [p.title.desc])
       .limit(2)
       .include({ comments: true })
@@ -103,7 +103,7 @@ describe('include: heavy combinations', () => {
 
   it('nested to-many limit applies at depth', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .include({
         author: { include: { posts: { limit: 1 } } },
@@ -115,7 +115,7 @@ describe('include: heavy combinations', () => {
 
   it('relation via a second ref path: user.comments', async () => {
     const bob = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Bob'))
       .include({ comments: true })
       .first()

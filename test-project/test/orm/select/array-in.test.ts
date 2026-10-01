@@ -18,11 +18,11 @@ afterAll(async () => {
 describe('in(array([...])) — один массив-параметр = ANY($1) против PG', () => {
   it('number: array() даёт те же строки, что обычный список', async () => {
     const viaArray = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.age.in(array([25, 30])))
       .go();
     const viaList = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.age.in([25, 30]))
       .go();
     expect(viaArray.map((r) => r.name).sort()).toEqual(
@@ -33,7 +33,7 @@ describe('in(array([...])) — один массив-параметр = ANY($1) 
 
   it('string: array() работает и для строк', async () => {
     const rows = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.in(array(['Alice', 'Carol'])))
       .go();
     expect(rows.map((r) => r.name).sort()).toEqual(['Alice', 'Carol']);
