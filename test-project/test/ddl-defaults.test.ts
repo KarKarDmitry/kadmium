@@ -114,7 +114,7 @@ describe('defaults reach DDL and apply on insert (integration)', () => {
   });
 
   it('omitting int field applies the column default', async () => {
-    const post = await h.orm.single(PostModel).create({
+    const post = await h.orm.insert(PostModel).values({
       title: 'No Views',
       content: 'body',
       published: true,
@@ -123,7 +123,7 @@ describe('defaults reach DDL and apply on insert (integration)', () => {
   });
 
   it('omitting boolean field applies the column default', async () => {
-    const post = await h.orm.single(PostModel).create({
+    const post = await h.orm.insert(PostModel).values({
       title: 'No Published',
       content: 'body',
       views: 1,
@@ -132,7 +132,7 @@ describe('defaults reach DDL and apply on insert (integration)', () => {
   });
 
   it('omitting string field applies the column default', async () => {
-    const comment = await h.orm.single(CommentModel).create({
+    const comment = await h.orm.insert(CommentModel).values({
       post: null,
       user: null,
     }).go();

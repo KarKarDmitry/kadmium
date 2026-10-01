@@ -15,14 +15,17 @@ afterAll(async () => {
 });
 
 describe('seed: create via ORM layer', () => {
-  it('creates users through orm.single().create()', async () => {
-    const row = await h.orm.single(UserModel).create({
-      name: 'Dave',
-      email: 'dave@test.com',
-      age: 22,
-      active: true,
-      registeredAt: new Date(),
-    }).go();
+  it('creates users through orm.insert()', async () => {
+    const row = await h.orm
+      .insert(UserModel)
+      .values({
+        name: 'Dave',
+        email: 'dave@test.com',
+        age: 22,
+        active: true,
+        registeredAt: new Date(),
+      })
+      .go();
     expect(row).toBeTruthy();
     expect(row.name).toBe('Dave');
     expect(row.email).toBe('dave@test.com');
@@ -33,14 +36,14 @@ describe('seed: create via ORM layer', () => {
   });
 
   it('count() matches seeded rows', async () => {
-    const users = await h.orm.single(UserModel).count().go();
+    const users = await h.orm.select(UserModel).count().go();
     // 3 из фикстур + 1 (Dave) из предыдущего теста
     expect(users).toBe(4);
   });
 
   it('read-back a seeded post with its author FK', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .first()
       .go();
@@ -50,7 +53,7 @@ describe('seed: create via ORM layer', () => {
 
   it('toSql() produces parameterized SQL (no inline values)', async () => {
     const sql = h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Alice'))
       .toSql();
     expect(sql).toMatch(/VALUES:\s*\[/);
@@ -60,8 +63,12 @@ describe('seed: create via ORM layer', () => {
 });
 
 describe('D8: bigint PK normalizes to number', () => {
-  it('findById accepts a number and returns a numeric id', async () => {
-    const found = await h.orm.single(UserModel).findById(1).go();
+  it('where(pk).first() accepts a number and returns a numeric id', async () => {
+    const found = await h.orm
+      .select(UserModel)
+      .where((u) => u.id.eq(1))
+      .first()
+      .go();
     expect(found).toBeTruthy();
     expect(typeof found!.id).toBe('number');
     expect(Number.isInteger(found!.id)).toBe(true);
@@ -69,7 +76,7 @@ describe('D8: bigint PK normalizes to number', () => {
 
   it('bigint FK column returns a number too', async () => {
     const post = await h.orm
-      .single(PostModel)
+      .select(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
       .first()
       .go();
