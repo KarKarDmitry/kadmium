@@ -10,8 +10,8 @@ beforeAll(async () => {
   await resetAndSeed(h);
   // Carol — без постов; дополнительно пост без автора (author null)
   const orphan = await h.orm
-    .single(PostModel)
-    .create({
+    .insert(PostModel)
+    .values({
       title: 'Unclaimed Post',
       content: 'no author',
       published: false,

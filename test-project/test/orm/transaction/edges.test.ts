@@ -29,8 +29,8 @@ describe('transactions: heavy edges', () => {
     let committed = false;
     await h.orm.transaction(async (tx) => {
       await tx
-        .single(UserModel)
-        .create({
+        .insert(UserModel)
+        .values({
           name: 'Ghost',
           email: 'ghost@test.com',
           age: 1,
@@ -39,14 +39,14 @@ describe('transactions: heavy edges', () => {
         .go();
       // read-your-writes внутри tx видны
       const [inside] = await tx
-        .single(UserModel)
+        .select(UserModel)
         .where((u) => u.email.eq('ghost@test.com'))
-        .select((u) => [u.name])
+        .fields((u) => [u.name])
         .go();
       expect(inside.name).toBe('Ghost');
       // снаружи (другое соединение) — нет
       const outside = await h.orm
-        .single(UserModel)
+        .select(UserModel)
         .where((u) => u.email.eq('ghost@test.com'))
         .first()
         .go();
@@ -56,7 +56,7 @@ describe('transactions: heavy edges', () => {
     expect(committed).toBe(true);
     // после коммита видно всем
     const after = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('ghost@test.com'))
       .first()
       .go();
@@ -68,8 +68,8 @@ describe('transactions: heavy edges', () => {
     await expect(
       h.orm.transaction(async (tx) => {
         await tx
-          .single(UserModel)
-          .create({
+          .insert(UserModel)
+          .values({
             name: 'Dup',
             email: 'alice@test.com',
             age: 5,
@@ -80,7 +80,7 @@ describe('transactions: heavy edges', () => {
     ).rejects.toMatchObject({ code: '23505' });
     // дубликат не остался
     const found = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.name.eq('Dup'))
       .first()
       .go();
@@ -105,10 +105,10 @@ describe('transactions: heavy edges', () => {
   it('sequential transactions keep the pool healthy', async () => {
     for (let i = 0; i < 3; i++) {
       await h.orm.transaction(async (tx) => {
-        await tx.single(PostModel).select().go();
+        await tx.select(PostModel).go();
       });
     }
-    const count = await h.orm.single(PostModel).count().go();
+    const count = await h.orm.select(PostModel).count().go();
     expect(typeof count).toBe('number');
   });
 
@@ -116,8 +116,8 @@ describe('transactions: heavy edges', () => {
     await expect(
       h.orm.transaction(async (tx) => {
         await tx
-          .single(UserModel)
-          .create({
+          .insert(UserModel)
+          .values({
             name: 'Partial',
             email: 'partial@test.com',
             age: 7,
@@ -128,7 +128,7 @@ describe('transactions: heavy edges', () => {
       }),
     ).rejects.toThrow('abort after insert');
     const found = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('partial@test.com'))
       .first()
       .go();

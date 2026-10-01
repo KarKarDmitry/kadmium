@@ -17,7 +17,7 @@ afterAll(async () => {
 describe('transactions: commit and rollback', () => {
   it('commits work done inside transaction', async () => {
     await h.orm.transaction(async (tx) => {
-      await tx.single(UserModel).create({
+      await tx.insert(UserModel).values({
         name: 'TxnUser',
         email: 'txn@test.com',
         age: 50,
@@ -26,7 +26,7 @@ describe('transactions: commit and rollback', () => {
       }).go();
     });
     const found = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('txn@test.com'))
       .first()
       .go();
@@ -36,7 +36,7 @@ describe('transactions: commit and rollback', () => {
   it('rolls back on error', async () => {
     await expect(
       h.orm.transaction(async (tx) => {
-        await tx.single(UserModel).create({
+        await tx.insert(UserModel).values({
           name: 'RollbackUser',
           email: 'rb@test.com',
           age: 51,
@@ -48,7 +48,7 @@ describe('transactions: commit and rollback', () => {
     ).rejects.toThrow('boom');
 
     const found = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('rb@test.com'))
       .first()
       .go();
@@ -58,12 +58,12 @@ describe('transactions: commit and rollback', () => {
   it('does not leak the pooled connection after error', async () => {
     await expect(
       h.orm.transaction(async (tx) => {
-        await tx.single(PostModel).select().go();
+        await tx.select(PostModel).go();
         throw new Error('boom2');
       }),
     ).rejects.toThrow('boom2');
     // Пул не должен быть разрушен — обычный запрос работает
-    const count = await h.orm.single(PostModel).count().go();
+    const count = await h.orm.select(PostModel).count().go();
     expect(typeof count).toBe('number');
   });
 });
