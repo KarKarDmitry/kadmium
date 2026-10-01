@@ -9,7 +9,7 @@
  */
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from 'vitest';
 import { makeHarness, type Harness } from './helpers';
-import { resetAndSeed } from './fixtures';
+import { resetSchemaAndSeed } from './fixtures';
 import type { ReferentialAction } from '@karkardmitry/kadmium-core';
 import {
   computeDiff,
@@ -28,8 +28,13 @@ afterAll(async () => {
   await h.adapter.end();
 });
 
+/**
+ * Схема пересобирается целиком: тесты меняют действие у самого FK, и оставь
+ * они его в RESTRICT — следующий тест файла получил бы не ту схему. Остальным
+ * файлам хватает `resetAndSeed` (только данные, схема не менялась).
+ */
 beforeEach(async () => {
-  await resetAndSeed(h);
+  await resetSchemaAndSeed(h);
 });
 
 interface FkRow {
@@ -77,8 +82,8 @@ function irsWithPostAction(action: ReferentialAction) {
 /**
  * Применить IR с другим действием к существующей таблице.
  *
- * Отката нет: `beforeEach` дропает таблицы и синкает схему заново, поэтому
- * каждый тест начинается с CASCADE и порядок выполнения не важен.
+ * Отката нет: `beforeEach` пересобирает схему заново, поэтому каждый тест
+ * начинается с CASCADE и порядок выполнения не важен.
  */
 async function applyAction(action: ReferentialAction): Promise<void> {
   const target = irsWithPostAction(action);

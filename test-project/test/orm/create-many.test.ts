@@ -1,14 +1,15 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { User as UserModel } from '../../src/models';
-import { makeHarness, type Harness } from '../helpers';
-import { dropAllTables, syncSchema } from '../helpers';
+import { makeHarness, resetData, type Harness } from '../helpers';
 
 let h: Harness;
 
 beforeAll(async () => {
+  // Схему создаёт globalSetup один раз на прогон. Данные тоже чистим: файлы
+  // идут последовательно и делят одну БД, так что без этого результат зависел
+  // бы от того, что успел сделать предыдущий файл.
   h = await makeHarness();
-  await dropAllTables(h.adapter);
-  await syncSchema(h);
+  await resetData(h);
 });
 
 afterAll(async () => {

@@ -22,6 +22,9 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
       .single(UserModel)
       .where(() => sql`"User"."age" > ${25}`)
       .select((t) => [t.name])
+      // ORDER BY обязателен: тест сверяет конкретный порядок имён, а без
+      // сортировки PG отдаёт строки в произвольном порядке.
+      .order((t) => [t.name.asc])
       .go();
     expect(rows.map((r) => r.name)).toEqual(['Alice', 'Carol']);
   });

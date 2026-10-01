@@ -94,12 +94,15 @@ describe('where: filters, groups, ordering, pagination', () => {
   });
 
   it('page() applies limit/offset', async () => {
+    // ORDER BY обязателен: без него PG вернёт строки в произвольном порядке
+    // и проверка конкретного имени была бы проверкой раскладки кучи.
     const page = await h.orm
       .single(UserModel)
       .select((u) => [u.name])
+      .order((u) => [u.name.asc])
       .page(2, 2)
       .go();
-    expect(page.length).toBe(1); // 3 пользователя, страница 2 по 2 => 1
+    expect(page.length).toBe(1); // 3 строки, пропустить 2, взять 2 => 1
     expect(page[0].name).toBe('Carol');
   });
 

@@ -1,3 +1,9 @@
+// Последний тест файла проверяет боевой путь загрузки конфига (`AppCore.init`),
+// а он импортирует `kadmium.config.ts` — то есть пользовательский TS. Поэтому
+// ts-node нужен здесь, а не в `setupFiles`: иначе он поднимается перед каждым
+// из 46 тестовых файлов ради одного.
+import 'ts-node/register';
+
 import { describe, it, expect } from 'vitest';
 import { Model } from '@karkardmitry/kadmium-core';
 import { makeHarness } from './helpers';

@@ -8,8 +8,8 @@
     "rootDir": ".",
   },
   "ts-node": {
-    "files": true,
+    "transpileOnly": true,
   },
-  "include": ["src/**/*", ".types/**/*", "test/**/*", "bench/**.*"],
+  "include": ["src/**/*", ".types/**/*", "test/**/*"],
   "exclude": ["node_modules"],
 }
