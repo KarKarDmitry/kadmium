@@ -151,6 +151,13 @@ export interface SelectHandle<
     config: NC,
   ): SelectHandle<M, S, NC, Mo>;
 
+  /**
+   * Найти запись по первичному ключу: `where(pk.eq(id)).first()`.
+   *
+   * Одна строка или `undefined` — то же, что даёт удалённый `single().findById()`.
+   */
+  findById(id: M['~shape']['id']): SelectHandle<M, S, C, 'first'>;
+
   /** Одна строка (ставит limit=1). С проекцией — `first(t => [t.id])`. */
   first(): SelectHandle<M, S, C, 'first'>;
   first<NS extends readonly AnySelectable[]>(
@@ -374,6 +381,34 @@ export class SelectQueryBuilder<
     this.sqb.limit = Math.max(1, size);
     this.sqb.offset = (Math.max(1, page) - 1) * size;
     return this;
+  }
+
+  // ── findById ──
+
+  /**
+   * Найти запись по первичному ключу.
+   *
+   * Раскрывается в `where(pk.eq(id)).first()`: тот же фильтр и тот же
+   * `limit = 1`, поэтому результат — одна запись или `undefined`.
+   *
+   * PK берётся из `FieldIR.isPrimary`, а не по имени колонки: имя может быть
+   * любым, а `isPrimary` — единственный признак, который ставит компилятор
+   * модели. Прежний `f.type === 'primary'` в single.ts был мёртвой веткой —
+   * `FieldType` не содержит этого значения.
+   */
+  findById(
+    id: TModel['~shape']['id'],
+  ): SelectQueryBuilder<TModel, TSelect, TInclude, 'first'> {
+    const pkEntry = Object.entries(this.ir.fields).find(
+      ([, f]) => f.isPrimary === true,
+    );
+    if (!pkEntry) throw new Error('No primary key field found');
+    const [pkName] = pkEntry;
+    const filter = this._createFilterProxy();
+    const pkFilter = (
+      filter as unknown as Record<string, { eq(v: typeof id): WhereExpression }>
+    )[pkName];
+    return this.where(() => pkFilter.eq(id)).first();
   }
 
   // ── first ──
