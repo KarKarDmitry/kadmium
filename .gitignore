@@ -31,3 +31,4 @@ coverage/
 
 # Embedded git repos (do not track sub-repos)
 help_source/
+.temp/
