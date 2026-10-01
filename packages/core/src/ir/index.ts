@@ -1,10 +1,14 @@
 /**
- * IR (Intermediate Representation) — единственный контракт между слоями.
+ * IR (Intermediate Representation) - промежуточное представление модели.
  *
  * Model → $build() → IR
  * ORM, Validation, Forms, Codegen читают только IR.
- * Никто не импортирует билдеры напрямую.
+ * Это единственный контракт между слоями.
  */
+
+import type { ReferentialAction } from '@karkardmitry/kadmium-sql-types';
+
+export type { ReferentialAction };
 
 export type FieldType =
   | 'string'
@@ -43,6 +47,31 @@ export const REFERENTIAL_ACTION_INPUTS: readonly ReferentialActionInput[] = [
   'set default',
 ];
 
+const REFERENTIAL_ACTION_BY_INPUT: Record<
+  ReferentialActionInput,
+  ReferentialAction
+> = {
+  'no action': 'NO ACTION',
+  cascade: 'CASCADE',
+  'set null': 'SET NULL',
+  restrict: 'RESTRICT',
+  'set default': 'SET DEFAULT',
+};
+
+/**
+ * Единственное место, где известны обе формы: модель пишет `ReferentialActionInput`,
+ * IR и `DbForeignKey` носят `ReferentialAction`.
+ *
+ * Явная таблица, а не `toUpperCase()`: у `'set null'` есть единственная
+ * правильная форма, и `'SET NULL'.toUpperCase()` — не то же самое, что
+ * `'SET  NULL'`, `'set\tnull'` или `'setNull'`. Список из пяти строк виден целиком.
+ */
+export function toReferentialAction(
+  action: ReferentialActionInput,
+): ReferentialAction {
+  return REFERENTIAL_ACTION_BY_INPUT[action];
+}
+
 export interface FieldIR {
   /** Тип поля в терминах модели */
   type: FieldType;
@@ -67,6 +96,14 @@ export interface FieldIR {
   relation?: RelationType;
   inverse?: string;
   foreignKey?: string;
+  /**
+   * ON DELETE / ON UPDATE FK-колонки этого поля. Каноническая (верхняя) форма.
+   *
+   * Есть только у полей-владельцев колонки: обратные связи (`sourceModel`) не
+   * создают FK, поэтому и действие им не нужно.
+   */
+  onDelete?: ReferentialAction;
+  onUpdate?: ReferentialAction;
   sourceModel?: string;
   targetModel?: { name: string };
   inverseRelation?: RelationType;

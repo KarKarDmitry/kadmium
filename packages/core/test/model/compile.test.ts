@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { compileModel } from '../../src/model/compile';
 import { Model } from '../../src/model';
 import f from '../../src/model/fields';
+import {
+  REFERENTIAL_ACTION_INPUTS,
+  toReferentialAction,
+} from '../../src/ir/index';
 
 class User extends Model {
   name = f.string;
@@ -206,6 +210,83 @@ describe('compileModel', () => {
       Model.register(User, Post);
       const ir = compileModel(new User());
       expect(ir.fields.posts.nullable).toBe(false);
+    });
+  });
+
+  describe('referential actions', () => {
+    it('carries onDelete/onUpdate onto the owning ref field, uppercased', () => {
+      class Comment extends Model {
+        post = f.ref.target(Post).onDelete('cascade').onUpdate('set null');
+      }
+      Model.register(User, Post, Comment);
+      const ir = compileModel(new Comment());
+      expect(ir.fields.post.onDelete).toBe('CASCADE');
+      expect(ir.fields.post.onUpdate).toBe('SET NULL');
+    });
+
+    it('every action maps to its SQL spelling', () => {
+      for (const action of REFERENTIAL_ACTION_INPUTS) {
+        const field = f.ref.target(Post).onDelete(action).$build();
+        expect(toReferentialAction(field.onDelete!)).toBe(action.toUpperCase());
+      }
+    });
+
+    it('two-word and single-word actions both map, no toUpperCase() surprises', () => {
+      expect(toReferentialAction('set null')).toBe('SET NULL');
+      expect(toReferentialAction('no action')).toBe('NO ACTION');
+      expect(toReferentialAction('cascade')).toBe('CASCADE');
+      expect(toReferentialAction('restrict')).toBe('RESTRICT');
+      expect(toReferentialAction('set default')).toBe('SET DEFAULT');
+    });
+
+    it('absent when the DSL call is absent', () => {
+      Model.register(User, Post);
+      const ir = compileModel(new Post());
+      expect(ir.fields.author.onDelete).toBeUndefined();
+      expect(ir.fields.author.onUpdate).toBeUndefined();
+    });
+
+    it('not copied to the inverse side — FK lives on the owning field', () => {
+      class Comment extends Model {
+        post = f.ref.target(Post, 'comments').onDelete('cascade');
+      }
+      Model.register(User, Post, Comment);
+      const inverse = compileModel(new Post());
+      expect(inverse.fields.comments).toBeDefined();
+      expect(inverse.fields.comments.sourceModel).toBe('Comment');
+      expect(inverse.fields.comments.onDelete).toBeUndefined();
+    });
+
+    it('follows inheritance: child inherits the action of a parent field', () => {
+      class Base extends Model {
+        owner = f.ref.target(User).onDelete('cascade');
+      }
+      class Child extends Base {
+        title = f.string;
+      }
+      Model.register(User, Base, Child);
+      const ir = compileModel(new Child());
+      expect(ir.fields.owner.onDelete).toBe('CASCADE');
+    });
+
+    it('one-to-one owner carries the action like any other owner', () => {
+      class Profile extends Model {
+        user = f.ref.target(User).oneToOne().onDelete('cascade');
+      }
+      Model.register(User, Profile);
+      const ir = compileModel(new Profile());
+      expect(ir.fields.user.relation).toBe('one-to-one');
+      expect(ir.fields.user.onDelete).toBe('CASCADE');
+    });
+
+    it('a notNull owner with cascade still compiles', () => {
+      class Tag extends Model {
+        post = f.ref.target(Post).notNull().onDelete('cascade');
+      }
+      Model.register(User, Post, Tag);
+      const ir = compileModel(new Tag());
+      expect(ir.fields.post.nullable).toBe(false);
+      expect(ir.fields.post.onDelete).toBe('CASCADE');
     });
   });
 

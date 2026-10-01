@@ -2,7 +2,7 @@ import { Model } from './index';
 import type { ModelSchema } from './types/model';
 import type { ReferenceField } from './types/ref';
 import type { ModelIR, FieldIR } from '../ir/index';
-import { toSnakeCase } from '../ir/index';
+import { toSnakeCase, toReferentialAction } from '../ir/index';
 
 /**
  * Компилирует модель в IR — единственный контракт для всех слоёв.
@@ -54,6 +54,10 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
       base.relation = ref.relation;
       base.inverse = ref.inverse;
       base.foreignKey = ref.foreignKey;
+      // Действие копируется только здесь: поля-владельцы колонки ниже, у
+      // обратных связей (sourceModel) FK нет — см. цикл обратных связей ниже.
+      if (ref.onDelete) base.onDelete = toReferentialAction(ref.onDelete);
+      if (ref.onUpdate) base.onUpdate = toReferentialAction(ref.onUpdate);
     }
 
     fields[name] = base;

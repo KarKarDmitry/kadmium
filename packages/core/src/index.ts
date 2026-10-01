@@ -9,6 +9,7 @@ export type {
   FieldIR,
   FieldType,
   RelationType,
+  ReferentialAction,
   ReferentialActionInput,
 } from './ir/index';
 export { compileModel } from './model/compile';

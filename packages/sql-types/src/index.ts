@@ -338,14 +338,24 @@ export interface DbIndex {
   isUnique: boolean;
 }
 
+/**
+ * Referential action в канонической форме — ровно та строка, что уходит в
+ * `ALTER TABLE ... ON DELETE`.
+ *
+ * Форма, в которой действие пишет модель, — в нижнем регистре; маппинг между
+ * ними живёт в core (`ReferentialActionInput` → `toReferentialAction`).
+ */
+export type ReferentialAction =
+  'NO ACTION' | 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'SET DEFAULT';
+
 export interface DbForeignKey {
   name: string;
   tableName: string;
   columns: string[];
   refTable: string;
   refColumns: string[];
-  onDelete: 'NO ACTION' | 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'SET DEFAULT';
-  onUpdate: 'NO ACTION' | 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'SET DEFAULT';
+  onDelete: ReferentialAction;
+  onUpdate: ReferentialAction;
 }
 
 export interface DbDdlAdapter {
