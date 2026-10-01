@@ -1,6 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import {
-  User as UserModel,
   Post as PostModel,
   Comment as CommentModel,
 } from '../../../src/models';
@@ -8,30 +7,31 @@ import { makeHarness, type Harness } from '../../helpers';
 import { resetAndSeed } from '../../fixtures';
 
 /**
- * Runtime-гарды ORM: проверки целостности SQB, которые срабатывают
- * в точке, где операция объявляется (update/delete/create/createMany/
- * select), а не в терминале.
+ * Runtime-гарды ORM на легаси-поверхности `single()`.
  *
- * Зачем этот файл: без гардов sql-pg рендерит UPDATE/DELETE/INSERT
- * только из данных и wheres, поэтому limit/offset/order/cursor/groupBy
- * в DML и wheres в INSERT отбрасываются МОЛЧА — запрос уходит в БД
- * с другим смыслом, чем написал разработчик. Кейсы ниже фиксируют
- * именно эту границу: что бросает, с каким текстом и что данные
- * при этом остаются нетронутыми.
+ * Зачем: без гардов sql-pg рендерит UPDATE/DELETE/INSERT только из данных
+ * и wheres, поэтому limit/offset/order/cursor/groupBy в DML и wheres в
+ * INSERT отбрасываются МОЛЧА — запрос уходит в БД с другим смыслом, чем
+ * написал разработчик. Кейсы ниже фиксируют эту границу: что бросает,
+ * с каким текстом и что данные при этом остаются нетронутыми.
+ *
+ * Почему файл в legacy/: эти проверки достижимы только на билдере, где
+ * limit/order/cursor/groupBy ещё можно вызвать ДО DML. У нового explicit
+ * API (`orm.update/delete/insert`) таких шагов нет в интерфейсе вовсе —
+ * на нём до этих гардов просто не дойти, там ловит компилятор.
+ * Гарды остаются defense-in-depth для JS и динамики.
  *
  * Модульные тесты самих функций — в packages/core/test/orm/guards.test.ts
- * (там же проверки чистого AST без БД). Здесь — сквозной путь через
- * реальный Postgres: важно, что гард ловит ДО похода в базу.
+ * (чистый AST без БД). Здесь — сквозной путь через реальный Postgres:
+ * важно, что гард ловит ДО похода в базу.
  *
- * Два уровня одной границы. limit/offset/page/order/cursor сужены НА ТИПАХ
- * (DmlConfigHandle теряет DML после этих шагов), поэтому такие вызовы
- * помечены `@ts-expect-error`: он не просто глушит ошибку, а падает сам,
- * если сужение когда-нибудь откатят. Runtime-гард при этом остаётся —
- * это defense-in-depth для JS, динамических алиасов и обхода типов.
- * groupBy намеренно НЕ сужен (`groupBy(): this` в SingleShared), поэтому
- * его кейсы — только рантайм-проверки.
- * select() НЕ сужен: `sqb.selects` рендерится как RETURNING, поэтому
- * select() перед update()/delete() — валидный путь и проверяется отдельно.
+ * limit/offset/page/order/cursor сужены НА ТИПАХ (DmlConfigHandle теряет
+ * DML после этих шагов), поэтому вызовы помечены `@ts-expect-error`: он не
+ * просто глушит ошибку, а падает сам, если сужение когда-нибудь откатят.
+ * groupBy намеренно НЕ сужен (`groupBy(): this` в SingleShared) — его
+ * кейсы только рантайм-проверки. select() НЕ сужен: `sqb.selects`
+ * рендерится как RETURNING, поэтому select() перед update()/delete() —
+ * валидный путь и проверяется отдельно.
  */
 
 let h: Harness;
@@ -324,107 +324,7 @@ describe('guards: INSERT + where (тихая потеря фильтра)', () =
   });
 });
 
-describe('guards: multi select — алиас таблицы', () => {
-  /**
-   * Селект по алиасу, которого нет в запросе. Типы это не ловят: multi-прокси
-   * отдаёт поле с column=undefined, и запрос падал бы в PostgreSQL (42P01)
-   * ниже по стеку и в другом файле. `as never` — чтобы проскочить мимо
-   * AnySelectable в сигнатуре перегрузки select().
-   */
-  const fieldOn = (t: unknown, alias: string): never =>
-    (t as Record<string, { id: never }>)[alias].id;
-
-  it('select() с чужим алиасом бросает до обращения к БД', () => {
-    expect(() =>
-      h.orm.query({ u: UserModel }).fields((t) => [fieldOn(t, 'p')]),
-    ).toThrow(/Unknown table alias "p" in select\(\)/);
-  });
-
-  it('сообщение перечисляет реальные алиасы запроса', () => {
-    expect(() =>
-      h.orm.query({ u: UserModel }).fields((t) => [fieldOn(t, 'zz')]),
-    ).toThrow(/Query tables are: u\./);
-  });
-
-  it('сообщение подсказывает, где задаются алиасы', () => {
-    expect(() =>
-      h.orm.query({ u: UserModel }).fields((t) => [fieldOn(t, 'p')]),
-    ).toThrow(/Check the aliases passed to orm\.query\(\{\.\.\.\}\)/);
-  });
-
-  it('first() проверяет алиасы так же, как select()', () => {
-    expect(() =>
-      h.orm.query({ u: UserModel }).first((t) => [fieldOn(t, 'q')]),
-    ).toThrow(/Unknown table alias "q" in select\(\)/);
-  });
-
-  it('несколько неизвестных алиасов — одно сообщение, без дублей', () => {
-    expect(() =>
-      h.orm
-        .query({ u: UserModel })
-        .fields((t) => [fieldOn(t, 'x'), fieldOn(t, 'x'), fieldOn(t, 'y')]),
-    ).toThrow(/Unknown table aliases "x", "y" in select\(\)/);
-  });
-
-  it('валидные алиасы нескольких таблиц проходят', async () => {
-    const rows = await h.orm
-      .query({ u: UserModel, p: PostModel })
-      .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .fields((t) => [t.u.name, t.p.title])
-      .go();
-    expect(rows.length).toBeGreaterThan(0);
-  });
-
-  it('агрегаты и оконные функции без tableAlias проходят', async () => {
-    const rows = await h.orm
-      .query({ u: UserModel, p: PostModel })
-      .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .fields((t, { agg }) => [agg.count('*').as('total')])
-      .go();
-    expect(rows.length).toBeGreaterThan(0);
-  });
-
-  it('гард на алиас не ломает запрос к компиляции: ошибка на этапе сборки', () => {
-    expect(() =>
-      h.orm
-        .query({ u: UserModel })
-        .fields((t) => [fieldOn(t, 'p')])
-        .compile(),
-    ).toThrow(/Unknown table alias/);
-  });
-
-  it('дубликат join() падает на строке сборки, данные не пострадали', async () => {
-    const q = () => h.orm.query({ u: UserModel, p: PostModel });
-    const build = () =>
-      q()
-        .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-        // Второй join той же пары: раньше молча игнорировался
-        .join({ left: 'u', right: 'p', on: (t) => t.p.published.eq(true) });
-    expect(() => build()).toThrow(
-      /join\(\) on u ↔ p \(inner\) is already declared/,
-    );
-    // Тот же запрос без дубля по-прежнему работает — гард точечный
-    const rows = await q()
-      .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .fields((t) => [t.u.name, t.p.title])
-      .go();
-    expect(rows.length).toBeGreaterThan(0);
-  });
-});
-
-describe('guards: граница с терминалами и prepared-каналом', () => {
-  it('count()/exists() на билдере с limit/offset продолжают работать (S2/S3)', async () => {
-    const n = await h.orm.single(PostModel).limit(1).offset(1).count().go();
-    expect(n).toBe(3);
-    const yes = await h.orm
-      .single(PostModel)
-      .offset(5)
-      .where((p) => p.title.eq('Hello Postgres'))
-      .exists()
-      .go();
-    expect(yes).toBe(true);
-  });
-
+describe('guards: точка срабатывания и копии билдера', () => {
   it('ошибка прилетает на строке сборки запроса, а не в терминале', () => {
     // Строка ниже — место, где написано несовместимое. Если бы гард ждал
     // go()/execute(), ошибка всплыла бы позже и в другом стеке.
