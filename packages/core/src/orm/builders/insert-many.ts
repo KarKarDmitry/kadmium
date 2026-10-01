@@ -1,11 +1,7 @@
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { ModelIR } from '../../ir/index';
 import { KadmiumSqb } from '../sqb';
-import type {
-  FilterProxy,
-  ReturningTools,
-  SelectProxy,
-} from '../types/proxy';
+import type { FilterProxy, ReturningTools, SelectProxy } from '../types/proxy';
 import { toSqlValue } from '../sql-fragment';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { SelectableField } from '../ast/selectable';
