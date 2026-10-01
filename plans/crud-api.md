@@ -1,6 +1,7 @@
 # Явный CRUD API — `orm.select / insert / insertMany / update / delete`
 
-**Статус:** 📋 спека готова, реализация не начата.
+**Статус:** 🚧 PR1–PR5 реализованы (select, update, delete, insert, insertMany).
+PR6–PR8 (include, multi, документация) не начаты.
 
 **Суть:** один вход `orm.single(Model)` смешивает чтение и запись, из-за чего на
 типах приходится городить сужение DML, а `create(data)` нарушает привычный
@@ -321,19 +322,28 @@ packages/core/src/orm/builders/
 - `test-project/test/orm/insert-api.test.ts`
 - Deprecate `SingleDml.create()`
 
+Реализовано: `dd03566`. Рефакторинг `buildConflictSteps` — общие
+`onConflict/doNothing/set` вынесены из двух финализаторов в один хелпер.
+Ограничение VALUES: коллбэк не может ссылаться на поля модели (`"User"."name"`
+без FROM → PG 42P01), то же ограничение, что у RETURNING у INSERT.
+
 **PR5 — `insert-many.ts` / `orm.insertMany`**
 
 - `InsertManyBuilder` поверх `buildCreateManyFinalizer` + тип `InsertManyHandle`
 - шаг `.transaction(bool)`, батчинг — без изменений в `sql-pg`
-- пустой батч → finalizer-заглушка: без рекурсии, `set()` бросает
-  (`nothing to insert`), `sql()` отдаёт `-- nothing to insert`, а не пустую
-  строку; `assertDmlInsert` переносится ВЫШЕ проверки пустоты (сейчас
-  `.limit(1).createMany([])` проходит молча)
+- **пустой батч бросает sync-throw `requires at least one row`** (`_requireValues`),
+  а не возвращает заглушку. Отклонение от исходного плана: заглушка требовала
+  рекурсии в трёх шагах и всё равно оставляла `go()` → `[]` no-op. Молчаливый
+  пустой батч почти всегда означает потерю данных (забытый фильтр, неверный
+  source), и `[]` это скрывал. Побочный плюс: `assertDmlInsert` в `values()`
+  вызывается ДО проверки пустоты, поэтому `.limit(1).insertMany()` ловится гардом
 - превью батча помечается `-- preview: first of N rows`: у батча нет одного sqb,
   `buildManyDebugSql` собирает одноразовый по ПЕРВОЙ строке, и молчаливое усечение
   вводит в заблуждение
 - `test-project/test/orm/insert-many-api.test.ts`
 - Deprecate `SingleDml.createMany()`
+
+Реализовано: `8db8669`.
 
 **PR6 — структурный `include()`**
 
