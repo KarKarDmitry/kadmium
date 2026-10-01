@@ -4,7 +4,13 @@ export type { StandardField } from './model/types/_base';
 export type { ReferenceField } from './model/types/ref';
 export { default as f } from './model/fields/index';
 
-export type { ModelIR, FieldIR, FieldType, RelationType } from './ir/index';
+export type {
+  ModelIR,
+  FieldIR,
+  FieldType,
+  RelationType,
+  ReferentialActionInput,
+} from './ir/index';
 export { compileModel } from './model/compile';
 
 export { OrmManager } from './orm/orm';

@@ -2,12 +2,18 @@ import { StandartFieldBuilder } from './_base';
 import type { ReferenceField } from '../types/ref';
 import { invertRelation } from '../fields/model';
 import type { RelationType } from '../types/model';
+import {
+  REFERENTIAL_ACTION_INPUTS,
+  type ReferentialActionInput,
+} from '../../ir/index';
 
 export class ReferenceFieldBuilder extends StandartFieldBuilder {
   private targetModel?: string;
   private relation: RelationType = 'one-to-many';
   private inverseField?: string;
   private foreignKeyField?: string;
+  private onDeleteAction?: ReferentialActionInput;
+  private onUpdateAction?: ReferentialActionInput;
 
   /**
    * Указать целевую модель.
@@ -44,12 +50,47 @@ export class ReferenceFieldBuilder extends StandartFieldBuilder {
     return this;
   }
 
+  /**
+   * Что делать с этой строкой при удалении строки на целевой модели.
+   *
+   * Ставится на поле, которое владеет FK-колонкой, — то есть на той модели,
+   * где FK физически существует. `Comment.post.onDelete('cascade')` удалит
+   * комментарий вместе с постом; действие на обратной стороне связи задавать
+   * некуда, потому что FK живёт здесь.
+   *
+   * @param action — `no action` (по умолчанию в БД), `cascade`, `set null`,
+   *   `restrict`, `set default`. `set null` требует nullable-колонки: `.notNull()`
+   *   вместе с ним бросает ошибку на `$build()`, потому что Postgres отвергает
+   *   такой FK при создании. `set default` требует DEFAULT у FK-колонки.
+   */
+  onDelete(action: ReferentialActionInput) {
+    this.onDeleteAction = action;
+    return this;
+  }
+
+  /**
+   * Что делать с этой строкой при изменении строки на целевой модели.
+   *
+   * По умолчанию `no action`: смена PK родителя ломает ссылки. `cascade` здесь
+   * опасен — `orm.update(User).set({ id })` молча перепишет FK-колонку у всех
+   * детей в одной транзакции.
+   */
+  onUpdate(action: ReferentialActionInput) {
+    this.onUpdateAction = action;
+    return this;
+  }
+
   $build(): ReferenceField {
     if (!this.targetModel) {
       throw new Error(
         'ReferenceFieldBuilder: target model is not set. Call .target(ModelClass).',
       );
     }
+
+    this.assertAction('onDelete', this.onDeleteAction);
+    this.assertAction('onUpdate', this.onUpdateAction);
+    this.assertSetNullNullable('onDelete', this.onDeleteAction);
+    this.assertSetNullNullable('onUpdate', this.onUpdateAction);
 
     const base = super.$build();
     return {
@@ -60,7 +101,33 @@ export class ReferenceFieldBuilder extends StandartFieldBuilder {
       tsType: this.targetModel,
       ...(this.foreignKeyField ? { foreignKey: this.foreignKeyField } : {}),
       ...(this.inverseField ? { inverse: this.inverseField } : {}),
+      ...(this.onDeleteAction ? { onDelete: this.onDeleteAction } : {}),
+      ...(this.onUpdateAction ? { onUpdate: this.onUpdateAction } : {}),
     };
+  }
+
+  private assertAction(
+    kind: 'onDelete' | 'onUpdate',
+    action: ReferentialActionInput | undefined,
+  ) {
+    if (action === undefined) return;
+    if (REFERENTIAL_ACTION_INPUTS.includes(action)) return;
+    throw new Error(
+      `ReferenceFieldBuilder: unknown ${kind} action "${action}". Use one of: ${REFERENTIAL_ACTION_INPUTS.join(', ')}.`,
+    );
+  }
+
+  private assertSetNullNullable(
+    kind: 'onDelete' | 'onUpdate',
+    action: ReferentialActionInput | undefined,
+  ) {
+    if (this.db.nullable) return;
+    if (action !== 'set null') return;
+    throw new Error(
+      `ReferenceFieldBuilder: ${kind}('set null') needs a nullable field. ` +
+        'The FK column would reject NULL, and Postgres refuses the constraint. ' +
+        'Drop .notNull() or pick another action.',
+    );
   }
 
   /** Тип обратной связи */

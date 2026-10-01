@@ -24,6 +24,25 @@ export type FieldType =
 
 export type RelationType = 'one-to-many' | 'many-to-one' | 'one-to-one';
 
+/**
+ * Referential action в том виде, в котором его пишет модель: нижний регистр.
+ *
+ * Каноническая (верхнерегистровая) форма живёт в `FieldIR` и `DbForeignKey` —
+ * это та же строка, что уходит в `ALTER TABLE`. Маппинг формы — в
+ * `toReferentialAction()`, единственном файле, которому положено знать обе.
+ */
+export type ReferentialActionInput =
+  'no action' | 'cascade' | 'set null' | 'restrict' | 'set default';
+
+/** Runtime-значение для валидации: TS ловит опечатку раньше, guard нужен для JS. */
+export const REFERENTIAL_ACTION_INPUTS: readonly ReferentialActionInput[] = [
+  'no action',
+  'cascade',
+  'set null',
+  'restrict',
+  'set default',
+];
+
 export interface FieldIR {
   /** Тип поля в терминах модели */
   type: FieldType;
