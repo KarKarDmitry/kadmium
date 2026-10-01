@@ -107,7 +107,7 @@ describe('nested includes (depth > 1)', () => {
       .join({ left: 'p', right: 'a', on: (t) => t.p.author.eq(t.a.id) })
       .where((t) => t.p.title.eq('Hello Postgres'))
       .include({ p: { author: { include: { posts: true } } } })
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     expect(rows.length).toBe(1);
     const p = rows[0].p;

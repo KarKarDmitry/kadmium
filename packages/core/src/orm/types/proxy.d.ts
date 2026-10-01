@@ -181,7 +181,7 @@ export type MultiFilterProxy<T extends AliasesMap> = {
   >;
 };
 
-export type MultiSelectProxy<T extends AliasesMap> = {
+export type MultiFieldsProxy<T extends AliasesMap> = {
   [TAlias in keyof T & string]: {
     [
       TField in keyof (InstanceType<T[TAlias]> extends { ['~shape']: infer S }

@@ -21,7 +21,7 @@ import type {
   OrderDirection,
   UpdateFinalizer,
   MultiFilterProxy,
-  MultiSelectProxy,
+  MultiFieldsProxy,
   MultiOrderProxy,
   AliasesMap,
 } from '../types/proxy';
@@ -30,8 +30,8 @@ import type { DmlData, SqlPreviewTerminal } from './single';
 import type {
   MultiIncludeConfig,
   MultiFirstResult,
-  MultiSelectResult,
-} from './multi';
+  MultiFieldsResult,
+} from './query';
 import type {
   CreateFinalizer,
   CreateManyFinalizer,
@@ -328,7 +328,7 @@ export interface DmlConfigHandle<
   ): MultiConfigHandle<T, TInclude>;
   groupBy(
     fn: (
-      t: MultiSelectProxy<T>,
+      t: MultiFieldsProxy<T>,
     ) => ReadonlyArray<SelectableField | SqlFragment>,
   ): MultiConfigHandle<T, TInclude>;
   order(
@@ -349,22 +349,22 @@ export interface DmlConfigHandle<
   include<const C extends MultiIncludeConfig<T>>(
     config: C,
   ): MultiConfigHandle<T, C>;
-  select<const NS extends readonly AnySelectable[]>(
-    fn: (t: MultiSelectProxy<T>, tools: SelectTools) => NS,
-  ): MultiSelectResult<NS, T, TInclude>;
-  select<const NS extends readonly AnySelectable[]>(
+  fields<const NS extends readonly AnySelectable[]>(
+    fn: (t: MultiFieldsProxy<T>, tools: SelectTools) => NS,
+  ): MultiFieldsResult<NS, T, TInclude>;
+  fields<const NS extends readonly AnySelectable[]>(
     items: NS,
-  ): MultiSelectResult<NS, T, TInclude>;
-  select<const NS extends AnySelectable>(
+  ): MultiFieldsResult<NS, T, TInclude>;
+  fields<const NS extends AnySelectable>(
     item: NS,
-  ): MultiSelectResult<[NS], T, TInclude>;
+  ): MultiFieldsResult<[NS], T, TInclude>;
   /** Терминал count() с SQL-превью — считает все строки (без limit/offset). */
   count(): SqlPreviewTerminal<number>;
   /** Терминал exists() с SQL-превью — LIMIT 1, без влияния offset. */
   exists(): SqlPreviewTerminal<boolean>;
   /** first() = select() + LIMIT 1: одна строка | undefined. */
   first<const NS extends readonly AnySelectable[]>(
-    fn: (t: MultiSelectProxy<T>, tools: SelectTools) => NS,
+    fn: (t: MultiFieldsProxy<T>, tools: SelectTools) => NS,
   ): MultiFirstResult<NS, T, TInclude>;
   first<const NS extends readonly AnySelectable[]>(
     items: NS,

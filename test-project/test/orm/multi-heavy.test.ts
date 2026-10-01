@@ -32,7 +32,7 @@ describe('multi: heavy joins', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .order((t) => [t.p.title.asc])
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     expect(rows).toHaveLength(3); // Alice×2, Bob×1 — ни Carol, ни Unclaimed
     expect(rows.some((r) => r.p.title === 'Unclaimed Post')).toBe(false);
@@ -49,7 +49,7 @@ describe('multi: heavy joins', () => {
         on: (t) => t.u.id.eq(t.p.author),
       })
       .order((t) => [t.u.name.asc])
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     const carolRow = rows.find((r) => r.u.name === 'Carol');
     expect(carolRow).toBeDefined();
@@ -67,7 +67,7 @@ describe('multi: heavy joins', () => {
         on: (t) => t.u.id.eq(t.p.author),
       })
       .order((t) => [t.p.title.asc])
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     const orphanRow = rows.find((r) => r.p.title === 'Unclaimed Post');
     expect(orphanRow).toBeDefined();
@@ -85,7 +85,7 @@ describe('multi: heavy joins', () => {
         on: (t) => t.u.id.eq(t.p.author),
       })
       .order((t) => [t.p.title.asc])
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     const carolRow = rows.find((r) => r.u.name === 'Carol');
     const orphanRow = rows.find((r) => r.p.title === 'Unclaimed Post');
@@ -100,7 +100,7 @@ describe('multi: heavy joins', () => {
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.u.name.eq('Alice'))
       .where((t) => t.p.published.eq(true))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     expect(rows).toHaveLength(1);
     expect(rows[0].p.title).toBe('Hello Postgres');
@@ -112,7 +112,7 @@ describe('multi: heavy joins', () => {
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .order((t) => [t.p.views.desc])
       .limit(2)
-      .select((t) => [t.p.title, t.p.views])
+      .fields((t) => [t.p.title, t.p.views])
       .go();
     expect(rows.map((r) => r.p.views)).toEqual([10, 5]);
   });
@@ -123,7 +123,7 @@ describe('multi: heavy joins', () => {
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .groupBy((t) => [t.u.name])
       .order((t) => [t.u.name.asc])
-      .select((t, { agg }) => [
+      .fields((t, { agg }) => [
         t.u.name,
         agg.count(t.p.id).as('posts'),
         agg.sum(t.p.views).as('viewsTotal'),
@@ -151,7 +151,7 @@ describe('multi: heavy joins', () => {
         },
       })
       .where((t) => t.u.name.eq('Alice'))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     expect(rows).toHaveLength(2);
     const withComments = rows.filter((r) => r.p.comments.length > 0);

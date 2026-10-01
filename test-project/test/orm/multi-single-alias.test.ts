@@ -22,7 +22,7 @@ describe('multi single-alias: обязательный reshape', () => {
       .query({ u: UserModel })
       .where((t) => t.u.active.eq(true))
       .order((t) => [t.u.age.desc])
-      .select((t) => [t.u.name, t.u.age]);
+      .fields((t) => [t.u.name, t.u.age]);
 
     const text = q.toSql();
     expect(text).toContain('"u"."name" AS "u.name"');
@@ -40,7 +40,7 @@ describe('multi single-alias: обязательный reshape', () => {
       .query({ u: UserModel })
       .where((t) => t.u.name.eq('Alice'))
       .include({ u: { posts: { select: (p) => [p.title] } } })
-      .select((t) => [t.u.name])
+      .fields((t) => [t.u.name])
       .go();
 
     expect(rows).toEqual([
@@ -58,7 +58,7 @@ describe('multi single-alias: обязательный reshape', () => {
       .query({ u: UserModel })
       .groupBy((t) => [t.u.active])
       .order((t) => [t.u.active.asc])
-      .select((t, { agg }) => [t.u.active, agg.count('*').as('cnt')])
+      .fields((t, { agg }) => [t.u.active, agg.count('*').as('cnt')])
       .go();
 
     expect(rows).toEqual([

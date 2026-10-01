@@ -76,7 +76,7 @@ describe('select — sql-фрагмент в SELECT против PG', () => {
     const rows = await h.orm
       .query({ u: UserModel })
       .where((t) => t.u.active.eq(true))
-      .select((t) => [
+      .fields((t) => [
         t.u.name,
         sql<string>`UPPER(${t.u.name})`.as('upper_name'),
       ])

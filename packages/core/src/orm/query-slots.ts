@@ -6,7 +6,7 @@
  */
 import type {
   SelectProxy,
-  MultiSelectProxy,
+  MultiFieldsProxy,
   GetFieldName,
   GetFieldType,
   AliasesMap,
@@ -91,7 +91,7 @@ export class MultiQuerySlots<
   }
 
   push<NS extends readonly (AnySelectable | AnyArrayField)[]>(
-    _fn: (t: MultiSelectProxy<T>, aggs: AggregateFunctions) => NS,
+    _fn: (t: MultiFieldsProxy<T>, aggs: AggregateFunctions) => NS,
   ): MultiQuerySlots<T, [...S, ...NS]> {
     return this as MultiQuerySlots<T, [...S, ...NS]>;
   }

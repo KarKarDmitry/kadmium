@@ -421,14 +421,14 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .where((t) => t.p.published.eq(true))
-          .select((t) => [t.u.name, t.p.title])
+          .fields((t) => [t.u.name, t.p.title])
           .toSql(),
       () => {
         const c = orm
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .where((t) => t.p.published.eq(S.slot('published')))
-          .select((t) => [t.u.name, t.p.title])
+          .fields((t) => [t.u.name, t.p.title])
           .compile(S);
         return () => orm.run(c).fill({ published: true }).sql();
       },
@@ -451,14 +451,14 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .where((t) => t.p.title.eq('Hello Postgres'))
-          .select((t) => [t.u.name, t.p.title])
+          .fields((t) => [t.u.name, t.p.title])
           .toSql(),
       () => {
         const c = orm
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .where((t) => t.p.title.eq(slot('title')))
-          .select((t) => [t.u.name, t.p.title])
+          .fields((t) => [t.u.name, t.p.title])
           .compile<{ title: string | undefined }>();
         return () => orm.run(c).fill({ title: 'Hello Postgres' }).sql();
       },
@@ -487,7 +487,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .order((t) => [t.p.views.desc])
           .limit(5)
           .offset(0)
-          .select((t) => [t.u.name, t.p.title])
+          .fields((t) => [t.u.name, t.p.title])
           .toSql(),
       () => {
         const c = orm
@@ -497,7 +497,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .order((t) => [t.p.views.desc])
           .limit(5)
           .offset(0)
-          .select((t) => [t.u.name, t.p.title])
+          .fields((t) => [t.u.name, t.p.title])
           .compile(S);
         return () => orm.run(c).fill({ views: 0 }).sql();
       },
@@ -520,14 +520,14 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .include({ p: { comments: { where: (c) => c.text.neq('x') } } })
-          .select((t) => [t.p.title])
+          .fields((t) => [t.p.title])
           .toSql(),
       () => {
         const c = orm
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .include({ p: { comments: { where: (c) => c.text.neq(slot('text')) } } })
-          .select((t) => [t.p.title])
+          .fields((t) => [t.p.title])
           .compile<{ text: string | undefined }>();
         return () => orm.run(c).fill({ text: 'x' }).sql();
       },
@@ -554,7 +554,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .groupBy((t) => [t.u.name])
           .where((t) => t.p.views.gte(5))
-          .select((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
+          .fields((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
           .toSql(),
       () => {
         const c = orm
@@ -562,7 +562,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
           .groupBy((t) => [t.u.name])
           .where((t) => t.p.views.gte(S.slot('views')))
-          .select((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
+          .fields((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
           .compile(S);
         return () => orm.run(c).fill({ views: 5 }).sql();
       },
@@ -585,7 +585,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.p.author.eq(1) })
           .where((t) => t.u.id.eq(t.p.author))
-          .select((t) => [t.p.title])
+          .fields((t) => [t.p.title])
           .toSql(),
       () => {
         const c = orm
@@ -596,7 +596,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
             on: (t) => t.p.author.eq(slot('author')),
           })
           .where((t) => t.u.id.eq(t.p.author))
-          .select((t) => [t.p.title])
+          .fields((t) => [t.p.title])
           .compile<{ author: number | undefined }>();
         return () => orm.run(c).fill({ author: 1 }).sql();
       },
@@ -621,7 +621,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
         .join({ left: 'c', right: 'p', on: (t) => t.c.post.eq(t.p.id) })
         .join({ left: 'c', right: 'a', on: (t) => t.c.user.eq(t.a.id) })
         .where((t) => t.a.id.eq(1))
-        .select((t) => [t.p.title, t.c.text]);
+        .fields((t) => [t.p.title, t.c.text]);
     const r = benchCase(
       'multi 3-table',
       harness.count,
@@ -633,7 +633,7 @@ describe('render-perf: обычный билдер vs compiled (без запр�
           .join({ left: 'c', right: 'p', on: (t) => t.c.post.eq(t.p.id) })
           .join({ left: 'c', right: 'a', on: (t) => t.c.user.eq(t.a.id) })
           .where((t) => t.a.id.eq(S.slot('id')))
-          .select((t) => [t.p.title, t.c.text])
+          .fields((t) => [t.p.title, t.c.text])
           .compile(S);
         return () => orm.run(c).fill({ id: 1 }).sql();
       },

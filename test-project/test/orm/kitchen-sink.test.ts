@@ -328,7 +328,7 @@ describe('kitchen-sink: full API integration', () => {
       .join({ left: 'c', right: 'p', on: (t) => t.c.post.eq(t.p.id) })
       .where((t) => t.p.title.eq('Hello Postgres'))
       .order((t) => [t.c.text.asc])
-      .select((t) => [t.u.name, t.p.title, t.c.text]);
+      .fields((t) => [t.u.name, t.p.title, t.c.text]);
     log('9. multi join', q.toSql());
 
     const rows = await q.go();
@@ -449,7 +449,7 @@ describe('kitchen-sink: full API integration', () => {
       .query({ p: PostModel, u: UserModel })
       .join({ left: 'p', right: 'u', on: (t) => t.p.author.eq(t.u.id) })
       .order((t) => [t.u.name.asc, t.p.views.desc])
-      .select((t, { agg, wf }) => [
+      .fields((t, { agg, wf }) => [
         t.u.name,
         t.p.title,
         t.p.views,

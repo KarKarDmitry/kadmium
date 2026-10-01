@@ -57,7 +57,7 @@ describe('multi compile() — type-level', () => {
   afterEach(() => Model.clear());
 
   it('flat compile<T>() — TResult миррорит go() (many → array)', () => {
-    const b = orm.query({ u: User, o: Other }).select((t) => [t.u.name]);
+    const b = orm.query({ u: User, o: Other }).fields((t) => [t.u.name]);
     type R = Awaited<ReturnType<typeof b.go>>;
     const c = b.compile<{ tenantId: number }>();
     const e: Equal<typeof c, CompiledQuery<{ tenantId: number }, R>> = true;
@@ -71,7 +71,7 @@ describe('multi compile() — type-level', () => {
     const b = orm
       .query({ u: User, o: Other })
       .where((t) => t.u.tenantId.eq(S.slot('tenantId')))
-      .select((t) => [t.u.id]);
+      .fields((t) => [t.u.id]);
     type R = Awaited<ReturnType<typeof b.go>>;
     const c = b.compile(S);
     const e: Equal<typeof c, CompiledQuery<{ tenantId: number }, R>> = true;
@@ -79,7 +79,7 @@ describe('multi compile() — type-level', () => {
   });
 
   it('compile<T>() не накладывает ограничений на слот-мапу: _slots = T', () => {
-    const b = orm.query({ u: User, o: Other }).select((t) => [t.u.id]);
+    const b = orm.query({ u: User, o: Other }).fields((t) => [t.u.id]);
     const c = b.compile<{ arbitrary: boolean; tenantId: number }>();
     type Slots = typeof c extends CompiledQuery<infer S, any> ? S : never;
     const e: Equal<Slots, { arbitrary: boolean; tenantId: number }> = true;
@@ -122,7 +122,7 @@ describe('multi compile() — runtime', () => {
   afterEach(() => Model.clear());
 
   const selectU = () =>
-    orm.query({ u: User, o: Other }).select((t) => [t.u.id, t.u.name]);
+    orm.query({ u: User, o: Other }).fields((t) => [t.u.id, t.u.name]);
 
   it('передаёт toSql КЛОН sqb; compiled.sqb — тот же клон', () => {
     adapter.toSql.mockReturnValue({
@@ -150,7 +150,7 @@ describe('multi compile() — runtime', () => {
 
     const c = orm
       .query({ u: User, o: Other })
-      .select((t) => [t.u.id])
+      .fields((t) => [t.u.id])
       .compile<{ tenantId: number }>();
 
     expect(c.text).toBe('SELECT 1 FROM "users" "u" WHERE "u"."tenant_id" = $1');
@@ -163,7 +163,7 @@ describe('multi compile() — runtime', () => {
     adapter.toSql.mockReturnValue({ text: 'SELECT 1', values: [] });
     const c = orm
       .query({ u: User, o: Other })
-      .select((t) => [t.u.id])
+      .fields((t) => [t.u.id])
       .compile();
     expect(c.slotOrder).toStrictEqual([]);
   });
@@ -181,7 +181,7 @@ describe('multi compile() — runtime', () => {
       orm
         .query({ u: User, o: Other })
         .where((t) => t.u.tenantId.eq(S.slot('tenantId')))
-        .select((t) => [t.u.id])
+        .fields((t) => [t.u.id])
         .compile(S),
     ).not.toThrow();
   });
@@ -198,7 +198,7 @@ describe('multi compile() — runtime', () => {
     const b = orm
       .query({ u: User, o: Other })
       .where((t) => t.u.tenantId.eq(S.slot('tenantId')))
-      .select((t) => [t.u.id]);
+      .fields((t) => [t.u.id]);
     expect(() => b.compile(S)).toThrow(/not declared.*nope/);
   });
 
@@ -209,7 +209,7 @@ describe('multi compile() — runtime', () => {
     expect(() =>
       noAdapter
         .query({ u: User, o: Other })
-        .select((t) => [t.u.id])
+        .fields((t) => [t.u.id])
         .compile<Record<string, never>>(),
     ).toThrow(/No adapter configured; cannot compile SQL/);
   });
@@ -222,7 +222,7 @@ describe('multi compile() — runtime', () => {
     adapter.execute.mockResolvedValue([{ u: { id: 1, name: 'a' } }]);
 
     const r1 = await q()
-      .select((t) => [t.u.id, t.u.name])
+      .fields((t) => [t.u.id, t.u.name])
       .go();
 
     adapter.toSql.mockReturnValue({
@@ -232,7 +232,7 @@ describe('multi compile() — runtime', () => {
     });
     const c2 = q()
       .where((t) => t.u.tenantId.eq(S.slot('tenantId')))
-      .select((t) => [t.u.id, t.u.name])
+      .fields((t) => [t.u.id, t.u.name])
       .compile(S);
 
     expect(r1).toStrictEqual([{ u: { id: 1, name: 'a' } }]);

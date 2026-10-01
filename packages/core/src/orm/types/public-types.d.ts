@@ -12,7 +12,7 @@ export type {
   OrderField,
   OrderDirection,
   MultiFilterProxy,
-  MultiSelectProxy,
+  MultiFieldsProxy as MultiSelectProxy,
   MultiRelationProxy,
   MultiOrderProxy,
   UpdateFinalizer,

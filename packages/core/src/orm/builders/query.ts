@@ -8,7 +8,7 @@ import { toSqlCondition, type SqlFragment } from '../sql-fragment';
 import type { ModelIR } from '../../ir/index';
 import type {
   MultiFilterProxy,
-  MultiSelectProxy,
+  MultiFieldsProxy,
   MultiOrderProxy,
   AliasesMap,
   FinalResult,
@@ -56,7 +56,7 @@ export type MultiIncludeConfig<T extends AliasesMap> = {
  * (compile<T>()), типизированный — runtime-проверка имён через
  * MultiQuerySlots.assertSlotNames. TResult — миррор go() (всегда массив).
  */
-export interface MultiSelectResult<
+export interface MultiFieldsResult<
   S extends readonly AnySelectable[],
   T extends AliasesMap,
   C extends MultiIncludeConfig<T> = Record<never, never>,
@@ -107,7 +107,7 @@ export class MultiQueryBuilder<
   TInclude extends MultiIncludeConfig<T> = Record<never, never>,
 > extends BaseQueryBuilder<
   MultiFilterProxy<T>,
-  MultiSelectProxy<T>,
+  MultiFieldsProxy<T>,
   MultiOrderProxy<T>
 > {
   private irs: Map<string, ModelIR>;
@@ -168,24 +168,24 @@ export class MultiQueryBuilder<
 
   // ── select ──
 
-  select<const S extends readonly AnySelectable[]>(
-    fn: (t: MultiSelectProxy<T>, tools: SelectTools) => S,
-  ): MultiSelectResult<S, T, TInclude>;
-  select<const S extends readonly AnySelectable[]>(
+  fields<const S extends readonly AnySelectable[]>(
+    fn: (t: MultiFieldsProxy<T>, tools: SelectTools) => S,
+  ): MultiFieldsResult<S, T, TInclude>;
+  fields<const S extends readonly AnySelectable[]>(
     items: S,
-  ): MultiSelectResult<S, T, TInclude>;
-  select<const S extends AnySelectable>(
+  ): MultiFieldsResult<S, T, TInclude>;
+  fields<const S extends AnySelectable>(
     item: S,
-  ): MultiSelectResult<[S], T, TInclude>;
-  select(
+  ): MultiFieldsResult<[S], T, TInclude>;
+  fields(
     source:
       | ((
-          t: MultiSelectProxy<T>,
+          t: MultiFieldsProxy<T>,
           tools: SelectTools,
         ) => readonly AnySelectable[])
       | readonly AnySelectable[]
       | AnySelectable,
-  ): MultiSelectResult<readonly AnySelectable[], T, TInclude> {
+  ): MultiFieldsResult<readonly AnySelectable[], T, TInclude> {
     const sqb = this.sqb.clone();
     const items =
       typeof source === 'function'
@@ -215,7 +215,7 @@ export class MultiQueryBuilder<
   // ── first ──
 
   first<const S extends readonly AnySelectable[]>(
-    fn: (t: MultiSelectProxy<T>, tools: SelectTools) => S,
+    fn: (t: MultiFieldsProxy<T>, tools: SelectTools) => S,
   ): MultiFirstResult<S, T, TInclude>;
   first<const S extends readonly AnySelectable[]>(
     items: S,
@@ -226,7 +226,7 @@ export class MultiQueryBuilder<
   first(
     source:
       | ((
-          t: MultiSelectProxy<T>,
+          t: MultiFieldsProxy<T>,
           tools: SelectTools,
         ) => readonly AnySelectable[])
       | readonly AnySelectable[]
@@ -347,7 +347,7 @@ export class MultiQueryBuilder<
   private _buildSelectTerminal(
     sqb: KadmiumSqb,
     single: boolean,
-  ): MultiSelectResult<readonly AnySelectable[], T, TInclude> {
+  ): MultiFieldsResult<readonly AnySelectable[], T, TInclude> {
     return {
       toSql: () => this._toSqlFrom(sqb),
       go: () => {
@@ -394,9 +394,9 @@ export class MultiQueryBuilder<
     });
   }
 
-  protected _createSelectProxy(): MultiSelectProxy<T> {
+  protected _createSelectProxy(): MultiFieldsProxy<T> {
     const irs = this.irs;
-    return new Proxy({} as MultiSelectProxy<T>, {
+    return new Proxy({} as MultiFieldsProxy<T>, {
       get: (_, alias: string) => {
         const ir = irs.get(alias);
         return new Proxy({} as Record<string, SelectableField>, {

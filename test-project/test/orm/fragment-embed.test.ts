@@ -25,7 +25,7 @@ describe('sql-фрагменты в join().on', () => {
         right: 'p',
         on: (t) => sql`${t.u.id} = ${t.p.author}`,
       })
-      .select((t) => [t.p.title]);
+      .fields((t) => [t.p.title]);
 
     expect(q.toSql()).toContain('ON "u"."id" = "p"."author"');
 
@@ -46,7 +46,7 @@ describe('sql-фрагменты в join().on', () => {
         right: 'p',
         on: (t) => or(t.u.id.eq(t.p.author), t.u.active.eq(false)),
       })
-      .select((t) => [t.p.title]);
+      .fields((t) => [t.p.title]);
 
     expect(q.toSql()).toContain('OR "u"."active"');
 
@@ -77,10 +77,10 @@ describe('sql-фрагменты в join().on', () => {
 
     const direct = await base(false)
       .where((t) => t.p.published.eq(true))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     const c = base(true)
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .compile(S);
     const viaRun = await h.orm.run(c).fill({ published: true }).go();
 
@@ -100,7 +100,7 @@ describe('groupBy-шаги', () => {
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .groupBy((t) => [t.p.author])
       .order((t) => [t.p.author.asc])
-      .select((t, { agg }) => [t.p.author, agg.count('*').as('cnt')]);
+      .fields((t, { agg }) => [t.p.author, agg.count('*').as('cnt')]);
 
     const text = q.toSql();
     expect(text).toContain('GROUP BY "p"."author"');
@@ -115,7 +115,7 @@ describe('groupBy-шаги', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .groupBy((t) => [sql`date_part(${'month'}, ${t.u.registeredAt})`])
-      .select((t, { agg }) => [agg.count('*').as('cnt')]);
+      .fields((t, { agg }) => [agg.count('*').as('cnt')]);
 
     expect(q.toSql()).toContain('GROUP BY date_part($1, "u"."registeredAt")');
 

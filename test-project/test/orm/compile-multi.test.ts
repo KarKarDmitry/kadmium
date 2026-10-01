@@ -44,12 +44,12 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
     const direct = await q()
       .join({ ...join, on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.p.published.eq(true))
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     const c = q()
       .join({ ...join, on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.p.published.eq(slot('published')))
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .compile<{ published: boolean }>();
     const viaRun = await h.orm.run(c).fill({ published: true }).go();
 
@@ -67,12 +67,12 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
     const direct = await q()
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.p.views.gt(7))
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     const c = q()
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.p.views.gt(S.slot('views')))
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .compile(S);
     const viaRun = await h.orm.run(c).fill({ views: 7 }).go();
 
@@ -88,7 +88,7 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.p.views.gt(S.slot('views')))
-      .select((t) => [t.u.name]);
+      .fields((t) => [t.u.name]);
     type R = Awaited<ReturnType<typeof b.go>>;
     const c = b.compile(S);
     const e: Equal<typeof c, CompiledQuery<{ views: number }, R>> = true;
@@ -102,12 +102,12 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
     const direct = await q()
       .join({ left: 'u', right: 'p', on: (t) => t.p.author.eq(authorId) })
       .where((t) => t.u.id.eq(t.p.author))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     const c = q()
       .join({ left: 'u', right: 'p', on: (t) => t.p.author.eq(slot('author')) })
       .where((t) => t.u.id.eq(t.p.author))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .compile<{ author: number }>();
     const viaRun = await h.orm.run(c).fill({ author: authorId }).go();
 
@@ -121,11 +121,11 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
       q()
         .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
         .order((t) => [t.p.views.desc]);
-    const direct = await base().limit(2).select((t) => [t.p.title]).go();
+    const direct = await base().limit(2).fields((t) => [t.p.title]).go();
     const c = base()
       .limit(2)
       .offset(0)
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .compile<Record<string, never>>();
     const viaRun = await h.orm.run(c).fill({}).go();
 
@@ -139,13 +139,13 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .include({ p: { comments: { where: (c) => c.text.neq('nice!') } } })
       .where((t) => t.u.name.eq('Alice'))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     const c = q()
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .include({ p: { comments: { where: (c) => c.text.neq(slot('name')) } } })
       .where((t) => t.u.name.eq('Alice'))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .compile<{ name: string }>();
     const viaRun = await h.orm.run(c).fill({ name: 'nice!' }).go();
 
@@ -168,11 +168,11 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
         .order((t) => [t.u.name.asc]);
     const direct = await base()
       .where((t) => t.p.views.gte(5))
-      .select((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
+      .fields((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
       .go();
     const c = base()
       .where((t) => t.p.views.gte(S.slot('views')))
-      .select((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
+      .fields((t, { agg }) => [t.u.name, agg.sum(t.p.views).as('total')])
       .compile(S);
     const viaRun = await h.orm.run(c).fill({ views: 5 }).go();
 
@@ -188,7 +188,7 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.p.views.gt(S.slot('views')))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .compile(S);
     const runner = h.orm.run(c);
 
@@ -216,11 +216,11 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
         .join({ left: 'c', right: 'a', on: (t) => t.c.user.eq(t.a.id) });
     const direct = await joins(q())
       .where((t) => t.a.id.eq(aliceId))
-      .select((t) => [t.p.title, t.c.text])
+      .fields((t) => [t.p.title, t.c.text])
       .go();
     const c = joins(q())
       .where((t) => t.a.id.eq(S.slot('id')))
-      .select((t) => [t.p.title, t.c.text])
+      .fields((t) => [t.p.title, t.c.text])
       .compile(S);
     const viaRun = await h.orm.run(c).fill({ id: aliceId }).go();
 

@@ -120,7 +120,7 @@ describe('where — sql-фрагмент в WHERE против PG (E)', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .where(() => sql`"u"."name" = ${'Alice'}`)
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     expect(rows.map((r) => r.p.title).sort()).toEqual([
       'Draft Post',

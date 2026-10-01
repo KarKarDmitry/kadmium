@@ -72,12 +72,12 @@ describe('clone: safe builder reuse via snapshots', () => {
     const alice = await base
       .clone()
       .where((t) => t.u.name.eq('Alice'))
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     const bob = await base
       .clone()
       .where((t) => t.u.name.eq('Bob'))
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     expect(alice.map((r) => r.p.title).sort()).toEqual([
       'Draft Post',

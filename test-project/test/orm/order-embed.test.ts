@@ -75,7 +75,7 @@ describe('order — sql-фрагмент в ORDER BY против PG', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .order((t) => [sql<number>`("p"."views" * ${2})`.desc])
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     expect(rows.map((r) => r.p.title)).toEqual([
       'Hello Postgres',

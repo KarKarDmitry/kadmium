@@ -23,7 +23,7 @@ describe('multi: joins, groupBy, aggregates', () => {
     const rows = await h.orm
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     // Alice (2 поста) + Bob (1 пост) = 3
     expect(rows.length).toBe(3);
@@ -36,7 +36,7 @@ describe('multi: joins, groupBy, aggregates', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .where((t) => t.u.name.eq('Bob'))
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     expect(rows.length).toBe(1);
     expect(rows[0].p.title).toBe('Bob Writes');
@@ -47,7 +47,7 @@ describe('multi: joins, groupBy, aggregates', () => {
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
       .groupBy((t) => [t.u.name])
-      .select((t, { agg }) => [t.u.name, agg.count(t.p.id).as('postCount')])
+      .fields((t, { agg }) => [t.u.name, agg.count(t.p.id).as('postCount')])
       .go();
     expect(rows.length).toBe(2);
   });
@@ -57,7 +57,7 @@ describe('multi: joins, groupBy, aggregates', () => {
       .query({ c: CommentModel, p: PostModel, a: UserModel })
       .join({ left: 'c', right: 'p', on: (t) => t.c.post.eq(t.p.id) })
       .join({ left: 'c', right: 'a', on: (t) => t.c.user.eq(t.a.id) })
-      .select((t) => [t.p.title, t.a.name, t.c.text])
+      .fields((t) => [t.p.title, t.a.name, t.c.text])
       .go();
     expect(rows.length).toBe(3);
   });

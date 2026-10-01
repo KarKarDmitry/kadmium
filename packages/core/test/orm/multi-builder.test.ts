@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MultiQueryBuilder } from '../../src/orm/builders/multi';
+import { MultiQueryBuilder } from '../../src/orm/builders/query';
 import { or } from '../../src/orm/where-expression';
 import { sql } from '../../src/orm/sql-fragment';
 import {
@@ -135,7 +135,7 @@ describe('MultiQueryBuilder — select', () => {
   it('returns toSql and go', () => {
     const b = multiBuilder();
 
-    const result = b.select((t: any) => [t.u.name, t.p.title]);
+    const result = b.fields((t: any) => [t.u.name, t.p.title]);
     expect(typeof result.toSql).toBe('function');
     expect(typeof result.go).toBe('function');
   });
@@ -143,14 +143,14 @@ describe('MultiQueryBuilder — select', () => {
   it('go throws without adapter', () => {
     const b = multiBuilder();
 
-    const result = b.select((t: any) => [t.u.name]);
+    const result = b.fields((t: any) => [t.u.name]);
     expect(() => result.go()).toThrow('No adapter configured');
   });
 
   it('select applies to a snapshot, not the builder', () => {
     const b = multiBuilder();
 
-    b.select((t: any) => [t.u.name]);
+    b.fields((t: any) => [t.u.name]);
     expect(b.sqb.selects).toBeNull();
   });
 });

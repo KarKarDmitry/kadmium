@@ -1,5 +1,5 @@
 import { SingleQueryBuilder } from './builders/single';
-import { MultiQueryBuilder } from './builders/multi';
+import { MultiQueryBuilder } from './builders/query';
 import { SelectQueryBuilder, type SelectHandle } from './builders/select';
 import { UpdateQueryBuilder, type UpdateHandle } from './builders/update';
 import { DeleteQueryBuilder, type DeleteHandle } from './builders/delete';

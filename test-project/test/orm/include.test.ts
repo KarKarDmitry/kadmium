@@ -52,7 +52,7 @@ describe('include: to-one / to-many / nested', () => {
       })
       .where((t) => t.p.title.eq('Hello Postgres'))
       .include({ a: { posts: true } })
-      .select((t) => [t.p.title])
+      .fields((t) => [t.p.title])
       .go();
     expect(rows.length).toBe(1);
     expect(rows[0].p.title).toBe('Hello Postgres');

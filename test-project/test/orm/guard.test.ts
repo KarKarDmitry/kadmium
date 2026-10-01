@@ -336,19 +336,19 @@ describe('guards: multi select — алиас таблицы', () => {
 
   it('select() с чужим алиасом бросает до обращения к БД', () => {
     expect(() =>
-      h.orm.query({ u: UserModel }).select((t) => [fieldOn(t, 'p')]),
+      h.orm.query({ u: UserModel }).fields((t) => [fieldOn(t, 'p')]),
     ).toThrow(/Unknown table alias "p" in select\(\)/);
   });
 
   it('сообщение перечисляет реальные алиасы запроса', () => {
     expect(() =>
-      h.orm.query({ u: UserModel }).select((t) => [fieldOn(t, 'zz')]),
+      h.orm.query({ u: UserModel }).fields((t) => [fieldOn(t, 'zz')]),
     ).toThrow(/Query tables are: u\./);
   });
 
   it('сообщение подсказывает, где задаются алиасы', () => {
     expect(() =>
-      h.orm.query({ u: UserModel }).select((t) => [fieldOn(t, 'p')]),
+      h.orm.query({ u: UserModel }).fields((t) => [fieldOn(t, 'p')]),
     ).toThrow(/Check the aliases passed to orm\.query\(\{\.\.\.\}\)/);
   });
 
@@ -362,7 +362,7 @@ describe('guards: multi select — алиас таблицы', () => {
     expect(() =>
       h.orm
         .query({ u: UserModel })
-        .select((t) => [fieldOn(t, 'x'), fieldOn(t, 'x'), fieldOn(t, 'y')]),
+        .fields((t) => [fieldOn(t, 'x'), fieldOn(t, 'x'), fieldOn(t, 'y')]),
     ).toThrow(/Unknown table aliases "x", "y" in select\(\)/);
   });
 
@@ -370,7 +370,7 @@ describe('guards: multi select — алиас таблицы', () => {
     const rows = await h.orm
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     expect(rows.length).toBeGreaterThan(0);
   });
@@ -379,7 +379,7 @@ describe('guards: multi select — алиас таблицы', () => {
     const rows = await h.orm
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .select((t, { agg }) => [agg.count('*').as('total')])
+      .fields((t, { agg }) => [agg.count('*').as('total')])
       .go();
     expect(rows.length).toBeGreaterThan(0);
   });
@@ -388,7 +388,7 @@ describe('guards: multi select — алиас таблицы', () => {
     expect(() =>
       h.orm
         .query({ u: UserModel })
-        .select((t) => [fieldOn(t, 'p')])
+        .fields((t) => [fieldOn(t, 'p')])
         .compile(),
     ).toThrow(/Unknown table alias/);
   });
@@ -406,7 +406,7 @@ describe('guards: multi select — алиас таблицы', () => {
     // Тот же запрос без дубля по-прежнему работает — гард точечный
     const rows = await q()
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .select((t) => [t.u.name, t.p.title])
+      .fields((t) => [t.u.name, t.p.title])
       .go();
     expect(rows.length).toBeGreaterThan(0);
   });

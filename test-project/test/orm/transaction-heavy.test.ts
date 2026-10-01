@@ -94,7 +94,7 @@ describe('transactions: heavy edges', () => {
         .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
         .include({ p: { comments: true } })
         .where((t) => t.u.name.eq('Alice'))
-        .select((t) => [t.p.title])
+        .fields((t) => [t.p.title])
         .go();
       expect(rows.length).toBe(2);
       const withComments = rows.find((r) => r.p.comments.length > 0);

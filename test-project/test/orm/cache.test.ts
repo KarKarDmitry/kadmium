@@ -18,8 +18,14 @@ describe('IR cache: hot path reuses the registry, no recompilation', () => {
   it('compiling is done once at registration, not per query', async () => {
     expect(h.orm.compileCount).toBe(0);
 
-    await h.orm.single(UserModel).where((u) => u.name.eq('Alice')).go();
-    await h.orm.single(UserModel).where((u) => u.name.eq('Bob')).go();
+    await h.orm
+      .single(UserModel)
+      .where((u) => u.name.eq('Alice'))
+      .go();
+    await h.orm
+      .single(UserModel)
+      .where((u) => u.name.eq('Bob'))
+      .go();
     await h.orm
       .single(PostModel)
       .where((p) => p.title.eq('Hello Postgres'))
@@ -28,14 +34,17 @@ describe('IR cache: hot path reuses the registry, no recompilation', () => {
     await h.orm
       .query({ u: UserModel, p: PostModel })
       .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-      .select((t) => [t.u.name])
+      .fields((t) => [t.u.name])
       .go();
 
     expect(h.orm.compileCount).toBe(0);
   });
 
   it('returns correct data after cached IR lookup', async () => {
-    const rows = await h.orm.single(UserModel).select((u) => [u.name]).go();
+    const rows = await h.orm
+      .single(UserModel)
+      .select((u) => [u.name])
+      .go();
     expect(rows.length).toBeGreaterThan(0);
   });
 });
