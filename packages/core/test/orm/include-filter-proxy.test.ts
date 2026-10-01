@@ -61,8 +61,8 @@ describe('include: where/order колбэки типизированы (IncludeF
 
   it('where/order/select в include() — типизированные колбэки целевой модели', () => {
     const b = orm
-      .single(User)
-      .select((u) => [u.id])
+      .select(User)
+      .fields((u) => [u.id])
       .include({
         posts: {
           where: (p) => p.views.gt(0),
@@ -77,8 +77,8 @@ describe('include: where/order колбэки типизированы (IncludeF
 
   it('ref-FK поле (Post.author) в include-where даёт NumberFilter: eq(1) легален', () => {
     const b = orm
-      .single(Post)
-      .select((p) => [p.id])
+      .select(Post)
+      .fields((p) => [p.id])
       .include({
         author: { where: (a) => a.id.eq(1) },
       });
@@ -87,10 +87,10 @@ describe('include: where/order колбэки типизированы (IncludeF
 
   it('typed-слот и flat slot() легальны в include-where (SlotMarker ⊆ BaseFilter<V>)', () => {
     const S = new QuerySlots(Post).push((p) => [p.views.as('minViews')]);
-    const typed = orm.single(User).include({
+    const typed = orm.select(User).include({
       posts: { where: (p) => p.views.gt(S.slot('minViews')) },
     });
-    const flat = orm.single(User).include({
+    const flat = orm.select(User).include({
       posts: { where: (p) => p.views.gt(slot('minViews')) },
     });
     expect(typed).toBeDefined();
@@ -98,7 +98,7 @@ describe('include: where/order колбэки типизированы (IncludeF
   });
 
   it('order-колбэк возвращает OrderDirection[]: .asc/.desc типизированы', () => {
-    const b = orm.single(User).include({
+    const b = orm.select(User).include({
       posts: {
         order: (p) => [p.title.asc, p.views.desc],
       },
@@ -110,7 +110,7 @@ describe('include: where/order колбэки типизированы (IncludeF
     // тело не выполняется: проверяется только компиляция
     const typecheck = (): void => {
       // @ts-expect-error — title: string, eq(number) запрещён
-      orm.single(User).include({ posts: { where: (p) => p.title.eq(1) } });
+      orm.select(User).include({ posts: { where: (p) => p.title.eq(1) } });
     };
     void typecheck;
     expect(true).toBe(true);
@@ -119,7 +119,7 @@ describe('include: where/order колбэки типизированы (IncludeF
   it('NumberFilter в eq-bool — тип-ошибка', () => {
     const typecheck = (): void => {
       // @ts-expect-error — published: boolean, eq(число) запрещён
-      orm.single(User).include({ posts: { where: (p) => p.published.eq(1) } });
+      orm.select(User).include({ posts: { where: (p) => p.published.eq(1) } });
     };
     void typecheck;
     expect(true).toBe(true);
@@ -128,7 +128,7 @@ describe('include: where/order колбэки типизированы (IncludeF
   it('FK-поле author: number — eq(string) тип-ошибка', () => {
     const typecheck = (): void => {
       // @ts-expect-error — author: number (FK), eq(string) запрещён
-      orm.single(Post).include({ author: { where: (a) => a.id.eq('x') } });
+      orm.select(Post).include({ author: { where: (a) => a.id.eq('x') } });
     };
     void typecheck;
     expect(true).toBe(true);
@@ -137,7 +137,7 @@ describe('include: where/order колбэки типизированы (IncludeF
   it('order-колбэк с WhereCondition вместо OrderDirection[] — тип-ошибка', () => {
     const typecheck = (): void => {
       // @ts-expect-error — eq() возвращает WhereCondition, не OrderDirection
-      orm.single(User).include({ posts: { order: (p) => [p.views.eq(1)] } });
+      orm.select(User).include({ posts: { order: (p) => [p.views.eq(1)] } });
     };
     void typecheck;
     expect(true).toBe(true);

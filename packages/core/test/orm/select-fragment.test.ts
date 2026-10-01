@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sql } from '../../src/orm/sql-fragment';
 import { SelectableField } from '../../src/orm/ast/selectable';
-import { SingleQueryBuilder } from '../../src/orm/builders/single';
+import { SelectQueryBuilder } from '../../src/orm/builders/select';
 import type {
   SqlSelectItem,
   SqlAdapter,
@@ -42,17 +42,17 @@ const USER_IR: ModelIR = {
 };
 
 function builder(adapter?: MockAdapter) {
-  return new SingleQueryBuilder(
+  return new SelectQueryBuilder(
     USER_IR,
     undefined,
     adapter as unknown as SqlAdapter,
   );
 }
 
-describe('single select — sql-фрагмент в SELECT', () => {
+describe('select — sql-фрагмент в проекции', () => {
   it('встраивает фрагмент с .as() через колбек (прокси-поле инлайнится идентификатором)', () => {
     const b = builder();
-    b.select((u: any) => [
+    b.fields((u: any) => [
       u.id,
       sql<number>`EXTRACT(YEAR FROM ${u.registeredAt})`.as('year'),
     ]);
@@ -74,7 +74,7 @@ describe('single select — sql-фрагмент в SELECT', () => {
 
   it('принимает готовый список элементов без колбека', () => {
     const b = builder();
-    b.select([
+    b.fields([
       new SelectableField('User', 'id'),
       sql<number>`EXTRACT(YEAR FROM now())`.as('year'),
     ]);
@@ -86,7 +86,7 @@ describe('single select — sql-фрагмент в SELECT', () => {
 
   it('принимает один элемент без колбека', () => {
     const b = builder();
-    b.select(sql<number>`EXTRACT(YEAR FROM now())`.as('year'));
+    b.fields(sql<number>`EXTRACT(YEAR FROM now())`.as('year'));
     const sel = b.sqb.selects!;
     expect(sel).toHaveLength(1);
     expect((sel[0] as SqlSelectItem).alias).toBe('year');
@@ -101,14 +101,14 @@ describe('single select — sql-фрагмент в SELECT', () => {
 
   it('select() без аргументов не ломается', () => {
     const b = builder();
-    b.select();
+    b.fields();
     expect(b.sqb.selects!.length).toBe(3);
   });
 
   it('select(items) доезжает до adapter.toSql', () => {
     const adapter = makeMockAdapter();
     const b = builder(adapter);
-    b.select(sql<number>`EXTRACT(YEAR FROM now())`.as('year'));
+    b.fields(sql<number>`EXTRACT(YEAR FROM now())`.as('year'));
     b.toSql();
     expect(adapter.toSql).toHaveBeenCalledTimes(1);
     const got = adapter.toSql.mock.calls[0][0] as {

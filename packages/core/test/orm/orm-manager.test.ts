@@ -32,7 +32,7 @@ describe('OrmManager — adapter routing', () => {
 
   it('uses the appCore adapter by default', async () => {
     const orm = new OrmManager(app);
-    await orm.single(User).go();
+    await orm.select(User).go();
 
     expect(globalAdapter.execute).toHaveBeenCalled();
     expect(overrideAdapter.execute).not.toHaveBeenCalled();
@@ -42,7 +42,7 @@ describe('OrmManager — adapter routing', () => {
     const orm = new OrmManager(app);
     await orm
       .withAdapter(overrideAdapter as unknown as SqlAdapter)
-      .single(User)
+      .select(User)
       .go();
 
     expect(overrideAdapter.execute).toHaveBeenCalled();
@@ -54,8 +54,8 @@ describe('OrmManager — adapter routing', () => {
     const override = orm.withAdapter(overrideAdapter as unknown as SqlAdapter);
     expect(override).not.toBe(orm);
 
-    await override.single(User).go();
-    await orm.single(User).go();
+    await override.select(User).go();
+    await orm.select(User).go();
 
     expect(overrideAdapter.execute).toHaveBeenCalledTimes(1);
     expect(globalAdapter.execute).toHaveBeenCalledTimes(1);
@@ -81,8 +81,8 @@ describe('OrmManager — shared IR cache (A20)', () => {
     _irLookup: (name: string) => ModelIR | undefined;
   }
 
-  it('single() and _irLookup() share a single cached ModelIR instance', () => {
-    orm.single(User);
+  it('select() and _irLookup() share a single cached ModelIR instance', () => {
+    orm.select(User);
 
     const internals = orm as unknown as ManagerInternals;
     const viaCache = internals._irCache.get('User');
@@ -147,8 +147,8 @@ describe('OrmManager — batch upsert routing', () => {
     ]);
 
     const rows = await orm
-      .single(User)
-      .createMany([{ name: 'Alice' }, { name: 'Bob' }])
+      .insertMany(User)
+      .values([{ name: 'Alice' }, { name: 'Bob' }])
       .onConflict((t) => [t.email])
       .go();
 
@@ -168,8 +168,8 @@ describe('OrmManager — batch upsert routing', () => {
     adapter.createMany.mockResolvedValue([]);
 
     await orm
-      .single(User)
-      .createMany([{ name: 'X' }])
+      .insertMany(User)
+      .values([{ name: 'X' }])
       .onConflict((t) => [t.email])
       .doNothing()
       .go();

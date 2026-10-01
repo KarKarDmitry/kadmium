@@ -57,7 +57,7 @@ describe('compile() — type-level', () => {
   afterEach(() => Model.clear());
 
   it('flat compile<T>() — TResult миррорит go() (many → array)', () => {
-    const b = orm.single(User).select((u) => [u.id, u.name]);
+    const b = orm.select(User).fields((u) => [u.id, u.name]);
     type R = Awaited<ReturnType<typeof b.go>>;
     const c = b.compile<{ tenantId: number }>();
     const e: Equal<typeof c, CompiledQuery<{ tenantId: number }, R>> = true;
@@ -66,8 +66,8 @@ describe('compile() — type-level', () => {
 
   it('first() — TResult миррорит go() (first → single | undefined)', () => {
     const bf = orm
-      .single(User)
-      .select((u) => [u.id])
+      .select(User)
+      .fields((u) => [u.id])
       .first();
     const cf = bf.compile();
     const e: Equal<
@@ -80,8 +80,8 @@ describe('compile() — type-level', () => {
   it('typed compile(S) — TSlots получается из ToDef<S>, TResult не зависит от S', () => {
     const S = new QuerySlots(User).push((u) => [u.tenantId]);
     const b = orm
-      .single(User)
-      .select((u) => [u.id])
+      .select(User)
+      .fields((u) => [u.id])
       .where((u) => u.tenantId.eq(S.slot('tenantId')));
     type R = Awaited<ReturnType<typeof b.go>>;
     const c = b.compile(S);
@@ -91,13 +91,13 @@ describe('compile() — type-level', () => {
 
   it('QuerySlots другого класса модели — compile-time ошибка (S invariant)', () => {
     const S = new QuerySlots(Other).push((o) => [o.otherId]);
-    const b = orm.single(User);
+    const b = orm.select(User);
     // @ts-expect-error — QuerySlots<Other> не легален для single(User)
     b.compile(S);
   });
 
   it('compile<T>() не накладывает ограничений на слот-мапу: _slots = T', () => {
-    const b = orm.single(User);
+    const b = orm.select(User);
     const c = b.compile<{ arbitrary: boolean; tenantId: number }>();
     type Slots = typeof c extends CompiledQuery<infer S, any> ? S : never;
     const e: Equal<Slots, { arbitrary: boolean; tenantId: number }> = true;
@@ -121,7 +121,7 @@ describe('compile() — runtime', () => {
   afterEach(() => Model.clear());
 
   it('передаёт toSql КЛОН sqb с материализованными selects; compiled.sqb — тот же клон', () => {
-    const b = orm.single(User).select((u) => [u.id, u.name]);
+    const b = orm.select(User).fields((u) => [u.id, u.name]);
     adapter.toSql.mockReturnValue({
       text: 'SELECT "id", "name" FROM "users"',
       values: [],
@@ -145,7 +145,7 @@ describe('compile() — runtime', () => {
       slotOrder: declared,
     });
 
-    const c = orm.single(User).compile<{ tenantId: number }>();
+    const c = orm.select(User).compile<{ tenantId: number }>();
 
     expect(c.text).toBe('SELECT 1 FROM "users" WHERE "tenantId" = $1');
     expect(c.values).toStrictEqual([marker]);
@@ -155,13 +155,13 @@ describe('compile() — runtime', () => {
 
   it('single-флаг: false для many, true после first()', () => {
     adapter.toSql.mockReturnValue({ text: 'SELECT 1', values: [] });
-    expect(orm.single(User).compile().single).toBe(false);
-    expect(orm.single(User).first().compile().single).toBe(true);
+    expect(orm.select(User).compile().single).toBe(false);
+    expect(orm.select(User).first().compile().single).toBe(true);
   });
 
   it('slotOrder не задан адаптером → []', () => {
     adapter.toSql.mockReturnValue({ text: 'SELECT 1', values: [] });
-    const c = orm.single(User).compile();
+    const c = orm.select(User).compile();
     expect(c.slotOrder).toStrictEqual([]);
   });
 
@@ -173,7 +173,7 @@ describe('compile() — runtime', () => {
       slotOrder: [{ name: 'ids', index: 2 }],
     });
     const c = orm
-      .single(User)
+      .select(User)
       .where((u) => u.id.in(S.slot('ids')))
       .compile(S);
     expect(c.slotOrder).toStrictEqual([{ name: 'ids', index: 2 }]);
@@ -189,7 +189,7 @@ describe('compile() — runtime', () => {
     });
     expect(() =>
       orm
-        .single(User)
+        .select(User)
         .where((u) => u.tenantId.eq(S.slot('tenantId')))
         .compile(S),
     ).not.toThrow();
@@ -202,7 +202,7 @@ describe('compile() — runtime', () => {
       values: [],
       slotOrder: [{ name: 'nope', index: 1 }],
     });
-    const b = orm.single(User).where((u) => u.tenantId.eq(S.slot('tenantId')));
+    const b = orm.select(User).where((u) => u.tenantId.eq(S.slot('tenantId')));
     expect(() => b.compile(S)).toThrow(/not declared.*nope/);
   });
 
@@ -210,7 +210,7 @@ describe('compile() — runtime', () => {
     const appNo = new AppCore();
     appNo.register([User]);
     const noAdapter = new OrmManager(appNo);
-    expect(() => noAdapter.single(User).compile()).toThrow(
+    expect(() => noAdapter.select(User).compile()).toThrow(
       /No adapter configured; cannot compile SQL/,
     );
   });
@@ -222,8 +222,8 @@ describe('compile() — runtime', () => {
     ]);
     const q = () =>
       orm
-        .single(User)
-        .select((u) => [u.id, u.name])
+        .select(User)
+        .fields((u) => [u.id, u.name])
         .clone();
     adapter.execute.mockResolvedValue([{ id: 1, name: 'a' }]);
 

@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { sql, SqlCondition, toSqlCondition } from '../../src/orm/sql-fragment';
 import { and, or } from '../../src/orm/where-expression';
-import { SingleQueryBuilder } from '../../src/orm/builders/single';
+import { SelectQueryBuilder } from '../../src/orm/builders/select';
+import { UpdateQueryBuilder } from '../../src/orm/builders/update';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { makeMockAdapter, type MockAdapter, makeUserIR } from './helpers';
 import type { WhereStep } from '../../src/orm/ast/where';
 
 function builder(adapter?: MockAdapter) {
-  return new SingleQueryBuilder(
+  return new SelectQueryBuilder(
     makeUserIR(),
     undefined,
     adapter as unknown as SqlAdapter,
@@ -70,7 +71,7 @@ describe('where — sql-фрагмент в WHERE (E)', () => {
 
   it('having() с фрагментом пушит SqlCondition в havings', () => {
     const b = builder();
-    b.select((t: any, tools: any) => [tools.agg.count('*').as('cnt')]);
+    b.fields((t: any, tools: any) => [tools.agg.count('*').as('cnt')]);
     b.having((t: any) => sql`COUNT(*) > ${1}`);
     expect(b.sqb.havings.elements).toHaveLength(1);
     const condition = b.sqb.havings.elements[0].condition;
@@ -81,14 +82,25 @@ describe('where — sql-фрагмент в WHERE (E)', () => {
   it('update().where() нормализует фрагмент в шаге', async () => {
     const adapter = makeMockAdapter();
     adapter.execute.mockResolvedValue([{ id: 5, active: false }]);
-    const finalizer = builder(adapter).update({ active: false });
+    const finalizer = new UpdateQueryBuilder(
+      makeUserIR(),
+      undefined,
+      adapter as unknown as SqlAdapter,
+    ).set({ active: false } as never);
     const res = await finalizer.where((u: any) => sql`"User"."id" = ${5}`).go();
     expect(res).toEqual([{ id: 5, active: false }]);
     const captured = adapter.execute.mock.calls[0][0] as {
       wheres: { elements: { condition: unknown }[] };
     };
     expect(captured.wheres.elements).toHaveLength(1);
-    expect(captured.wheres.elements[0].condition).toBeInstanceOf(SqlCondition);
+    // Нормализация проверяется по `kind`, а не по instanceof: go() отдаёт
+    // адаптеру КЛОН sqb, а clone раскладывает условие spread'ом и теряет
+    // прототип. sql-pg тоже определяет условие по kind, так что это ровно
+    // тот контракт, который реально проверяется.
+    expect(captured.wheres.elements[0].condition).toMatchObject({
+      kind: 'sql-condition',
+      text: '"User"."id" = $1',
+    });
   });
 
   it('тип: cursor() не принимает sql-фрагмент (только поля)', () => {

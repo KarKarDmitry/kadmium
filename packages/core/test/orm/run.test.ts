@@ -91,7 +91,7 @@ describe('orm.run — тип fill', () => {
       slotOrder: [{ name: 'tenantId', index: 1 }],
     });
     const c = orm
-      .single(User)
+      .select(User)
       .where((u) => u.tenantId.eq(S.slot('tenantId')))
       .compile(S);
     const runner = orm.run(c);
@@ -132,7 +132,7 @@ describe('orm.run / orm.raw — runtime', () => {
     );
 
     const c = orm
-      .single(User)
+      .select(User)
       .where((u) => u.active.eq(true))
       .compile<{ tenantId: number }>();
     const out = await orm.run(c).fill({ tenantId: 42 }).go();
@@ -155,7 +155,7 @@ describe('orm.run / orm.raw — runtime', () => {
     );
 
     const c = orm
-      .single(User)
+      .select(User)
       .where((u) => u.active.eq(S2.slot('active')))
       .first()
       .compile(S2);
@@ -175,7 +175,7 @@ describe('orm.run / orm.raw — runtime', () => {
       values: [marker],
       slotOrder: [{ name: 'tenantId', index: 1 }],
     });
-    const c = orm.single(User).compile<{ tenantId: number }>();
+    const c = orm.select(User).compile<{ tenantId: number }>();
     expect(orm.run(c).fill({ tenantId: 7 }).sql()).toBe(
       'SQL: WHERE "tenantId" = $1\nVALUES: [7]',
     );
@@ -184,7 +184,7 @@ describe('orm.run / orm.raw — runtime', () => {
 
   it('run без адаптера → throw до fill', () => {
     adapter.toSql.mockReturnValue({ text: 'T', values: [], slotOrder: [] });
-    const c = orm.single(User).compile<Record<string, never>>();
+    const c = orm.select(User).compile<Record<string, never>>();
     const appNo = new AppCore();
     appNo.register([User]);
     const noAdapter = new OrmManager(appNo);
@@ -224,7 +224,7 @@ describe('orm.run / orm.raw — runtime', () => {
     txAdapter.raw.mockResolvedValue([{ id: 1 }]);
 
     const c = orm
-      .single(User)
+      .select(User)
       .where((u) => u.tenantId.eq(S.slot('tenantId')))
       .compile(S);
 
@@ -283,13 +283,13 @@ describe('go() vs run(compile()).fill().go() — два канала, один �
 
     // Канал 1 — прямой go() с литералом
     const r1 = await orm
-      .single(User)
+      .select(User)
       .where((u) => u.tenantId.eq(42))
       .go();
 
     // Канал 2 — compile + fill(slot) + run
     const c2 = orm
-      .single(User)
+      .select(User)
       .where((u) => u.tenantId.eq(S.slot('tenantId')))
       .compile(S);
     const r2 = await orm.run(c2).fill({ tenantId: 42 }).go();
