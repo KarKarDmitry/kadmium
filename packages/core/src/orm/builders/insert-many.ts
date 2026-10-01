@@ -1,7 +1,11 @@
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { ModelIR } from '../../ir/index';
 import { KadmiumSqb } from '../sqb';
-import type { FilterProxy, SelectProxy } from '../types/proxy';
+import type {
+  FilterProxy,
+  ReturningTools,
+  SelectProxy,
+} from '../types/proxy';
 import { toSqlValue } from '../sql-fragment';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { SelectableField } from '../ast/selectable';
@@ -59,7 +63,7 @@ export interface InsertManyHandle<TModel extends Model> {
 
   /** Проекция RETURNING. Без неё `go()` возвращает полные строки. */
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ): InsertManyReturningTerminal<S>;
 
   /** Выполнить batch INSERT и вернуть вставленные строки. */
@@ -145,7 +149,7 @@ export class InsertManyBuilder<TModel extends Model> {
   }
 
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ): InsertManyReturningTerminal<S> {
     this._requireValues();
     return this._finalizer().returning(

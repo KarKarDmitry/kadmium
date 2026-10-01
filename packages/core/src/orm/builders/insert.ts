@@ -1,7 +1,11 @@
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { ModelIR } from '../../ir/index';
 import { KadmiumSqb } from '../sqb';
-import type { FilterProxy, SelectProxy } from '../types/proxy';
+import type {
+  FilterProxy,
+  ReturningTools,
+  SelectProxy,
+} from '../types/proxy';
 import { toSqlValue } from '../sql-fragment';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { SelectableField } from '../ast/selectable';
@@ -68,7 +72,7 @@ export interface InsertHandle<TModel extends Model> {
    * Проекция RETURNING. Без неё `go()` возвращает вставленную строку целиком.
    */
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ): InsertReturningTerminal<S>;
 
   /** Выполнить INSERT и вернуть вставленную строку. */
@@ -148,7 +152,7 @@ export class InsertBuilder<TModel extends Model> {
   }
 
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ): InsertReturningTerminal<S> {
     this._requireValues();
     return this._finalizer().returning(

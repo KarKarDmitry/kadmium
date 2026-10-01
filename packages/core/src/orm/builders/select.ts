@@ -106,6 +106,13 @@ interface SelectShared<
   page(page: number, size: number): this;
   cursor(fn: (t: FilterProxy<M>) => CursorWhereExpression | undefined): this;
   clone(): this;
+
+  /**
+   * @deprecated SQL-preview для дебага. Канонический путь к тексту — `.compile()`
+   *   (`{ text, values, slotOrder }`); этот метод лишь оборачивает его в
+   *   `"SQL: … VALUES: […]"` и доступен ради отладочных логов.
+   */
+  toSql(): string;
 }
 
 /**

@@ -1,7 +1,11 @@
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import type { ModelIR } from '../../ir/index';
 import { KadmiumSqb } from '../sqb';
-import type { FilterProxy, SelectProxy } from '../types/proxy';
+import type {
+  FilterProxy,
+  ReturningTools,
+  SelectProxy,
+} from '../types/proxy';
 import type { WhereExpression } from '../ast/where';
 import { toSqlCondition, toSqlValue, type SqlFragment } from '../sql-fragment';
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
@@ -48,7 +52,7 @@ export interface UpdateHandle<TModel extends Model> {
 
   /** Проекция RETURNING. Без неё `go()` возвращает полные строки. */
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ): ReturningTerminal<S>;
 
   /** Выполнить UPDATE и вернуть затронутые строки. */
@@ -127,7 +131,7 @@ export class UpdateQueryBuilder<TModel extends Model> {
   }
 
   returning<S extends readonly AnySelectable[]>(
-    fn: (t: SelectProxy<TModel>) => S,
+    fn: (t: SelectProxy<TModel>, tools: ReturningTools) => S,
   ): ReturningTerminal<S> {
     this._requireSet();
     return this._finalizer().returning(fn as never) as ReturningTerminal<S>;
