@@ -16,11 +16,11 @@ afterAll(async () => {
   await h.adapter.end();
 });
 
-describe('create().onConflict() — upsert', () => {
+describe('insert().onConflict() — upsert', () => {
   it('inserts new row when no conflict', async () => {
     const user = await h.orm
-      .single(UserModel)
-      .create({ name: 'Alice', email: 'alice@upsert.test', age: 30, active: true })
+      .insert(UserModel)
+      .values({ name: 'Alice', email: 'alice@upsert.test', age: 30, active: true })
       .onConflict((t) => [t.email])
       .go();
 
@@ -32,15 +32,15 @@ describe('create().onConflict() — upsert', () => {
   it('updates existing row on conflict', async () => {
     // Insert first
     await h.orm
-      .single(UserModel)
-      .create({ name: 'Bob', email: 'bob@upsert.test', age: 25, active: true })
+      .insert(UserModel)
+      .values({ name: 'Bob', email: 'bob@upsert.test', age: 25, active: true })
       .onConflict((t) => [t.email])
       .go();
 
     // Upsert with same email, different name
     const updated = await h.orm
-      .single(UserModel)
-      .create({ name: 'Robert', email: 'bob@upsert.test', age: 26, active: false })
+      .insert(UserModel)
+      .values({ name: 'Robert', email: 'bob@upsert.test', age: 26, active: false })
       .onConflict((t) => [t.email])
       .go();
 
@@ -50,7 +50,7 @@ describe('create().onConflict() — upsert', () => {
 
     // Verify only one row exists
     const count = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('bob@upsert.test'))
       .count()
       .go();
@@ -60,15 +60,15 @@ describe('create().onConflict() — upsert', () => {
   it('doNothing skips insert on conflict', async () => {
     // Insert first
     await h.orm
-      .single(UserModel)
-      .create({ name: 'Carol', email: 'carol@upsert.test', age: 40, active: true })
+      .insert(UserModel)
+      .values({ name: 'Carol', email: 'carol@upsert.test', age: 40, active: true })
       .onConflict((t) => [t.email])
       .go();
 
     // Upsert with same email — should do nothing
     const result = await h.orm
-      .single(UserModel)
-      .create({ name: 'CarolNew', email: 'carol@upsert.test', age: 41, active: false })
+      .insert(UserModel)
+      .values({ name: 'CarolNew', email: 'carol@upsert.test', age: 41, active: false })
       .onConflict((t) => [t.email])
       .doNothing()
       .go();
@@ -78,7 +78,7 @@ describe('create().onConflict() — upsert', () => {
 
     // Verify original data is unchanged
     const carol = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('carol@upsert.test'))
       .first()
       .go();
@@ -88,8 +88,8 @@ describe('create().onConflict() — upsert', () => {
 
   it('sql() returns correct SQL', async () => {
     const sql = h.orm
-      .single(UserModel)
-      .create({ name: 'Test', email: 'test@sql.test', age: 1, active: true })
+      .insert(UserModel)
+      .values({ name: 'Test', email: 'test@sql.test', age: 1, active: true })
       .onConflict((t) => [t.email])
       .sql();
 
@@ -101,8 +101,8 @@ describe('create().onConflict() — upsert', () => {
 
   it('sql() for doNothing', async () => {
     const sql = h.orm
-      .single(UserModel)
-      .create({ name: 'Test', email: 'test@sql.test', age: 1, active: true })
+      .insert(UserModel)
+      .values({ name: 'Test', email: 'test@sql.test', age: 1, active: true })
       .onConflict((t) => [t.email])
       .doNothing()
       .sql();
@@ -110,10 +110,10 @@ describe('create().onConflict() — upsert', () => {
     expect(sql).toContain('ON CONFLICT ("email") DO NOTHING');
   });
 
-  it('create().go() still works as simple insert', async () => {
+  it('insert().go() still works as plain insert', async () => {
     const user = await h.orm
-      .single(UserModel)
-      .create({ name: 'Dave', email: 'dave@upsert.test', age: 35, active: true })
+      .insert(UserModel)
+      .values({ name: 'Dave', email: 'dave@upsert.test', age: 35, active: true })
       .go();
 
     expect(user.id).toBeDefined();
@@ -121,11 +121,11 @@ describe('create().onConflict() — upsert', () => {
   });
 });
 
-describe('createMany().onConflict() — batch upsert', () => {
+describe('insertMany().onConflict() — batch upsert', () => {
   it('inserts new rows', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .createMany([
+      .insertMany(UserModel)
+      .values([
         { name: 'Eve', email: 'eve@batch.test', age: 28, active: true },
         { name: 'Frank', email: 'frank@batch.test', age: 22, active: false },
       ])
@@ -140,8 +140,8 @@ describe('createMany().onConflict() — batch upsert', () => {
   it('updates existing rows on conflict', async () => {
     // Insert first
     await h.orm
-      .single(UserModel)
-      .createMany([
+      .insertMany(UserModel)
+      .values([
         { name: 'Grace', email: 'grace@batch.test', age: 30, active: true },
       ])
       .onConflict((t) => [t.email])
@@ -149,8 +149,8 @@ describe('createMany().onConflict() — batch upsert', () => {
 
     // Upsert with same email
     const rows = await h.orm
-      .single(UserModel)
-      .createMany([
+      .insertMany(UserModel)
+      .values([
         { name: 'GraceUpdated', email: 'grace@batch.test', age: 31, active: false },
       ])
       .onConflict((t) => [t.email])
@@ -164,13 +164,13 @@ describe('createMany().onConflict() — batch upsert', () => {
   it('mixed insert + update in a single batch statement', async () => {
     // Insert first (will be updated by the batch)
     await h.orm
-      .single(UserModel)
-      .create({ name: 'Helen', email: 'helen@mix.test', age: 44, active: true })
+      .insert(UserModel)
+      .values({ name: 'Helen', email: 'helen@mix.test', age: 44, active: true })
       .go();
 
     const rows = await h.orm
-      .single(UserModel)
-      .createMany([
+      .insertMany(UserModel)
+      .values([
         { name: 'Iris', email: 'iris@mix.test', age: 20, active: true },
         { name: 'HelenUpdated', email: 'helen@mix.test', age: 45, active: false },
       ])
@@ -185,7 +185,7 @@ describe('createMany().onConflict() — batch upsert', () => {
 
     // No duplicates for the updated email
     const count = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('helen@mix.test'))
       .count()
       .go();
@@ -194,13 +194,13 @@ describe('createMany().onConflict() — batch upsert', () => {
 
   it('doNothing batch returns only actually inserted rows', async () => {
     await h.orm
-      .single(UserModel)
-      .create({ name: 'John', email: 'john@nothing.test', age: 33, active: true })
+      .insert(UserModel)
+      .values({ name: 'John', email: 'john@nothing.test', age: 33, active: true })
       .go();
 
     const rows = await h.orm
-      .single(UserModel)
-      .createMany([
+      .insertMany(UserModel)
+      .values([
         { name: 'JohnUpdated', email: 'john@nothing.test', age: 99, active: false },
         { name: 'Kate', email: 'kate@nothing.test', age: 27, active: true },
       ])
@@ -213,7 +213,7 @@ describe('createMany().onConflict() — batch upsert', () => {
     expect(rows[0].name).toBe('Kate');
 
     const john = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('john@nothing.test'))
       .first()
       .go();

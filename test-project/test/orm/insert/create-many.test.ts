@@ -16,11 +16,11 @@ afterAll(async () => {
   await h.adapter.end();
 });
 
-describe('createMany: batch insert', () => {
+describe('insertMany: batch insert', () => {
   it('inserts multiple rows in one query', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .createMany([
+      .insertMany(UserModel)
+      .values([
         { name: 'Alice', email: 'alice@batch.test', age: 30, active: true },
         { name: 'Bob', email: 'bob@batch.test', age: 25, active: false },
         { name: 'Carol', email: 'carol@batch.test', age: 35, active: true },
@@ -37,10 +37,8 @@ describe('createMany: batch insert', () => {
 
   it('returns all fields from created rows', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .createMany([
-        { name: 'Dave', email: 'dave@batch.test', age: 40, active: true },
-      ])
+      .insertMany(UserModel)
+      .values([{ name: 'Dave', email: 'dave@batch.test', age: 40, active: true }])
       .go();
 
     expect(rows).toHaveLength(1);
@@ -50,22 +48,29 @@ describe('createMany: batch insert', () => {
     expect(rows[0].active).toBe(true);
   });
 
-  it('empty array returns empty result', async () => {
-    const rows = await h.orm.single(UserModel).createMany([]).go();
-    expect(rows).toHaveLength(0);
+  it('empty array throws instead of silently inserting nothing', () => {
+    // Сознательное расхождение с легаси `createMany([])`, который возвращал
+    // пустой результат: молчаливый no-op скрывал потерю данных, если список
+    // собрался пустым из-за ошибки на стороне вызова.
+    //
+    // Падение sync-throw на точке сборки запроса (`_requireValues` в `go()`),
+    // а не rejected-промис: ошибка конфигурации должна указывать на строку
+    // вызова, как `set()` без `values()` и гарды DML.
+    const finalizer = h.orm.insertMany(UserModel).values([]);
+    expect(() => finalizer.go()).toThrow(/requires at least one row/);
   });
 
   it('created rows are queryable', async () => {
     await h.orm
-      .single(UserModel)
-      .createMany([
+      .insertMany(UserModel)
+      .values([
         { name: 'Eve', email: 'eve@batch.test', age: 28, active: true },
         { name: 'Frank', email: 'frank@batch.test', age: 22, active: false },
       ])
       .go();
 
     const eve = await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.email.eq('eve@batch.test'))
       .first()
       .go();
@@ -74,16 +79,14 @@ describe('createMany: batch insert', () => {
     expect(eve!.name).toBe('Eve');
   });
 
-  it('transaction option is accepted', async () => {
+  it('transaction(true) is the default', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .createMany(
-        [
-          { name: 'G1', email: 'g1@tx.test', age: 10, active: true },
-          { name: 'G2', email: 'g2@tx.test', age: 20, active: false },
-        ],
-        { transaction: true },
-      )
+      .insertMany(UserModel)
+      .values([
+        { name: 'G1', email: 'g1@tx.test', age: 10, active: true },
+        { name: 'G2', email: 'g2@tx.test', age: 20, active: false },
+      ])
+      .transaction(true)
       .go();
 
     expect(rows).toHaveLength(2);
@@ -91,13 +94,11 @@ describe('createMany: batch insert', () => {
     expect(rows[1].name).toBe('G2');
   });
 
-  it('transaction: false works', async () => {
+  it('transaction(false) sends one INSERT without BEGIN/COMMIT', async () => {
     const rows = await h.orm
-      .single(UserModel)
-      .createMany(
-        [{ name: 'H1', email: 'h1@tx.test', age: 15, active: true }],
-        { transaction: false },
-      )
+      .insertMany(UserModel)
+      .values([{ name: 'H1', email: 'h1@tx.test', age: 15, active: true }])
+      .transaction(false)
       .go();
 
     expect(rows).toHaveLength(1);
