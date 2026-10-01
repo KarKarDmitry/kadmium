@@ -15,6 +15,10 @@ declare module '../src/models/bureau' {
     name: string | undefined;
   };
 
+  ['~defaults']: {
+    id: number;
+  };
+
   ['~rel']: {
     countries: Country[];
   };
@@ -35,6 +39,12 @@ declare module '../src/models/comment' {
     user: number | undefined;
   };
 
+  ['~defaults']: {
+    id: number;
+    text: string;
+    flagged: boolean;
+  };
+
   ['~rel']: {
     post?: Post;
     user?: User;
@@ -53,6 +63,10 @@ declare module '../src/models/country' {
     id: number;
     name: string | undefined;
     gov: number | undefined;
+  };
+
+  ['~defaults']: {
+    id: number;
   };
 
   ['~rel']: {
@@ -76,6 +90,11 @@ declare module '../src/models/user' {
     age: number | undefined;
     active: boolean | undefined;
     registeredAt: Date | undefined;
+  };
+
+  ['~defaults']: {
+    id: number;
+    active: boolean;
   };
 
   ['~rel']: {
@@ -105,6 +124,12 @@ declare module '../src/models/post' {
     author: number | undefined;
   };
 
+  ['~defaults']: {
+    id: number;
+    published: boolean;
+    views: number;
+  };
+
   ['~rel']: {
     author?: User;
     comments: Comment[];
@@ -123,6 +148,10 @@ declare module '../src/models/region' {
     id: number;
     name: string | undefined;
     country: number | undefined;
+  };
+
+  ['~defaults']: {
+    id: number;
   };
 
   ['~rel']: {
@@ -159,6 +188,10 @@ declare module '../src/models/profile' {
     id: number;
     displayName: string | undefined;
     user: number | undefined;
+  };
+
+  ['~defaults']: {
+    id: number;
   };
 
   ['~rel']: {

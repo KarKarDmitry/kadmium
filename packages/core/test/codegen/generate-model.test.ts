@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateModel } from '../../src/codegen/generate-model';
-import type { ModelIR } from '../../src/ir/index';
+import type { FieldIR, ModelIR } from '../../src/ir/index';
 
 function makeIr(overrides: Partial<ModelIR> & { name: string }): ModelIR {
   return {
@@ -294,5 +294,123 @@ describe('generateModel', () => {
     expect(out).toContain(
       "import { UserAccount } from '../src/models/user-account';",
     );
+  });
+
+  describe('~defaults — поля, которые заполняет БД', () => {
+    function fieldWith(
+      name: string,
+      extra: Partial<FieldIR> = {},
+    ): Record<string, FieldIR> {
+      return {
+        [name]: {
+          type: 'string',
+          tsType: 'string',
+          alias: name,
+          nullable: false,
+          unique: false,
+          index: false,
+          ...extra,
+        },
+      };
+    }
+
+    it('поле с spec.default попадает в ~defaults', () => {
+      const ir = makeIr({
+        name: 'Post',
+        fields: fieldWith('title', { nullable: true }),
+      });
+      (ir.fields.title as { spec: unknown }).spec = { default: 'untitled' };
+
+      const out = generateModel(ir, 'models/post', [ir]);
+      expect(out).toContain("['~defaults']: {");
+      expect(out).toContain('title: string;');
+    });
+
+    it('autoincrement-PK попадает в ~defaults — values() не спросит id', () => {
+      const ir = makeIr({
+        name: 'User',
+        fields: fieldWith('id', {
+          type: 'bigint',
+          tsType: 'number',
+          isPrimary: true,
+        }),
+      });
+
+      const out = generateModel(ir, 'models/user', [ir]);
+      expect(out).toContain("['~defaults']: {");
+      expect(out).toContain('id: number;');
+    });
+
+    it('uuid-PK без default в ~defaults НЕ попадает — id обязан прийти от клиента', () => {
+      const ir = makeIr({
+        name: 'UserAccount',
+        fields: fieldWith('id', {
+          type: 'uuid',
+          tsType: 'string',
+          isPrimary: true,
+          spec: { db_type: 'uuid' },
+        }),
+      });
+
+      const out = generateModel(ir, 'models/user-account', [ir]);
+      expect(out).not.toContain('~defaults');
+      expect(out).toContain('id: string;');
+    });
+
+    it('string-PK без default в ~defaults НЕ попадает', () => {
+      const ir = makeIr({
+        name: 'Account',
+        fields: fieldWith('code', {
+          type: 'string',
+          tsType: 'string',
+          isPrimary: true,
+          spec: { db_type: 'string' },
+        }),
+      });
+
+      expect(generateModel(ir, 'models/account', [ir])).not.toContain(
+        '~defaults',
+      );
+    });
+
+    it('NOT NULL без default в ~defaults НЕ попадает — это настоящее NOT NULL', () => {
+      const ir = makeIr({ name: 'User', fields: fieldWith('email') });
+
+      expect(generateModel(ir, 'models/user', [ir])).not.toContain('~defaults');
+    });
+
+    it('inverse ref (sourceModel) в ~defaults не попадает даже с default', () => {
+      const ir = makeIr({
+        name: 'Post',
+        fields: fieldWith('comments', {
+          type: 'ref',
+          tsType: 'Comment',
+          ref: 'Comment',
+          relation: 'one-to-many',
+          sourceModel: 'Post',
+          spec: { default: 1 },
+        }),
+      });
+
+      expect(generateModel(ir, 'models/post', [ir])).not.toContain('~defaults');
+    });
+
+    it('forward ref с default попадает в ~defaults типом number', () => {
+      const userIr = makeIr({ name: 'User', fields: {} });
+      const postIr = makeIr({
+        name: 'Post',
+        fields: fieldWith('author', {
+          type: 'ref',
+          tsType: 'User',
+          ref: 'User',
+          relation: 'many-to-one',
+          spec: { default: 1 },
+        }),
+      });
+
+      const out = generateModel(postIr, 'models/post', [userIr, postIr]);
+      expect(out).toContain("['~defaults']: {");
+      expect(out).toContain('author: number;');
+    });
   });
 });

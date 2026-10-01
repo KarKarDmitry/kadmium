@@ -1,4 +1,20 @@
-import type { ModelIR } from '../ir/index';
+import type { FieldIR, ModelIR } from '../ir/index';
+
+/**
+ * Заполнит ли БД значение колонки сама — DB-default или autoincrement-PK.
+ *
+ * Предикат зеркалит `autoIncrement` из `sql-pg` (`diff/types.ts`): тот решает,
+ * ставить ли `DEFAULT`/identity в DDL, и типы обязаны считать ровно то же самое,
+ * иначе `values()` начнёт требовать поле, которое БД подставит сама.
+ *
+ * Дублируется, а не импортируется: core не зависит от sql-pg.
+ */
+function isFilledByDatabase(f: FieldIR): boolean {
+  const spec = f.spec as { default?: unknown; db_type?: unknown } | undefined;
+  if (spec?.default !== undefined && spec.default !== null) return true;
+  const isPrimary = f.isPrimary === true || f.type === 'primary';
+  return isPrimary && spec?.db_type !== 'uuid' && spec?.db_type !== 'string';
+}
 
 /**
  * Сгенерировать augment с `~shape` и `~rel`.
@@ -14,6 +30,12 @@ export function generateModel(
 ): string {
   const fields = Object.entries(ir.fields);
   const refs = fields.filter(([, f]) => f.type === 'ref');
+  // Поля, которые БД заполняет сама: их не нужно передавать в values().
+  // Inverse refs (sourceModel) колонок не имеют — исключаются вместе с ними
+  // из ~shape, поэтому и в ~defaults им не место.
+  const defaults = fields.filter(
+    ([, f]) => !f.sourceModel && isFilledByDatabase(f),
+  );
 
   // Собираем импорты типов, которые нужны внутри declare module
   const imports = new Set<string>();
@@ -66,6 +88,17 @@ export function generateModel(
     );
   }
   lines.push(`  };`);
+
+  if (defaults.length > 0) {
+    lines.push(``);
+    lines.push(`  ['~defaults']: {`);
+    for (const [name, field] of defaults) {
+      // Типы те же, что в ~shape: ~defaults — это Pick<~shape, …>.
+      const tsType = field.ref ? 'number' : field.tsType;
+      lines.push(`    ${name}: ${tsType};`);
+    }
+    lines.push(`  };`);
+  }
 
   if (refs.length > 0) {
     lines.push(``);
