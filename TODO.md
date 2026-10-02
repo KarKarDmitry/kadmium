@@ -167,14 +167,19 @@ function isModelClass(fn) {
 
 ---
 
-### 2.3 Correlated subqueries для includes (N+1-like) ⏳ **Отложено**
+### ~~2.3 Correlated subqueries для includes (N+1-like)~~ ✅
 
-**Проблема:** `_buildIncludeSubquery()` генерирует correlated subquery для
+**Проблема:** `_buildIncludeSubquery()` генерировал correlated subquery для
 каждой связи. Для каждой строки основной таблицы — отдельный подзапрос. На 10k
 записей с 2 include = 20k подзапросов.
 
-**План:** Переход на `LEFT JOIN LATERAL` для to-one, один LEFT JOIN +
-группировка на клиенте для to-many. Требует реальных данных для тестирования.
+**Решение:** Миграция выполнена — include рендерится как `LEFT JOIN LATERAL`.
+Функции `_buildIncludeSubquery()` в коде больше нет; рендер живёт в
+`_buildInclude()` (`packages/sql-pg/src/sql-generator.ts:518`, комментарий на
+`:509` прямо фиксирует переход «вместо коррелированного подзапроса»).
+
+**Плюсы:** Планировщик строит совместный план основного запроса и подзапросов
+вместо N+1. Пункт был помечен «Отложено» устарело — работа уже сделана.
 
 ---
 
@@ -203,10 +208,12 @@ function isModelClass(fn) {
 SQL-генерацией.
 
 **Решение:** Если адаптер не установлен — `throw new Error()`.
+Метод помечен `@deprecated`: единый путь к SQL — `.compile()`, его текст лежит в
+`.text` (у `CompiledQuery` есть `text`/`values`/`slotOrder`, метода `sql()` нет).
 
 **Плюсы:** Единый источник правды для SQL-генерации — `SqlGenerator` в sql-pg.
 
-- `packages/core/src/orm/builders/single.ts` — `toSql()` без fallback
+- `packages/core/src/orm/builders/select.ts` — `toSql()` без fallback
 - `packages/core/src/orm/builders/query.ts` — `toSql()` без fallback
 
 ---
@@ -291,7 +298,7 @@ onSet(cb): () => void {
 
 ---
 
-### 4.2 Тесты на IR-компиляцию
+### ~~4.2 Тесты на IR-компиляцию~~ ✅
 
 Написать тесты, которые проверяют:
 
@@ -301,6 +308,14 @@ onSet(cb): () => void {
 - Наследование не теряет поля родителя
 - primary-поле определяется корректно для `findById()`
 
+**Статус:** ✅ Закрыто — `packages/core/test/model/compile.test.ts` (390 строк,
+~45 тестов) покрывает все четыре пункта: `describe('ref fields')` проверяет
+`ref`/`relation`/`foreignKey`, `describe('inverse refs')` — обратные рефы и их
+`nullable`, `describe('inheritance')` — поля родителя через prototype walk,
+`describe('isPrimary')` — признак первичного ключа.
+
+**Осталось:** интеграционного покрытия у этих контрактов нет — см. пункт 4.4.
+
 ---
 
 ### 4.3 Миграция с commonjs на ESM
@@ -308,6 +323,57 @@ onSet(cb): () => void {
 `tsconfig.base.json` использует `"module": "commonjs"`. TypeScript 6.0+ и
 Node.js LTS уже хорошо поддерживают ESM. Для библиотеки, которая использует
 динамические импорты (`import(file)`), ESM дал бы больше предсказуемости.
+
+---
+
+### 4.4 Интеграционного покрытия у IR-контрактов нет 🟡
+
+**Проблема:** Пункты 4.2 (и 1.5) закрыты модульными тестами
+`packages/core/test/model/compile.test.ts` — они проверяют, что `compileModel()`
+собирает правильный IR. Но сквозного пути «модель → IR → SQL → PostgreSQL» у
+эх контрактов нет: в `test-project/test/` **ноль** вызовов `findById()`.
+
+Модульные тесты используют мок-адаптер, поэтому не доказывают, что признак
+`isPrimary` доезжает до реального `WHERE "колонка" = $1`.
+
+**Что покрыто:** `syncSchema()` в `test-project/test/helpers.ts` строит DDL из IR
+(`computeDiff`/`applyDiff`), так что схема проверяется против той же IR-модели.
+
+**Что предлагается:** интеграционный `findById` в
+`test-project/test/orm/select/` — на модели с нестандартным именем PK и с
+алиасом колонки. Это же потребует решения по пункту 4.5.
+
+---
+
+### 4.5 Переопределение PK в наследнике не работает 🔴
+
+**Проблема:** `Model` объявляет `id: AbstractFieldBuilder = f.pk` и в докстринге
+обещает «Можно переопределить в наследниках» (`model/index.ts:59-63`). Но
+`id` — инициализатор поля базового класса, а подкласс добавляет своё поле рядом,
+а не заменяет. Наследование на уровне полей не работает: объявление
+`uid = f.pk.uuid` в наследнике даёт **два** поля с `isPrimary: true`.
+
+Проверено: `irToColumns()` (`sql-pg/src/diff/types.ts:237`) выдаёт две PK-колонки,
+а `columnDefSql()` (`sql-pg/src/ddl-sql.ts:22`) печатает `PRIMARY KEY` инлайн в
+каждой — то есть `CREATE TABLE` падает в PostgreSQL с `42710 multiple primary
+keys are not allowed`. Схему с такой моделью не создать.
+
+Следствия, которые пока не исправлены:
+
+- `findById()` берёт **первое** поле с `isPrimary`
+  (`orm/builders/select.ts:399`), а `id` инициализируется раньше `uid` — при двух
+  PK фильтр уйдёт не по тому столбцу, молча вернёт неверную строку.
+- Тип параметра `findById` жёстко зашит на `TModel['~shape']['id']`
+  (`select.ts:158`) — для PK с другим именем это неверный тип, и на уровне типов
+  расхождение с рантаймом не видно.
+- PK-билдеры не умеют `.alias()`: `BasePrimaryField implements AbstractFieldBuilder`
+  (`model/fields/primary.ts`) — минимальный интерфейс только с `$build()`, тогда
+  как `.alias()`/`.notNull()` живут в классе `StandartFieldBuilder`
+  (`model/fields/_base.ts:34`). Переименовать колонку PK нельзя.
+
+**Нужно решить:** объявление `f.pk` в наследнике должно вытеснять унаследованный
+`id` (иначе модель с нестандартным PK не создать в принципе), и тогда
+`findById` должен брать единственный PK, а тип параметра — выводиться из него.
 
 ---
 
@@ -332,12 +398,18 @@ Node.js LTS уже хорошо поддерживают ESM. Для библи�
 **Проблема:** Для простых операций (подсчёт записей, проверка существования,
 поиск по PK, пагинация) нужно было писать много boilerplate.
 
-**Решение:** Добавлены методы на `SingleQueryBuilder`:
+**Решение:** Добавлены методы-шорткаты:
 
 - `count()` — `SELECT COUNT(*) AS "count"`
 - `exists()` — `SELECT ... LIMIT 1`, проверка `results.length > 0`
 - `findById(id)` — `WHERE pk.eq(id).first()`, типизирован под тип PK
 - `page(p, size)` — `LIMIT size OFFSET (p-1)*size`
+
+Изначально они жили на `SingleQueryBuilder`, который удалён в `0.2.0`. Сейчас
+`count`/`exists`/`page` — на `SelectQueryBuilder`
+(`orm/builders/select.ts:171`, `:105`, `:498`), `findById()` — там же
+(`select.ts:399`); у multi-билдера свой `count()`/`exists()`
+(`orm/builders/query.ts:274`).
 
 **Плюсы:** Меньше кода для типовых операций.
 
