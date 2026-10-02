@@ -28,13 +28,17 @@ describe('renderSql', () => {
   });
 
   it('preview matches the exact executed DDL (single source of truth)', () => {
+    // Инлайн UNIQUE у email здесь отсутствует намеренно: applyDiff его
+    // вырезает, потому что уникальность обеспечивает отдельный индекс.
+    // Если бы превью его печатало, `db:sql` отдавал бы файл, отличный от
+    // того, что сделает `db:migrate`.
     expect(renderSql(diff([createUsersOp(), addEmailIndexOp()]))).toBe(
       `BEGIN;
 
 CREATE TABLE "users" (
   "id" serial NOT NULL PRIMARY KEY,
   "name" character varying NOT NULL,
-  "email" character varying NOT NULL  UNIQUE
+  "email" character varying NOT NULL
 );
 
 CREATE UNIQUE INDEX "idx_users_email" ON "users" ("email");
@@ -47,11 +51,19 @@ COMMIT;
   it('renders create-table without inline unique for indexed columns', () => {
     const sql = renderSql(diff([createUsersOp(), addEmailIndexOp()]));
     expect(sql).toContain('CREATE TABLE "users" (');
-    expect(sql).toContain('"email" character varying NOT NULL  UNIQUE');
+    expect(sql).toContain('"email" character varying NOT NULL');
+    expect(sql).not.toContain('"email" character varying NOT NULL  UNIQUE');
     expect(sql).toContain('"id" serial NOT NULL PRIMARY KEY');
     expect(sql).toContain(
       'CREATE UNIQUE INDEX "idx_users_email" ON "users" ("email");',
     );
+  });
+
+  it('keeps inline unique for a column that gets no index op', () => {
+    // У колонки без своего индекса вырезать нечего — снять UNIQUE нечем,
+    // и колоночное ограничение остаётся единственным носителем.
+    const sql = renderSql(diff([createUsersOp()]));
+    expect(sql).toContain('"email" character varying NOT NULL  UNIQUE');
   });
 
   it('renders every op type', () => {

@@ -3,7 +3,8 @@
  */
 
 import type { DbDdlAdapter, SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type { DiffOp, DiffResult, AddIndexOp } from './types';
+import type { DiffOp, DiffResult } from './types';
+import { createTableColumns } from './types';
 
 /** Render a single DiffOp as a human-readable description */
 function opToString(op: DiffOp): string {
@@ -87,20 +88,7 @@ async function applyDiffOps(
   // Indexes and FKs are handled in phase 2
   const tableOps = diff.operations.filter((o) => o.type === 'create-table');
   for (const op of tableOps) {
-    // Strip inline UNIQUE from columns that will get separate index ops
-    // (otherwise PG auto-creates indexes with _key suffix that we can't track)
-    const idxFieldNames = new Set(
-      diff.operations
-        .filter(
-          (o): o is AddIndexOp =>
-            o.type === 'add-index' && o.index.tableName === op.table,
-        )
-        .flatMap((o) => o.index.columns),
-    );
-    const cols = op.columns.map((c) => ({
-      ...c,
-      isUnique: idxFieldNames.has(c.name) ? false : c.isUnique,
-    }));
+    const cols = createTableColumns(op.table, op.columns, diff.operations);
     await ddl.createTable(op.table, cols);
     applied.push(opToString(op));
   }

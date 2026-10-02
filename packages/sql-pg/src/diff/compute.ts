@@ -166,7 +166,12 @@ export async function computeDiff(
     // Index diff
     const expectedIdxs = expectedIndexes(tableName, ir.fields);
     const expectedIdxNames = new Set(expectedIdxs.map((i) => i.name));
-    const dbIdxNames = new Set(dbIndexes.map((i) => i.name));
+    // По имени, а не только по факту существования: уникальность — часть
+    // ожидаемого состояния индекса, и по одному имени расхождение не видно.
+    // Сверка по имени молча пропускала оба перехода — поставить и снять
+    // `.unique()` на существующем индексе, — оставляя схему в том виде, в
+    // каком она была до правки модели.
+    const dbIdxsByName = new Map(dbIndexes.map((i) => [i.name, i]));
 
     // Skip PG auto-generated indexes (UNIQUE constraint creates `table_col_key`)
     const nonSystemDbIdx = dbIndexes.filter(
@@ -174,8 +179,18 @@ export async function computeDiff(
     );
 
     for (const idx of expectedIdxs) {
-      if (!dbIdxNames.has(idx.name)) {
+      const existing = dbIdxsByName.get(idx.name);
+      if (!existing) {
         operations.push({ type: 'add-index', index: idx });
+        summary.addedIndexes++;
+      } else if (existing.isUnique !== idx.isUnique) {
+        // Отдельной операции «сменить уникальность» нет, а имена совпадают,
+        // поэтому пересоздаём индекс существующими же op-ами. Порядок важен:
+        // applyDiff выполняет операции в порядке массива, drop должен идти
+        // раньше add, иначе add упрётся в уже существующий индекс.
+        operations.push({ type: 'drop-index', indexName: idx.name, tableName });
+        operations.push({ type: 'add-index', index: idx });
+        summary.droppedIndexes++;
         summary.addedIndexes++;
       }
     }

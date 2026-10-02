@@ -84,6 +84,17 @@ Converts PostgreSQL `int8` (bigint) to JavaScript `number`. **Warning**: global 
 - **Валидация** — `assertReferentialAction()` (`ddl-validate.ts`) проверяет и `op.fk`, и `op.oldFk`/`op.newFk` у ALTER. Значение приходит из IR, а не от пользователя, но проверка всё равно нужна: в `ON DELETE` нельзя подставить произвольный SQL.
 
 Тесты: `test/diff/types.test.ts` (форма `expectedForeignKeys`), `test/diff/compute.test.ts` (порождение alter-операции), `test/diff/apply.test.ts` + `test/diff/render.test.ts` (DROP/ADD и текст превью), `test-project/test/ddl-fk.test.ts` (реальный PostgreSQL: `information_schema`, смена действия на существующем FK, `checkHealth`).
+## Indexes and Uniqueness
+
+Уникальность в этой схеме выражается **только индексом**. `expectedIndexes()` (`diff/types.ts`) строит `idx_<table>_<field>`; оторвать `.unique()` от колоночного `UNIQUE` нельзя — иначе PostgreSQL создаст ещё и собственный `table_col_key`, который `computeDiff()` отфильтровывает как системный, то есть неотслеживаемый мусор рядом с нашим индексом.
+
+- **Один источник правды для превью** — `createTableColumns()` (`diff/types.ts`) вырезает инлайн `UNIQUE` у колонок, которым достаётся отдельный `add-index`. Его зовут и `apply.ts` (фаза 1), и `render.ts` (ветка `create-table`). Дублировать эту логику в одном из них нельзя: `db:sql` начнёт показывать DDL, отличный от того, что сделает `db:migrate`.
+- **Сверка по имени и по `isUnique`** — `computeDiff()` ищет существующий индекс по имени (`Map` от `DbIndex`, а не `Set` имён) и сверяет уникальность. Имя у `.unique()`-поля и у обычного `f.index` одно, поэтому сверка только по имени молча пропускала оба перехода — поставить и снять `.unique()` на существующем индексе.
+- **Пересоздание, а не «изменение»** — отдельной операции «сменить уникальность» в PG нет, поэтому расхождение разворачивается в `drop-index` → `add-index`. Порядок обязателен: `apply.ts` выполняет операции в порядке массива, и `add-index` перед `drop-index` упрётся в уже существующий индекс.
+- **Индекс с `isUnique: true` на данных с дублями** упадёт с PG `23505`. Это намеренно: миграция должна сообщить о конфликте, а не молча оставить схему неуникальной.
+
+Тесты: `test/diff/compute.test.ts` (пересоздание индекса в обе стороны и отсутствие операций при совпадении), `test/diff/render.test.ts` (нет инлайн `UNIQUE` у индексированной колонки, но он есть у колонки без индекса), `test/diff/apply.test.ts` (порядок фаз), `test-project/test/ddl-one-to-one.test.ts` (реальный PostgreSQL: уникальный индекс от `.oneToOne()`, вставка дубля → `23505`).
+
 ## Rules
 
 - **All SQL generation** goes through `SqlGenerator` — never build SQL strings directly

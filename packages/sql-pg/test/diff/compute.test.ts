@@ -230,6 +230,78 @@ describe('computeDiff', () => {
     });
   });
 
+  it('recreates an index when uniqueness is gained on an existing name', async () => {
+    // IR хочет уникальный email, в БД индекс с тем же именем есть, но
+    // неуникальный. Сверка только по имени дала бы пустой diff, и уникальность
+    // не появилась бы никогда.
+    const ddl = syncedDdl();
+    ddl.indexes.set('users', [
+      {
+        name: 'idx_users_email',
+        tableName: 'users',
+        columns: ['email'],
+        isUnique: false,
+      },
+    ]);
+    const diff = await computeDiff(irs, ddl);
+
+    expect(diff.summary.droppedIndexes).toBe(1);
+    expect(diff.summary.addedIndexes).toBe(1);
+
+    const idxOps = diff.operations.filter(
+      (o) => o.type === 'drop-index' || o.type === 'add-index',
+    );
+    // Порядок обязателен: applyDiff выполняет операции как есть, и add-index
+    // перед drop-index упёрся бы в уже существующий индекс.
+    expect(idxOps.map((o) => o.type)).toEqual(['drop-index', 'add-index']);
+    expect(idxOps[0]).toMatchObject({
+      type: 'drop-index',
+      indexName: 'idx_users_email',
+      tableName: 'users',
+    });
+    expect(idxOps[1]).toMatchObject({
+      type: 'add-index',
+      index: { name: 'idx_users_email', isUnique: true, columns: ['email'] },
+    });
+  });
+
+  it('recreates an index when uniqueness is dropped', async () => {
+    // Обратный переход: `.unique()` сняли с поля, но имя индекса осталось тем
+    // же, поэтому по имени расхождения не видно — а ограничение осталось бы
+    // в схеме навсегда.
+    const ddl = syncedDdl();
+    ddl.indexes.set('posts', [
+      {
+        name: 'idx_posts_author',
+        tableName: 'posts',
+        columns: ['author'],
+        isUnique: true,
+      },
+    ]);
+    const diff = await computeDiff(irs, ddl);
+
+    expect(diff.summary.droppedIndexes).toBe(1);
+    const idxOps = diff.operations.filter(
+      (o) => o.type === 'drop-index' || o.type === 'add-index',
+    );
+    expect(idxOps.map((o) => o.type)).toEqual(['drop-index', 'add-index']);
+    expect(idxOps[1]).toMatchObject({
+      type: 'add-index',
+      index: { name: 'idx_posts_author', isUnique: false },
+    });
+  });
+
+  it('does not touch an index whose uniqueness already matches', async () => {
+    const diff = await computeDiff(irs, syncedDdl());
+    expect(
+      diff.operations.filter(
+        (o) => o.type === 'drop-index' || o.type === 'add-index',
+      ),
+    ).toEqual([]);
+    expect(diff.summary.addedIndexes).toBe(0);
+    expect(diff.summary.droppedIndexes).toBe(0);
+  });
+
   it('emits drop-index for an unexpected non-system index', async () => {
     const ddl = syncedDdl();
     ddl.indexes.set('posts', [

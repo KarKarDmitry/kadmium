@@ -6,6 +6,7 @@
  */
 
 import type { DiffOp, DiffResult } from './types';
+import { createTableColumns } from './types';
 import { assertDiffOpSqlSafe } from '../ddl-validate';
 import {
   addColumnSql,
@@ -20,11 +21,16 @@ import {
   dropTableSql,
 } from '../ddl-sql';
 
-function opToSql(op: DiffOp): string {
+function opToSql(op: DiffOp, operations: ReadonlyArray<DiffOp>): string {
   assertDiffOpSqlSafe(op);
   switch (op.type) {
     case 'create-table':
-      return `${createTableSql(op.table, op.columns)};`;
+      // Тот же хелпер, что в applyDiff: превью не должно обещать инлайн
+      // UNIQUE, которого при применении не будет.
+      return `${createTableSql(
+        op.table,
+        createTableColumns(op.table, op.columns, operations),
+      )};`;
     case 'drop-table':
       return `${dropTableSql(op.table)};`;
     case 'add-column':
@@ -53,6 +59,6 @@ function opToSql(op: DiffOp): string {
 
 export function renderSql(diff: DiffResult): string {
   if (!diff.hasChanges) return '-- No changes needed.\n';
-  const lines = diff.operations.map((op) => opToSql(op));
+  const lines = diff.operations.map((op) => opToSql(op, diff.operations));
   return `BEGIN;\n\n${lines.join('\n\n')}\n\nCOMMIT;\n`;
 }
