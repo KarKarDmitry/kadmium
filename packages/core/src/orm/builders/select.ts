@@ -52,16 +52,15 @@ type Model = {
 /**
  * Терминал count()/exists() с SQL-превью.
  *
- * `sql()` помечен @deprecated (единый путь к SQL — `.compile().sql()`),
+ * Определён в base-query-builder.ts — им пользуется и multi-билдер; здесь
+ * реэкспорт, чтобы публичный путь `builders/select` остался прежним.
+ *
+ * `sql()` помечен @deprecated (единый путь к SQL — `.compile().text`),
  * но остаётся, потому что count/exists — терминалы, а не билдеры,
  * и `.compile()` у них нет.
  */
-export interface SqlPreviewTerminal<TExec> {
-  go(): Promise<TExec>;
-  /** @deprecated Используйте `.compile().sql()`. */
-  sql(): string;
-}
-
+export type { SqlPreviewTerminal } from './base-query-builder';
+import type { SqlPreviewTerminal } from './base-query-builder';
 /**
  * Шаги конфигурации, нейтральные к состоянию SELECT — возвращают `this`.
  *

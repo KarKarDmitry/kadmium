@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { sql } from '../../src/orm/sql-fragment';
-import { SingleQueryBuilder } from '../../src/orm/builders/single';
+import { SelectQueryBuilder } from '../../src/orm/builders/select';
 import type { SqlAdapter, OrderStep } from '@karkardmitry/kadmium-sql-types';
 import { makeMockAdapter, type MockAdapter } from './helpers';
 import type { ModelIR } from '../../src/ir/index';
@@ -38,7 +38,7 @@ const USER_IR: ModelIR = {
 };
 
 function builder(adapter?: MockAdapter) {
-  return new SingleQueryBuilder(
+  return new SelectQueryBuilder(
     USER_IR,
     undefined,
     adapter as unknown as SqlAdapter,

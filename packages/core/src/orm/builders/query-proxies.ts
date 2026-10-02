@@ -1,5 +1,5 @@
 /**
- * Shared proxy factories for SingleQueryBuilder and Relation.
+ * Shared proxy factories for SelectQueryBuilder/MultiQueryBuilder and Relation.
  *
  * Both classes create identical Proxy objects for filter/select/order
  * access — the only difference is the source of `alias`, `ir`, and `sqb`.

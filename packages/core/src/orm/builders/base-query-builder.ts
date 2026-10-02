@@ -13,6 +13,18 @@ import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { buildDebugSql } from './utils';
 
 /**
+ * Терминал count()/exists() с SQL-превью.
+ *
+ * Живёт здесь, а не в select.ts: тип нужен и select-, и multi-билдеру, а
+ * select.ts не может импортироваться из query.ts без лишней зависимости.
+ */
+export interface SqlPreviewTerminal<TExec> {
+  go(): Promise<TExec>;
+  /** @deprecated Используйте `.compile().text`. */
+  sql(): string;
+}
+
+/**
  * BaseQueryBuilder — приватная общая реализация шагов single/multi.
  *
  * Оба билдера разделяют одинаковые тела where/and/or/order/groupBy/limit/offset
@@ -100,7 +112,7 @@ export abstract class BaseQueryBuilder<TFilter, TSelect, TOrder> {
   }
 
   /**
-   * @deprecated Используйте `.compile()` — SQL-preview для дебага — `.compile().sql()`.
+   * @deprecated Используйте `.compile()` — SQL-preview для дебага — `.compile().text`.
    */
   toSql(): string {
     return this._toSqlFrom(this.sqb.clone());

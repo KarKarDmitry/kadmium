@@ -3,8 +3,15 @@ import type { WhereExpression } from '../ast/where';
 import { SelectableField } from '../ast/selectable';
 import { createFilter } from '../field-builders/factory';
 import { createOrderProxy } from './query-proxies';
-import { BaseQueryBuilder } from './base-query-builder';
-import { toSqlCondition, type SqlFragment } from '../sql-fragment';
+import {
+  BaseQueryBuilder,
+  type SqlPreviewTerminal,
+} from './base-query-builder';
+import {
+  toSqlCondition,
+  type SqlFragment,
+  type SqlOrder,
+} from '../sql-fragment';
 import type { ModelIR } from '../../ir/index';
 import type {
   MultiFilterProxy,
@@ -13,6 +20,7 @@ import type {
   AliasesMap,
   FinalResult,
   SelectTools,
+  OrderDirection,
 } from '../types/proxy';
 import type { IncludeConfig } from '../types/includes';
 import type {
@@ -31,7 +39,6 @@ import {
   configureRelation,
   type IncludeConfigValue,
 } from './include-utils';
-import type { SqlPreviewTerminal } from './single';
 import { assertNoDuplicateJoin, assertSelectAliasKnown } from '../guards';
 
 export type MultiIncludeConfig<T extends AliasesMap> = {
@@ -63,7 +70,7 @@ export interface MultiFieldsResult<
 > {
   /**
    * @deprecated Используйте `.compile()` — он возвращает CompiledQuery с
-   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().sql()`.
+   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().text`.
    */
   toSql(): string;
   go(): Promise<FinalResult<S, T, C>[]>;
@@ -87,7 +94,7 @@ export interface MultiFirstResult<
 > {
   /**
    * @deprecated Используйте `.compile()` — он возвращает CompiledQuery с
-   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().sql()`.
+   *   .text/.values/.slotOrder; SQL-preview для дебага — `.compile().text`.
    */
   toSql(): string;
   go(): Promise<FinalResult<S, T, C> | undefined>;
@@ -427,4 +434,78 @@ export class MultiQueryBuilder<
         ),
     });
   }
+}
+
+/**
+ * MultiConfigHandle — публичная ветка multi-билдера.
+ *
+ * Единственная ветка: разрешены все шаги, порядок не важен. Живёт здесь,
+ * а не в общем handles.ts, потому что веток для single больше нет —
+ * сужение DML-поверхности было нужно только смешанной read/write модели.
+ */
+export interface MultiConfigHandle<
+  T extends AliasesMap,
+  TInclude extends MultiIncludeConfig<T> = Record<never, never>,
+> {
+  /** Текущий снапшот запроса (тестовый/дебаг-доступ к AST). */ readonly sqb: KadmiumSqb;
+  where(
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
+  ): MultiConfigHandle<T, TInclude>;
+  and(
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
+  ): MultiConfigHandle<T, TInclude>;
+  or(
+    fn: (t: MultiFilterProxy<T>) => WhereExpression | SqlFragment | undefined,
+  ): MultiConfigHandle<T, TInclude>;
+  groupBy(
+    fn: (
+      t: MultiFieldsProxy<T>,
+    ) => ReadonlyArray<SelectableField | SqlFragment>,
+  ): MultiConfigHandle<T, TInclude>;
+  order(
+    fn: (
+      t: MultiOrderProxy<T>,
+    ) => (OrderDirection | SqlOrder<'asc' | 'desc'>)[],
+  ): MultiConfigHandle<T, TInclude>;
+  limit(n: number): MultiConfigHandle<T, TInclude>;
+  offset(n: number): MultiConfigHandle<T, TInclude>;
+  join(options: {
+    left: keyof T & string;
+    right: keyof T & string;
+    direction?: 'inner' | 'left' | 'right' | 'outer';
+    on: (
+      tables: MultiFilterProxy<T>,
+    ) => WhereExpression | SqlFragment | undefined;
+  }): MultiConfigHandle<T, TInclude>;
+  include<const C extends MultiIncludeConfig<T>>(
+    config: C,
+  ): MultiConfigHandle<T, C>;
+  fields<const NS extends readonly AnySelectable[]>(
+    fn: (t: MultiFieldsProxy<T>, tools: SelectTools) => NS,
+  ): MultiFieldsResult<NS, T, TInclude>;
+  fields<const NS extends readonly AnySelectable[]>(
+    items: NS,
+  ): MultiFieldsResult<NS, T, TInclude>;
+  fields<const NS extends AnySelectable>(
+    item: NS,
+  ): MultiFieldsResult<[NS], T, TInclude>;
+  /** Терминал count() с SQL-превью — считает все строки (без limit/offset). */
+  count(): SqlPreviewTerminal<number>;
+  /** Терминал exists() с SQL-превью — LIMIT 1, без влияния offset. */
+  exists(): SqlPreviewTerminal<boolean>;
+  /** first() = select() + LIMIT 1: одна строка | undefined. */
+  first<const NS extends readonly AnySelectable[]>(
+    fn: (t: MultiFieldsProxy<T>, tools: SelectTools) => NS,
+  ): MultiFirstResult<NS, T, TInclude>;
+  first<const NS extends readonly AnySelectable[]>(
+    items: NS,
+  ): MultiFirstResult<NS, T, TInclude>;
+  first<const NS extends AnySelectable>(
+    item: NS,
+  ): MultiFirstResult<[NS], T, TInclude>;
+  /** Копия билдера: независимый sqb, общие irs/adapter. */ clone(): MultiConfigHandle<
+    T,
+    TInclude
+  >;
+  /** @deprecated Используйте `.compile()`; SQL-preview — `.compile().text`. */ toSql(): string;
 }

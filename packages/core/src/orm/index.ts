@@ -1,6 +1,5 @@
 export { OrmManager } from './orm';
 export type { RawRunner } from './compiled-query';
-export { SingleQueryBuilder } from './builders/single';
 export { MultiQueryBuilder } from './builders/query';
 export { SelectQueryBuilder } from './builders/select';
 export type { SelectHandle } from './builders/select';
@@ -24,16 +23,7 @@ export type {
   SetData,
   RawDmlData,
 } from './types/dml-data';
-export type { MultiFieldsResult } from './builders/query';
-export type {
-  SingleShared,
-  SingleDml,
-  DmlConfigHandle,
-  SingleConfigHandle,
-  SingleOrderingBranch,
-  SingleCursorBranch,
-  MultiConfigHandle,
-} from './builders/handles';
+export type { MultiFieldsResult, MultiConfigHandle } from './builders/query';
 export { KadmiumSqb } from './sqb';
 export { and, or } from './where-expression';
 export { SelectableField } from './ast/selectable';

@@ -1,4 +1,3 @@
-import { SingleQueryBuilder } from './builders/single';
 import { MultiQueryBuilder } from './builders/query';
 import { SelectQueryBuilder, type SelectHandle } from './builders/select';
 import { UpdateQueryBuilder, type UpdateHandle } from './builders/update';
@@ -8,7 +7,7 @@ import {
   InsertManyBuilder,
   type InsertManyHandle,
 } from './builders/insert-many';
-import type { DmlConfigHandle, MultiConfigHandle } from './builders/handles';
+import type { MultiConfigHandle } from './builders/query';
 import type { ModelIR } from '../ir/index';
 import type { AppCore } from '../core/app-core';
 import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
@@ -26,7 +25,7 @@ import { isSqlFragment, type SqlFragment } from './sql-fragment';
  * OrmManager — менеджер ORM-запросов, привязанный к AppCore.
  *
  * IR кешируется: модели компилируются один раз при регистрации в AppCore
- * (ModelRegistry), а `single()`/`query()` читают из реестра (O(1)) вместо
+ * (ModelRegistry), а `select()`/`query()` читают из реестра (O(1)) вместо
  * повторной компиляции на каждый запрос. On-demand компиляция для моделей,
  * которых нет в реестре AppCore, живёт в AppCore (ModelRegistry.compileCount).
  */
@@ -66,32 +65,11 @@ export class OrmManager {
   }
 
   /**
-   * @deprecated Используйте явные входы по операциям: `select()` для чтения,
-   *   `update()` для записи. `single()` смешивает чтение и запись на одной
-   *   поверхности, поэтому DML-шаги приходится сузить на типах.
-   *   См. `plans/crud-api.md`.
-   */
-  single<
-    TModel extends {
-      ['~shape']: Record<string, unknown>;
-      ['~rel']: Record<string, unknown>;
-      ['~relInfo']: Record<string, unknown>;
-    },
-  >(modelClass: { new (): TModel }, ir?: ModelIR): DmlConfigHandle<TModel> {
-    const compiled = ir ?? this._irFor(modelClass);
-    return new SingleQueryBuilder<TModel>(
-      compiled,
-      this._irLookup,
-      this._adapter,
-    ) as unknown as DmlConfigHandle<TModel>;
-  }
-
-  /**
    * Вход операции SELECT — новая явная поверхность CRUD API.
    *
    * Только чтение: ни `update`, ни `delete`, ни `create` здесь не появятся
-   * (см. `plans/crud-api.md`). Отличие от `single()` — проектция называется
-   * `fields()`, а include принимает объект `{ posts: ... }`.
+   * (см. `plans/crud-api.md`). Проекция называется `fields()`, а include
+   * принимает объект `{ posts: ... }`.
    *
    * @example
    * const active = await orm.select(User)
@@ -292,8 +270,8 @@ export class OrmManager {
    * Общий appCore/registry/IR — меняется только подключение/рендер SQL.
    *
    * @example
-   *   app.orm.withAdapter(createDebugAdapter()).single(User).toSql();
-   *   app.orm.withAdapter(readReplica).single(User).where(...).go();
+   *   app.orm.withAdapter(createDebugAdapter()).select(User).compile();
+   *   app.orm.withAdapter(readReplica).select(User).where(...).go();
    */
   withAdapter(adapter: SqlAdapter): OrmManager {
     return new OrmManager(this.appCore, adapter);
@@ -318,7 +296,7 @@ export class OrmManager {
               compiled.sqb,
               await adapter.raw<Record<string, unknown>>(text, params),
             );
-            // single-режим (first()): разворачиваем rows[0] как go() билдера
+            // first()-режим: разворачиваем rows[0] как go() билдера
             return (compiled.single ? rows[0] : rows) as ExtractResult<C>;
           },
         };

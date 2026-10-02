@@ -6,10 +6,6 @@ import {
   assertDmlUpdateNoLimit,
   assertDmlUpdateNoOrder,
   assertDmlUpdateNoGroupBy,
-  assertDmlDelete,
-  assertDmlDeleteNoLimit,
-  assertDmlDeleteNoOrder,
-  assertDmlDeleteNoGroupBy,
   assertDmlInsert,
   assertDmlInsertNoLimit,
   assertDmlInsertNoOrder,
@@ -82,14 +78,6 @@ describe('guards — DML: limit/offset', () => {
     expect(() => assertDmlUpdateNoLimit(sqb)).toThrow(/not supported/);
   });
 
-  it('delete: limit(1).delete() — самая дорогая ошибка, ловится', () => {
-    const sqb = withWhere();
-    sqb.limit = 1;
-    expect(() => assertDmlDeleteNoLimit(sqb)).toThrow(
-      /not supported with delete\(\)/,
-    );
-  });
-
   it('insert: limit', () => {
     const sqb = new KadmiumSqb();
     sqb.limit = 1;
@@ -98,7 +86,6 @@ describe('guards — DML: limit/offset', () => {
 
   it('чистый sqb без пагинации проходит', () => {
     expect(() => assertDmlUpdateNoLimit(withWhere())).not.toThrow();
-    expect(() => assertDmlDeleteNoLimit(withWhere())).not.toThrow();
     expect(() => assertDmlInsertNoLimit(new KadmiumSqb())).not.toThrow();
   });
 
@@ -128,12 +115,6 @@ describe('guards — DML: order/cursor', () => {
     expect(() => assertDmlUpdateNoOrder(sqb)).toThrow(/not supported/);
   });
 
-  it('delete: order()', () => {
-    expect(() => assertDmlDeleteNoOrder(withOrder())).toThrow(
-      /not supported with delete\(\)/,
-    );
-  });
-
   it('insert: order()', () => {
     const sqb = new KadmiumSqb();
     sqb.orders.push({
@@ -147,17 +128,13 @@ describe('guards — DML: order/cursor', () => {
 
   it('без порядка проходит', () => {
     expect(() => assertDmlUpdateNoOrder(withWhere())).not.toThrow();
-    expect(() => assertDmlDeleteNoOrder(withWhere())).not.toThrow();
   });
 });
 
 describe('guards — DML: groupBy', () => {
-  it('update/delete/insert: groupBy()', () => {
+  it('update/insert: groupBy()', () => {
     expect(() => assertDmlUpdateNoGroupBy(withGroupBy())).toThrow(
       /groupBy\(\) is not supported with update\(\)/,
-    );
-    expect(() => assertDmlDeleteNoGroupBy(withGroupBy())).toThrow(
-      /not supported with delete\(\)/,
     );
     expect(() => assertDmlInsertNoGroupBy(withGroupBy())).toThrow(
       /not supported/,
@@ -209,10 +186,9 @@ describe('guards — пакетные assert-ы', () => {
     );
   });
 
-  it('assertDmlUpdate/Delete/Insert на чистом sqb не бросают', () => {
+  it('assertDmlUpdate/Insert на чистом sqb не бросают', () => {
     const clean = withWhere();
     expect(() => assertDmlUpdate(clean)).not.toThrow();
-    expect(() => assertDmlDelete(clean)).not.toThrow();
     // where запрещён только для INSERT
     expect(() => assertDmlInsert(withWhere())).toThrow(/not supported/);
     expect(() => assertDmlInsert(new KadmiumSqb())).not.toThrow();

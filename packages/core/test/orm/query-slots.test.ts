@@ -8,7 +8,7 @@ import {
   NumberFilter,
 } from '../../src/orm/field-builders/filters';
 import { aggregates } from '../../src/orm/field-builders/aggregates';
-import { SingleQueryBuilder } from '../../src/orm/builders/single';
+import { SelectQueryBuilder } from '../../src/orm/builders/select';
 import { AllFields } from '../../src/orm/types/includes';
 import { makeSqb, makeUserIR } from './helpers';
 import type { SlotDefinition } from '@karkardmitry/kadmium-sql-types';
@@ -110,9 +110,9 @@ describe('QuerySlots — type-level', () => {
   });
 
   it('ArrayField is excluded from select (not a column)', () => {
-    const b = new SingleQueryBuilder<User2, AllFields>(makeUserIR(), undefined);
+    const b = new SelectQueryBuilder<User2, AllFields>(makeUserIR(), undefined);
     // @ts-expect-error — ArrayField — не колонка, select([u.id.array]) запрещён
-    b.select((u) => [u.id.array]);
+    b.fields((u) => [u.id.array]);
   });
 });
 

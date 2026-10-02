@@ -49,7 +49,7 @@ async function largeSeed(h: { orm: OrmManager; adapter: SqlAdapter }) {
         };
       },
     );
-    const created = await h.orm.single(UserModel).createMany(batch).go();
+    const created = await h.orm.insertMany(UserModel).values(batch).go();
     userIds.push(...created.map((r) => r.id));
   }
 
@@ -70,7 +70,7 @@ async function largeSeed(h: { orm: OrmManager; adapter: SqlAdapter }) {
         author: userIds[userIdx],
       };
     });
-    const created = await h.orm.single(PostModel).createMany(batch).go();
+    const created = await h.orm.insertMany(PostModel).values(batch).go();
     postIds.push(...created.map((r) => r.id));
   }
 
@@ -88,7 +88,7 @@ async function largeSeed(h: { orm: OrmManager; adapter: SqlAdapter }) {
         user: userIds[c % userIds.length],
       };
     });
-    await h.orm.single(CommentModel).createMany(batch).go();
+    await h.orm.insertMany(CommentModel).values(batch).go();
   }
 
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
@@ -148,14 +148,14 @@ async function main() {
   console.log('═'.repeat(60));
 
   // 1. Select all fields — single table
-  await bench('1. select() all fields — single table (5000 rows)', async () => {
-    await h.orm.single(UserModel).go();
+  await bench('1. select() all fields — one table (5000 rows)', async () => {
+    await h.orm.select(UserModel).go();
   });
 
   // 2. Select with where — single table
   await bench('2. where() + select() — filtered (≈3333 rows)', async () => {
     await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .where((u) => u.active.eq(true))
       .go();
   });
@@ -164,14 +164,14 @@ async function main() {
   await bench(
     '3. include() to-many — user → posts (10 posts each)',
     async () => {
-      await h.orm.single(UserModel).include({ posts: true }).go();
+      await h.orm.select(UserModel).include({ posts: true }).go();
     },
   );
 
   // 4. Include nested: user → posts → author
   await bench('4. include() nested — user → posts → author', async () => {
     await h.orm
-      .single(UserModel)
+      .select(UserModel)
       .include({ posts: { include: { author: true } } })
       .go();
   });
@@ -181,7 +181,7 @@ async function main() {
     '5. toSql() — SQL generation (no exec)',
     async () => {
       h.orm
-        .single(UserModel)
+        .select(UserModel)
         .include({ posts: true })
         .where((u) => u.active.eq(true))
         .toSql();
@@ -200,23 +200,23 @@ async function main() {
   });
 
   await bench(
-    `6a. create() × ${N} — loop (1 query per row)`,
+    `6a. insert().values() × ${N} — loop (1 query per row)`,
     async () => {
       benchRun++;
       for (let i = 0; i < N; i++) {
-        await h.orm.single(UserModel).create(makeUserRow(i)).go();
+        await h.orm.insert(UserModel).values(makeUserRow(i)).go();
       }
     },
     3,
   );
 
   await bench(
-    `6b. createMany(${N}) — single batch query`,
+    `6b. insertMany(${N}) — one batch query`,
     async () => {
       benchRun++;
       await h.orm
-        .single(UserModel)
-        .createMany(Array.from({ length: N }, (_, i) => makeUserRow(i)))
+        .insertMany(UserModel)
+        .values(Array.from({ length: N }, (_, i) => makeUserRow(i)))
         .go();
     },
     3,
@@ -258,7 +258,7 @@ async function main() {
     };
 
     // Warmup
-    await h.orm.single(UserModel).include({ posts: true }).go();
+    await h.orm.select(UserModel).include({ posts: true }).go();
 
     // Benchmark with timing
     const ITERS = 5;
@@ -267,7 +267,7 @@ async function main() {
       sqlGenMs = 0;
       dbExecMs = 0;
       reshapeMs = 0;
-      await h.orm.single(UserModel).include({ posts: true }).go();
+      await h.orm.select(UserModel).include({ posts: true }).go();
       totals.push({ sql: sqlGenMs, db: dbExecMs, reshape: reshapeMs });
     }
 
@@ -299,7 +299,7 @@ async function main() {
   console.log('GENERATED SQL (include to-many)');
   console.log('═'.repeat(60));
   const includeQuery = h.orm
-    .single(UserModel)
+    .select(UserModel)
     .include({ posts: true })
     .limit(3);
   const sql = h.adapter.toSql(includeQuery.sqb);

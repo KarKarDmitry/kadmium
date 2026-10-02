@@ -1,16 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import { sql, SqlValue, toSqlValue } from '../../src/orm/sql-fragment';
-import { SingleQueryBuilder } from '../../src/orm/builders/single';
+import { UpdateQueryBuilder } from '../../src/orm/builders/update';
+import { InsertBuilder } from '../../src/orm/builders/insert';
+import { InsertManyBuilder } from '../../src/orm/builders/insert-many';
 import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { makeMockAdapter, type MockAdapter, makeUserIR } from './helpers';
 
-function builder(adapter?: MockAdapter) {
-  return new SingleQueryBuilder(
-    makeUserIR(),
-    undefined,
-    adapter as unknown as SqlAdapter,
-  );
-}
+const ir = () => makeUserIR();
+const adapterOf = (a?: MockAdapter) => a as unknown as SqlAdapter;
+
+/** UPDATE: `set(data)` — первый шаг, он же и делает билдер пригодным. */
+const upd = (adapter?: MockAdapter) =>
+  new UpdateQueryBuilder(ir(), undefined, adapterOf(adapter));
+/** INSERT одиночный: идёт через operation='upsert' → adapter.execute. */
+const ins = (adapter?: MockAdapter) =>
+  new InsertBuilder(ir(), undefined, adapterOf(adapter));
+/** INSERT батч: уходит в adapter.createMany мимо sqb. */
+const insMany = (adapter?: MockAdapter) =>
+  new InsertManyBuilder(ir(), undefined, adapterOf(adapter));
 
 describe('DML-значения по sql-фрагменту (F)', () => {
   it('SqlValue компилирует текст/параметры/слоты в конструкторе', () => {
@@ -28,10 +35,10 @@ describe('DML-значения по sql-фрагменту (F)', () => {
     expect(toSqlValue('x')).toBe('x');
   });
 
-  it('update() с фрагментом кладёт SqlValue в updateData (объект-форма)', async () => {
+  it('set() с фрагментом кладёт SqlValue в updateData (объект-форма)', async () => {
     const adapter = makeMockAdapter();
     adapter.execute.mockResolvedValueOnce([{ id: 5, age: 6 }]);
-    const finalizer = builder(adapter).update({
+    const finalizer = upd(adapter).set({
       age: sql`"User"."age" + ${1}`,
     });
     await finalizer.go();
@@ -45,10 +52,10 @@ describe('DML-значения по sql-фрагменту (F)', () => {
     expect((captured.updateData.age as SqlValue).values).toEqual([1]);
   });
 
-  it('update() с коллбэком и proxy-рефом: `${u.age}` → "User"."age"', async () => {
+  it('set() с коллбэком и proxy-рефом: `${u.age}` → "User"."age"', async () => {
     const adapter = makeMockAdapter();
     adapter.execute.mockResolvedValueOnce([{ id: 5, age: 6 }]);
-    const finalizer = builder(adapter).update((u: any) => ({
+    const finalizer = upd(adapter).set((u: any) => ({
       age: sql`${u.age} + ${1}`,
     }));
     await finalizer.go();
@@ -60,10 +67,10 @@ describe('DML-значения по sql-фрагменту (F)', () => {
     );
   });
 
-  it('create() с фрагментом кладёт SqlValue в upsertData', async () => {
+  it('values() с фрагментом кладёт SqlValue в upsertData', async () => {
     const adapter = makeMockAdapter();
     adapter.execute.mockResolvedValueOnce([{ id: 1, active: true }]);
-    const finalizer = builder(adapter).create({ active: sql`TRUE` });
+    const finalizer = ins(adapter).values({ active: sql`TRUE` });
     await finalizer.go();
     const captured = adapter.execute.mock.calls[0][0] as {
       upsertData: Record<string, unknown>;
@@ -73,14 +80,14 @@ describe('DML-значения по sql-фрагменту (F)', () => {
     expect((captured.upsertData.active as SqlValue).values).toEqual([]);
   });
 
-  it('createMany().onConflict().set() передаёт setData через adapter.createMany', async () => {
+  it('insertMany().onConflict().set() передаёт setData через adapter.createMany', async () => {
     const adapter = makeMockAdapter();
     adapter.createMany.mockResolvedValueOnce([
       { id: 1, age: 2 },
       { id: 2, age: 3 },
     ]);
-    const finalizer = builder(adapter)
-      .createMany([
+    const finalizer = insMany(adapter)
+      .values([
         { id: 1, age: 2 },
         { id: 2, age: 3 },
       ])
@@ -105,8 +112,8 @@ describe('DML-значения по sql-фрагменту (F)', () => {
 
   it('set() обычное значение не оборачивается в SqlValue', async () => {
     const adapter = makeMockAdapter();
-    const finalizer = builder(adapter)
-      .createMany([{ id: 1, age: 2 }])
+    const finalizer = insMany(adapter)
+      .values([{ id: 1, age: 2 }])
       .onConflict((t: any) => [t.id])
       .set({ age: 5 });
     await finalizer.go();
@@ -118,16 +125,16 @@ describe('DML-значения по sql-фрагменту (F)', () => {
 
   it('set() без onConflict — ошибка', () => {
     const adapter = makeMockAdapter();
-    const finalizer = builder(adapter).createMany([{ id: 1, age: 2 }]);
+    const finalizer = insMany(adapter).values([{ id: 1, age: 2 }]);
     expect(() => finalizer.set({ age: sql`5` })).toThrow(
       'set() requires onConflict() first',
     );
   });
 
-  it('createMany() с фрагментом-ячейкой сохраняет SqlValue в строке', async () => {
+  it('values() с фрагментом-ячейкой сохраняет SqlValue в строке', async () => {
     const adapter = makeMockAdapter();
     adapter.createMany.mockResolvedValueOnce([{ id: 1, age: 0 }]);
-    const finalizer = builder(adapter).createMany([
+    const finalizer = insMany(adapter).values([
       { id: 1, age: sql`0` },
       { id: 2, age: 3 },
     ]);
@@ -141,10 +148,10 @@ describe('DML-значения по sql-фрагменту (F)', () => {
     expect(rows[1].age).toBe(3);
   });
 
-  it('create() ключи мапятся prop→alias, значения нормализуются', async () => {
+  it('values() ключи мапятся prop→alias, значения нормализуются', async () => {
     const adapter = makeMockAdapter();
     adapter.execute.mockResolvedValueOnce([{ id: 1, registeredAt: 0 }]);
-    const finalizer = builder(adapter).create({ age: sql`now()` });
+    const finalizer = ins(adapter).values({ age: sql`now()` });
     await finalizer.go();
     const captured = adapter.execute.mock.calls[0][0] as {
       upsertData: Record<string, unknown>;

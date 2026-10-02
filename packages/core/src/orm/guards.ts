@@ -167,21 +167,6 @@ export function assertDmlUpdateNoGroupBy(sqb: DmlSqB): void {
   if (hasGroupBy(sqb)) fail('update', 'groupBy', GROUP_REMEDY);
 }
 
-/** DELETE без limit/offset — `.limit(1).delete()` удалил бы все строки. */
-export function assertDmlDeleteNoLimit(sqb: DmlSqB): void {
-  if (hasLimitOrOffset(sqb)) fail('delete', 'limit', NARROW_REMEDY);
-}
-
-/** DELETE без order/cursor. */
-export function assertDmlDeleteNoOrder(sqb: DmlSqB): void {
-  if (hasOrdering(sqb)) fail('delete', 'order', NARROW_REMEDY);
-}
-
-/** DELETE без groupBy. */
-export function assertDmlDeleteNoGroupBy(sqb: DmlSqB): void {
-  if (hasGroupBy(sqb)) fail('delete', 'groupBy', GROUP_REMEDY);
-}
-
 /**
  * INSERT без limit/offset.
  * `buildInsertSql` не читает ничего, кроме данных, — пагинация молча пропала бы.
@@ -261,13 +246,6 @@ export function assertDmlUpdate(sqb: DmlSqB): void {
   assertDmlUpdateNoLimit(sqb);
   assertDmlUpdateNoOrder(sqb);
   assertDmlUpdateNoGroupBy(sqb);
-}
-
-/** @see assertDmlUpdate */
-export function assertDmlDelete(sqb: DmlSqB): void {
-  assertDmlDeleteNoLimit(sqb);
-  assertDmlDeleteNoOrder(sqb);
-  assertDmlDeleteNoGroupBy(sqb);
 }
 
 /** @see assertDmlUpdate */
