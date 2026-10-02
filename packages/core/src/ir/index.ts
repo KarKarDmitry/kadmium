@@ -120,6 +120,36 @@ export interface ModelIR {
   sourceFile?: string;
 }
 
+/**
+ * Проверить, что у модели ровно один первичный ключ (или ни одного).
+ *
+ * Ноль первичных — легально: пользователь мог объявить не-PK поле `id`
+ * или не объявлять PK вовсе. Больше одного — невалидная схема, а не редкий
+ * кейс: `irToColumns()` пометил бы обе колонки, а `columnDefSql()`
+ * напечатал `PRIMARY KEY` инлайн в каждой, и `CREATE TABLE` упал бы в
+ * PostgreSQL с `42710 multiple primary keys are not allowed`.
+ *
+ * Нужен на двух уровнях, потому что `ModelIR` — публичный контракт, а не
+ * только вывод `compileModel()`: IR можно собрать руками и отдать прямо в
+ * `computeDiff()`, минуя компиляцию модели. `compileModel()` зовёт эту же
+ * функцию, поэтому правило одно.
+ *
+ * @throws Error с перечислением полей, если первичных ключей больше одного.
+ */
+export function assertSinglePrimaryKey(ir: ModelIR): void {
+  const primaryKeys = Object.entries(ir.fields)
+    // Тот же предикат, что `isPrimaryField()` в sql-pg: рукописный IR может
+    // пометить ключ типом `'primary'` без `isPrimary`, и DDL-слой посчитает его
+    // первичным — проверка на одном признаке дала бы ложную уверенность.
+    .filter(([, f]) => f.isPrimary === true || f.type === 'primary')
+    .map(([name]) => name);
+  if (primaryKeys.length > 1) {
+    throw new Error(
+      `Model "${ir.name}": объявлено несколько primary-ключей — ${primaryKeys.join(', ')}. Первичный ключ должен быть один: оставьте одно поле через f.pk.`,
+    );
+  }
+}
+
 /** Конвертировать CamelCase/PascalCase в snake_case */
 export function toSnakeCase(name: string): string {
   return name

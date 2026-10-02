@@ -239,6 +239,24 @@ export function irToColumns(
   irFields: Record<string, IrField>,
   irs: Array<{ name: string; fields: Record<string, IrField> }>,
 ): DbColumn[] {
+  // Два первичных ключа дают два `PRIMARY KEY` инлайн в CREATE TABLE, и
+  // PostgreSQL отвечает `42710 multiple primary keys are not allowed` —
+  // сообщение про эту колонку ничего не говорит. Ловим здесь, где IR
+  // превращается в колонки, а не полагаемся на `compileModel()`: `ModelIR` —
+  // публичный контракт, и IR можно собрать руками и отдать прямо в
+  // `computeDiff()`. Модели, собранные через `Model`, до сюда не доходят с
+  // двумя ключами — их ловит `assertSinglePrimaryKey()` в core.
+  const primaryFields = Object.entries(irFields).filter(([, f]) =>
+    isPrimaryField(f),
+  );
+  if (primaryFields.length > 1) {
+    throw new Error(
+      `Model "${tableName}": объявлено несколько primary-ключей — ${primaryFields
+        .map(([name]) => name)
+        .join(', ')}. Первичный ключ должен быть один.`,
+    );
+  }
+
   return Object.entries(irFields)
     .filter(([, f]) => !f.sourceModel)
     .map(([name, f]) => ({

@@ -2,7 +2,11 @@ import { Model } from './index';
 import type { ModelSchema } from './types/model';
 import type { ReferenceField } from './types/ref';
 import type { ModelIR, FieldIR } from '../ir/index';
-import { toSnakeCase, toReferentialAction } from '../ir/index';
+import {
+  assertSinglePrimaryKey,
+  toSnakeCase,
+  toReferentialAction,
+} from '../ir/index';
 
 /**
  * Компилирует модель в IR — единственный контракт для всех слоёв.
@@ -63,20 +67,6 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
     fields[name] = base;
   }
 
-  // Два первичных ключа — невалидная схема, а не редкий кейс: `irToColumns()`
-  // пометил бы обе колонки, а `columnDefSql()` напечатал `PRIMARY KEY` инлайн
-  // в каждой, и `CREATE TABLE` упал бы в PostgreSQL с 42710. Ловим здесь, на
-  // компиляции модели, а не в `syncSchema`. Ноль первичных — легально
-  // (см. модель Session), поэтому условие строго «больше одного».
-  const primaryKeys = Object.entries(fields)
-    .filter(([, f]) => f.isPrimary === true)
-    .map(([name]) => name);
-  if (primaryKeys.length > 1) {
-    throw new Error(
-      `Model "${schema._meta.name}": объявлено несколько primary-ключей — ${primaryKeys.join(', ')}. Первичный ключ должен быть один: оставьте одно поле через f.pk.`,
-    );
-  }
-
   // Добавляем обратные связи как виртуальные поля
   for (const rel of refs) {
     // Пропускаем, если поле уже объявлено явно
@@ -135,12 +125,19 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
     }
   }
 
-  return {
+  const ir: ModelIR = {
     name: schema._meta.name,
     collection: toSnakeCase(schema._meta.name),
     fields,
     sourceFile,
   };
+
+  // Ловим на компиляции модели, а не в `syncSchema`: правило живёт в
+  // `ir/index.ts` и одно на оба уровня (см. `assertSinglePrimaryKey`).
+  // Обратные связи выше проверены быть не могут — у них `sourceModel`
+  // и `isPrimary` не бывает.
+  assertSinglePrimaryKey(ir);
+  return ir;
 }
 
 /**

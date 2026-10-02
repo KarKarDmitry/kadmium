@@ -432,6 +432,38 @@ describe('irToColumns', () => {
     const cols = irToColumns('t', fields, []);
     expect(cols[0].autoIncrement).toBe(false);
   });
+
+  it('two primary keys throw instead of rendering 42710', () => {
+    const fields: Record<string, IrField> = {
+      id: { type: 'primary', nullable: false, unique: true, isPrimary: true },
+      uid: {
+        type: 'uuid',
+        nullable: false,
+        unique: true,
+        isPrimary: true,
+      },
+    };
+    expect(() => irToColumns('users', fields, [])).toThrow(/id, uid/);
+  });
+
+  it('type: primary counts as PK even without the isPrimary flag', () => {
+    // Рукописный IR может пометить ключ типом, забыв флаг. DDL-слой считает
+    // его первичным (`isPrimaryField`), поэтому и проверка обязана видеть оба
+    // признака — иначе она пропустила бы ровно тот случай, ради которого есть.
+    const fields: Record<string, IrField> = {
+      id: { type: 'primary', nullable: false, unique: true, isPrimary: true },
+      uid: { type: 'primary', nullable: false, unique: true },
+    };
+    expect(() => irToColumns('users', fields, [])).toThrow(/id, uid/);
+  });
+
+  it('model without PK is allowed', () => {
+    const fields: Record<string, IrField> = {
+      id: { type: 'string', nullable: false, unique: false },
+    };
+    const cols = irToColumns('t', fields, []);
+    expect(cols[0].isPrimary).toBeFalsy();
+  });
 });
 
 describe('expectedIndexes', () => {
