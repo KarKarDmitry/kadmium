@@ -20,64 +20,102 @@ afterAll(async () => {
 describe('renderDefault: SQL literal per field type', () => {
   it('string -> quoted literal', () => {
     expect(
-      renderDefault({ type: 'string', spec: { default: 'hello' } } as unknown as IrField),
+      renderDefault({
+        type: 'string',
+        spec: { default: 'hello' },
+      } as unknown as IrField),
     ).toBe("'hello'");
   });
 
   it('string with single quote is escaped', () => {
     expect(
-      renderDefault({ type: 'string', spec: { default: "it's" } } as unknown as IrField),
+      renderDefault({
+        type: 'string',
+        spec: { default: "it's" },
+      } as unknown as IrField),
     ).toBe("'it''s'");
   });
 
   it('int/bigint -> bare integer', () => {
-    expect(renderDefault({ type: 'int', spec: { default: 5 } } as unknown as IrField)).toBe(
-      '5',
-    );
     expect(
-      renderDefault({ type: 'bigint', spec: { default: 10 } } as unknown as IrField),
+      renderDefault({
+        type: 'int',
+        spec: { default: 5 },
+      } as unknown as IrField),
+    ).toBe('5');
+    expect(
+      renderDefault({
+        type: 'bigint',
+        spec: { default: 10 },
+      } as unknown as IrField),
     ).toBe('10');
   });
 
   it('decimal/float/numeric -> bare number', () => {
     expect(
-      renderDefault({ type: 'decimal', spec: { default: 5.5 } } as unknown as IrField),
+      renderDefault({
+        type: 'decimal',
+        spec: { default: 5.5 },
+      } as unknown as IrField),
     ).toBe('5.5');
     expect(
-      renderDefault({ type: 'float', spec: { default: 1.25 } } as unknown as IrField),
+      renderDefault({
+        type: 'float',
+        spec: { default: 1.25 },
+      } as unknown as IrField),
     ).toBe('1.25');
     expect(
-      renderDefault({ type: 'numeric', spec: { default: 3 } } as unknown as IrField),
+      renderDefault({
+        type: 'numeric',
+        spec: { default: 3 },
+      } as unknown as IrField),
     ).toBe('3');
   });
 
   it('boolean -> true/false', () => {
     expect(
-      renderDefault({ type: 'boolean', spec: { default: true } } as unknown as IrField),
+      renderDefault({
+        type: 'boolean',
+        spec: { default: true },
+      } as unknown as IrField),
     ).toBe('true');
     expect(
-      renderDefault({ type: 'boolean', spec: { default: false } } as unknown as IrField),
+      renderDefault({
+        type: 'boolean',
+        spec: { default: false },
+      } as unknown as IrField),
     ).toBe('false');
   });
 
   it('datetime (Date) -> quoted ISO', () => {
     const d = new Date('2024-01-01T00:00:00.000Z');
     expect(
-      renderDefault({ type: 'datetime', spec: { default: d } } as unknown as IrField),
+      renderDefault({
+        type: 'datetime',
+        spec: { default: d },
+      } as unknown as IrField),
     ).toBe("'2024-01-01T00:00:00.000Z'");
   });
 
   it('uuid -> quoted literal', () => {
     expect(
-      renderDefault({ type: 'uuid', spec: { default: 'abc-123' } } as unknown as IrField),
+      renderDefault({
+        type: 'uuid',
+        spec: { default: 'abc-123' },
+      } as unknown as IrField),
     ).toBe("'abc-123'");
   });
 
   it('no default -> null', () => {
-    expect(renderDefault({ type: 'string', spec: {} } as unknown as IrField)).toBeNull();
+    expect(
+      renderDefault({ type: 'string', spec: {} } as unknown as IrField),
+    ).toBeNull();
     expect(renderDefault({ type: 'string' } as unknown as IrField)).toBeNull();
     expect(
-      renderDefault({ type: 'int', spec: { default: null } } as unknown as IrField),
+      renderDefault({
+        type: 'int',
+        spec: { default: null },
+      } as unknown as IrField),
     ).toBeNull();
   });
 });
@@ -114,28 +152,37 @@ describe('defaults reach DDL and apply on insert (integration)', () => {
   });
 
   it('omitting int field applies the column default', async () => {
-    const post = await h.orm.insert(PostModel).values({
-      title: 'No Views',
-      content: 'body',
-      published: true,
-    }).go();
+    const post = await h.orm
+      .insert(PostModel)
+      .values({
+        title: 'No Views',
+        content: 'body',
+        published: true,
+      })
+      .go();
     expect(post.views).toBe(0);
   });
 
   it('omitting boolean field applies the column default', async () => {
-    const post = await h.orm.insert(PostModel).values({
-      title: 'No Published',
-      content: 'body',
-      views: 1,
-    }).go();
+    const post = await h.orm
+      .insert(PostModel)
+      .values({
+        title: 'No Published',
+        content: 'body',
+        views: 1,
+      })
+      .go();
     expect(post.published).toBe(true);
   });
 
   it('omitting string field applies the column default', async () => {
-    const comment = await h.orm.insert(CommentModel).values({
-      post: null,
-      user: null,
-    }).go();
+    const comment = await h.orm
+      .insert(CommentModel)
+      .values({
+        post: null,
+        user: null,
+      })
+      .go();
     expect(comment.text).toBe('');
   });
 });

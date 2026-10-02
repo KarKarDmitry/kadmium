@@ -23,8 +23,9 @@ describe('update API: entry point', () => {
   });
 
   it('update() is absent from select handle after config steps', () => {
+    const handle = h.orm.select(UserModel).where((u) => u.active.eq(true));
     // @ts-expect-error update() не существует на select-API даже после where
-    expect(h.orm.select(UserModel).where((u) => u.active.eq(true)).update).toBeUndefined();
+    expect(handle.update).toBeUndefined();
   });
 
   it('update() exposes only DML steps, no select-only steps', () => {
@@ -86,9 +87,9 @@ describe('update API: set + where + go', () => {
     // Синхронный throw, а не rejected promise: это ошибка сборки запроса,
     // и ловить её надо в точке вызова — так же, как гарды DML.
     expect(() => h.orm.update(UserModel).go()).toThrow(/requires set/);
-    expect(() => h.orm.update(UserModel).where((u) => u.active.eq(true))).toThrow(
-      /requires set/,
-    );
+    expect(() =>
+      h.orm.update(UserModel).where((u) => u.active.eq(true)),
+    ).toThrow(/requires set/);
   });
 
   it('set() maps field names to column aliases', async () => {

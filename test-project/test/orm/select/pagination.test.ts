@@ -91,7 +91,18 @@ describe('cursor: keyset pagination', () => {
     expect(page2Names).toContain('Ivy');
     expect(page2Names).toContain('Jack');
     expect(page2Names.every((n) => n! > 'Carol')).toBe(true);
-    const known = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank', 'Grace', 'Heidi', 'Ivy', 'Jack'];
+    const known = [
+      'Alice',
+      'Bob',
+      'Carol',
+      'Dave',
+      'Eve',
+      'Frank',
+      'Grace',
+      'Heidi',
+      'Ivy',
+      'Jack',
+    ];
     const covered = [...page1.map((r) => r.name), ...page2Names];
     expect(known.every((n) => covered.includes(n))).toBe(true);
     expect(page2Names.length).toBeGreaterThanOrEqual(7);
@@ -144,7 +155,10 @@ describe('cursor: keyset pagination', () => {
       .select(UserModel)
       .order((u) => [u.age.asc, u.id.asc])
       .cursor((u) =>
-        or(u.age.gt(page2[3].age!), and(u.age.eq(page2[3].age!), u.id.gt(page2[3].id))),
+        or(
+          u.age.gt(page2[3].age!),
+          and(u.age.eq(page2[3].age!), u.id.gt(page2[3].id)),
+        ),
       )
       .limit(10)
       .go();

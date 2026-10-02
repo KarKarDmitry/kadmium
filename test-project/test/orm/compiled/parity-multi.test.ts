@@ -121,7 +121,10 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
       q()
         .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
         .order((t) => [t.p.views.desc]);
-    const direct = await base().limit(2).fields((t) => [t.p.title]).go();
+    const direct = await base()
+      .limit(2)
+      .fields((t) => [t.p.title])
+      .go();
     const c = base()
       .limit(2)
       .offset(0)
@@ -130,7 +133,10 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
     const viaRun = await h.orm.run(c).fill({}).go();
 
     expect(viaRun).toEqual(direct);
-    expect(viaRun.map((r) => r.p.title)).toEqual(['Hello Postgres', 'Bob Writes']);
+    expect(viaRun.map((r) => r.p.title)).toEqual([
+      'Hello Postgres',
+      'Bob Writes',
+    ]);
   });
 
   it('include (LATERAL) + слот в include().where() — parity, форма не ломается', async () => {
@@ -209,7 +215,8 @@ describe('multi: go() vs run(compile()).fill().go()', () => {
       p: PostModel,
       a: UserModel,
     }).push((t) => [t.a.id]);
-    const q = () => h.orm.query({ c: CommentModel, p: PostModel, a: UserModel });
+    const q = () =>
+      h.orm.query({ c: CommentModel, p: PostModel, a: UserModel });
     const joins = (b: ReturnType<typeof q>) =>
       b
         .join({ left: 'c', right: 'p', on: (t) => t.c.post.eq(t.p.id) })

@@ -41,10 +41,7 @@ describe('window functions: heavy cases', () => {
       .fields((u, { wf }) => [
         u.name,
         u.age,
-        wf
-          .ntile(3)
-          .orderBy(u.age.asc, u.name.asc)
-          .as('bucket'),
+        wf.ntile(3).orderBy(u.age.asc, u.name.asc).as('bucket'),
       ])
       .go();
     expect(rows.map((r) => r.bucket)).toEqual([1, 1, 2, 2, 3, 3]);
@@ -91,10 +88,7 @@ describe('window functions: heavy cases', () => {
       .fields((u, { wf }) => [
         u.name,
         u.age,
-        wf
-          .lag(u.age, 1, -1)
-          .orderBy(u.age.asc, u.name.asc)
-          .as('prev'),
+        wf.lag(u.age, 1, -1).orderBy(u.age.asc, u.name.asc).as('prev'),
       ])
       .go();
     expect(rows.map((r) => r.prev)).toEqual([-1, 10, 20, 20, 30, 40]);
@@ -170,14 +164,8 @@ describe('window functions: heavy cases', () => {
       .fields((u, { wf }) => [
         u.name,
         u.age,
-        wf
-          .firstValue(u.age)
-          .orderBy(u.age.asc, u.name.asc)
-          .as('first'),
-        wf
-          .lastValue(u.age)
-          .orderBy(u.age.asc, u.name.asc)
-          .as('last'),
+        wf.firstValue(u.age).orderBy(u.age.asc, u.name.asc).as('first'),
+        wf.lastValue(u.age).orderBy(u.age.asc, u.name.asc).as('last'),
       ])
       .go();
     expect(rows.map((r) => r.first)).toEqual([10, 10, 10, 10, 10, 10]);

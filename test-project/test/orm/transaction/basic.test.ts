@@ -17,13 +17,16 @@ afterAll(async () => {
 describe('transactions: commit and rollback', () => {
   it('commits work done inside transaction', async () => {
     await h.orm.transaction(async (tx) => {
-      await tx.insert(UserModel).values({
-        name: 'TxnUser',
-        email: 'txn@test.com',
-        age: 50,
-        active: true,
-        registeredAt: new Date(),
-      }).go();
+      await tx
+        .insert(UserModel)
+        .values({
+          name: 'TxnUser',
+          email: 'txn@test.com',
+          age: 50,
+          active: true,
+          registeredAt: new Date(),
+        })
+        .go();
     });
     const found = await h.orm
       .select(UserModel)
@@ -36,13 +39,16 @@ describe('transactions: commit and rollback', () => {
   it('rolls back on error', async () => {
     await expect(
       h.orm.transaction(async (tx) => {
-        await tx.insert(UserModel).values({
-          name: 'RollbackUser',
-          email: 'rb@test.com',
-          age: 51,
-          active: true,
-          registeredAt: new Date(),
-        }).go();
+        await tx
+          .insert(UserModel)
+          .values({
+            name: 'RollbackUser',
+            email: 'rb@test.com',
+            age: 51,
+            active: true,
+            registeredAt: new Date(),
+          })
+          .go();
         throw new Error('boom');
       }),
     ).rejects.toThrow('boom');

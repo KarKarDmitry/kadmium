@@ -531,7 +531,9 @@ describe('render-perf: обычный билдер vs compiled (без запр�
         const c = orm
           .query({ u: UserModel, p: PostModel })
           .join({ left: 'u', right: 'p', on: (t) => t.u.id.eq(t.p.author) })
-          .include({ p: { comments: { where: (c) => c.text.neq(slot('text')) } } })
+          .include({
+            p: { comments: { where: (c) => c.text.neq(slot('text')) } },
+          })
           .fields((t) => [t.p.title])
           .compile<{ text: string | undefined }>();
         return () => orm.run(c).fill({ text: 'x' }).sql();

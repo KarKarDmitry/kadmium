@@ -20,7 +20,12 @@ describe('insert().onConflict() — upsert', () => {
   it('inserts new row when no conflict', async () => {
     const user = await h.orm
       .insert(UserModel)
-      .values({ name: 'Alice', email: 'alice@upsert.test', age: 30, active: true })
+      .values({
+        name: 'Alice',
+        email: 'alice@upsert.test',
+        age: 30,
+        active: true,
+      })
       .onConflict((t) => [t.email])
       .go();
 
@@ -40,7 +45,12 @@ describe('insert().onConflict() — upsert', () => {
     // Upsert with same email, different name
     const updated = await h.orm
       .insert(UserModel)
-      .values({ name: 'Robert', email: 'bob@upsert.test', age: 26, active: false })
+      .values({
+        name: 'Robert',
+        email: 'bob@upsert.test',
+        age: 26,
+        active: false,
+      })
       .onConflict((t) => [t.email])
       .go();
 
@@ -61,14 +71,24 @@ describe('insert().onConflict() — upsert', () => {
     // Insert first
     await h.orm
       .insert(UserModel)
-      .values({ name: 'Carol', email: 'carol@upsert.test', age: 40, active: true })
+      .values({
+        name: 'Carol',
+        email: 'carol@upsert.test',
+        age: 40,
+        active: true,
+      })
       .onConflict((t) => [t.email])
       .go();
 
     // Upsert with same email — should do nothing
     const result = await h.orm
       .insert(UserModel)
-      .values({ name: 'CarolNew', email: 'carol@upsert.test', age: 41, active: false })
+      .values({
+        name: 'CarolNew',
+        email: 'carol@upsert.test',
+        age: 41,
+        active: false,
+      })
       .onConflict((t) => [t.email])
       .doNothing()
       .go();
@@ -113,7 +133,12 @@ describe('insert().onConflict() — upsert', () => {
   it('insert().go() still works as plain insert', async () => {
     const user = await h.orm
       .insert(UserModel)
-      .values({ name: 'Dave', email: 'dave@upsert.test', age: 35, active: true })
+      .values({
+        name: 'Dave',
+        email: 'dave@upsert.test',
+        age: 35,
+        active: true,
+      })
       .go();
 
     expect(user.id).toBeDefined();
@@ -151,7 +176,12 @@ describe('insertMany().onConflict() — batch upsert', () => {
     const rows = await h.orm
       .insertMany(UserModel)
       .values([
-        { name: 'GraceUpdated', email: 'grace@batch.test', age: 31, active: false },
+        {
+          name: 'GraceUpdated',
+          email: 'grace@batch.test',
+          age: 31,
+          active: false,
+        },
       ])
       .onConflict((t) => [t.email])
       .go();
@@ -172,7 +202,12 @@ describe('insertMany().onConflict() — batch upsert', () => {
       .insertMany(UserModel)
       .values([
         { name: 'Iris', email: 'iris@mix.test', age: 20, active: true },
-        { name: 'HelenUpdated', email: 'helen@mix.test', age: 45, active: false },
+        {
+          name: 'HelenUpdated',
+          email: 'helen@mix.test',
+          age: 45,
+          active: false,
+        },
       ])
       .onConflict((t) => [t.email])
       .go();
@@ -195,13 +230,23 @@ describe('insertMany().onConflict() — batch upsert', () => {
   it('doNothing batch returns only actually inserted rows', async () => {
     await h.orm
       .insert(UserModel)
-      .values({ name: 'John', email: 'john@nothing.test', age: 33, active: true })
+      .values({
+        name: 'John',
+        email: 'john@nothing.test',
+        age: 33,
+        active: true,
+      })
       .go();
 
     const rows = await h.orm
       .insertMany(UserModel)
       .values([
-        { name: 'JohnUpdated', email: 'john@nothing.test', age: 99, active: false },
+        {
+          name: 'JohnUpdated',
+          email: 'john@nothing.test',
+          age: 99,
+          active: false,
+        },
         { name: 'Kate', email: 'kate@nothing.test', age: 27, active: true },
       ])
       .onConflict((t) => [t.email])

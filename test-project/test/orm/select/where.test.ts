@@ -107,7 +107,11 @@ describe('where: filters, groups, ordering, pagination', () => {
   });
 
   it('first() returns the row or undefined', async () => {
-    const found = await h.orm.select(UserModel).where((u) => u.id.eq(1)).first().go();
+    const found = await h.orm
+      .select(UserModel)
+      .where((u) => u.id.eq(1))
+      .first()
+      .go();
     expect(found?.name).toBeTruthy();
     const missing = await h.orm
       .select(UserModel)

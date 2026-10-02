@@ -78,15 +78,15 @@ describe('insert API: values is mandatory', () => {
   });
 
   it('returning() without values() throws', () => {
-    expect(() =>
-      h.orm.insert(UserModel).returning((u) => [u.id]),
-    ).toThrow(/requires values/);
+    expect(() => h.orm.insert(UserModel).returning((u) => [u.id])).toThrow(
+      /requires values/,
+    );
   });
 
   it('onConflict() without values() throws', () => {
-    expect(() =>
-      h.orm.insert(UserModel).onConflict((u) => [u.email]),
-    ).toThrow(/requires values/);
+    expect(() => h.orm.insert(UserModel).onConflict((u) => [u.email])).toThrow(
+      /requires values/,
+    );
   });
 
   it('sql() without values() throws', () => {
@@ -170,7 +170,9 @@ describe('insert API: values + go', () => {
   });
 
   it('does not consume the builder - a second go() re-inserts', async () => {
-    const base = h.orm.insert(UserModel).values({ name: 'Twice', email: 't@x.io' });
+    const base = h.orm
+      .insert(UserModel)
+      .values({ name: 'Twice', email: 't@x.io' });
     const first = await base.go();
     // Второй go() идёт по тому же sqb: unique-конфликт честно падает,
     // косвенно доказывая, что данные не были сняты первым вызовом.
@@ -180,7 +182,9 @@ describe('insert API: values + go', () => {
   });
 
   it('a second go() succeeds when no unique constraint blocks it', async () => {
-    const base = h.orm.insert(PostModel).values({ title: 'Dup', content: 'body' });
+    const base = h.orm
+      .insert(PostModel)
+      .values({ title: 'Dup', content: 'body' });
     const before = await h.orm.select(PostModel).count().go();
     const first = await base.go();
     const second = await base.go();
@@ -361,4 +365,3 @@ describe('insert API: sql preview', () => {
     expect(text).toContain('RETURNING');
   });
 });
-

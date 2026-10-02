@@ -50,9 +50,7 @@ describe('select — sql-фрагмент в SELECT против PG', () => {
     const registeredAt = new SelectableField('User', 'registeredAt');
     const rows = await h.orm
       .select(UserModel)
-      .fields([
-        sql<number>`EXTRACT(YEAR FROM ${registeredAt})::int`.as('year'),
-      ])
+      .fields([sql<number>`EXTRACT(YEAR FROM ${registeredAt})::int`.as('year')])
       .order((u) => [u.name.asc])
       .go();
 

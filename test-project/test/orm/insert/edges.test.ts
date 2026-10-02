@@ -37,7 +37,9 @@ describe('insert edges: пустые значения, null, datetime, zero, р�
     // раннером. SQL собирается как INSERT INTO "t" () VALUES () — это
     // синтаксическая ошибка Postgres (42601), а не внятная диагностика.
     // Тест фиксирует НАСТОЯЩЕЕ поведение, а не желаемое.
-    await expect(h.orm.insert(CommentModel).values({}).go()).rejects.toThrowError();
+    await expect(
+      h.orm.insert(CommentModel).values({}).go(),
+    ).rejects.toThrowError();
   });
 
   it('datetime roundtrip preserves ms precision', async () => {

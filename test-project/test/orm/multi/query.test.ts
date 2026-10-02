@@ -117,4 +117,3 @@ describe('multi: count/exists/first terminals (M2)', () => {
     expect(row).toBeUndefined();
   });
 });
-

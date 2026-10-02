@@ -79,15 +79,15 @@ describe('insertMany API: values is mandatory and non-empty', () => {
   });
 
   it('returning() without values() throws', () => {
-    expect(() =>
-      h.orm.insertMany(UserModel).returning((u) => [u.id]),
-    ).toThrow(/requires values/);
+    expect(() => h.orm.insertMany(UserModel).returning((u) => [u.id])).toThrow(
+      /requires values/,
+    );
   });
 
   it('transaction() without values() throws', () => {
-    expect(() =>
-      h.orm.insertMany(UserModel).transaction(false),
-    ).toThrow(/requires values/);
+    expect(() => h.orm.insertMany(UserModel).transaction(false)).toThrow(
+      /requires values/,
+    );
   });
 
   it('sql() without values() throws', () => {
@@ -387,4 +387,3 @@ describe('insertMany API: sql preview', () => {
     expect(text).toContain('DO UPDATE SET');
   });
 });
-

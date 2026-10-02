@@ -38,7 +38,9 @@ describe('insertMany: batch insert', () => {
   it('returns all fields from created rows', async () => {
     const rows = await h.orm
       .insertMany(UserModel)
-      .values([{ name: 'Dave', email: 'dave@batch.test', age: 40, active: true }])
+      .values([
+        { name: 'Dave', email: 'dave@batch.test', age: 40, active: true },
+      ])
       .go();
 
     expect(rows).toHaveLength(1);

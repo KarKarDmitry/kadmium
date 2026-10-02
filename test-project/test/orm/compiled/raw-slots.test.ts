@@ -16,7 +16,10 @@ afterAll(async () => {
 describe('slots: unfilled guard in execute (A2)', () => {
   it('go() with an unfilled slot rejects', async () => {
     await expect(
-      h.orm.select(User).where((u) => u.id.eq(slot('id'))).go(),
+      h.orm
+        .select(User)
+        .where((u) => u.id.eq(slot('id')))
+        .go(),
     ).rejects.toThrow(/Unfilled slot\(s\): id/);
   });
 });

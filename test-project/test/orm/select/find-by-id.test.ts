@@ -63,10 +63,7 @@ describe('IR: первичный ключ модели', () => {
 
 describe('findById: дефолтный bigint PK', () => {
   it('находит строку по неявному id', async () => {
-    const found = await h.orm
-      .select(UserModel)
-      .findById(seed.alice.id)
-      .go();
+    const found = await h.orm.select(UserModel).findById(seed.alice.id).go();
     expect(found?.email).toBe(seed.alice.email);
   });
 
@@ -76,10 +73,7 @@ describe('findById: дефолтный bigint PK', () => {
   });
 
   it('фильтрует по колонке id', async () => {
-    const found = await h.orm
-      .select(UserModel)
-      .findById(seed.bob.id)
-      .go();
+    const found = await h.orm.select(UserModel).findById(seed.bob.id).go();
     expect(found?.name).toBe('Bob');
   });
 });

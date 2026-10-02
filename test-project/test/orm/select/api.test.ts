@@ -2,7 +2,12 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { User as UserModel, Post as PostModel } from '../../../src/models';
 import { makeHarness, type Harness } from '../../helpers';
 import { resetAndSeed, type SeedData } from '../../fixtures';
-import { QuerySlots, SelectableField, sql, slot } from '@karkardmitry/kadmium-core';
+import {
+  QuerySlots,
+  SelectableField,
+  sql,
+  slot,
+} from '@karkardmitry/kadmium-core';
 
 let h: Harness;
 let seed: SeedData;
@@ -189,7 +194,11 @@ describe('select API: first / count / exists', () => {
     expect(await h.orm.select(UserModel).count().go()).toBe(3);
     // alice и carol активны.
     expect(
-      await h.orm.select(UserModel).where((u) => u.active.eq(true)).count().go(),
+      await h.orm
+        .select(UserModel)
+        .where((u) => u.active.eq(true))
+        .count()
+        .go(),
     ).toBe(2);
   });
 
@@ -210,7 +219,11 @@ describe('select API: first / count / exists', () => {
 
   it('exists() is false when the filter matches nothing', async () => {
     expect(
-      await h.orm.select(UserModel).where((u) => u.name.eq('Nobody')).exists().go(),
+      await h.orm
+        .select(UserModel)
+        .where((u) => u.name.eq('Nobody'))
+        .exists()
+        .go(),
     ).toBe(false);
   });
 });
@@ -275,7 +288,10 @@ describe('select API: include', () => {
 describe('select API: clone()', () => {
   it('clone() does not mutate the source builder', async () => {
     const base = h.orm.select(UserModel).where((u) => u.active.eq(true));
-    const narrowed = await base.clone().where((u) => u.name.eq('Bob')).go();
+    const narrowed = await base
+      .clone()
+      .where((u) => u.name.eq('Bob'))
+      .go();
     const untouched = await base.go();
     // сужение добавлено только в клоне; bob неактивен, поэтому narrowed пуст.
     expect(narrowed).toHaveLength(0);

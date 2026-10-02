@@ -72,10 +72,7 @@ describe('having() referencing an aggregate over an aliased column', () => {
     const rows = await h.orm
       .select(CommentModel)
       .where((c) => c.post.in([post.id, other.id]))
-      .fields((c, { agg }) => [
-        c.post,
-        agg.count(c.flagged).as('flaggedCount'),
-      ])
+      .fields((c, { agg }) => [c.post, agg.count(c.flagged).as('flaggedCount')])
       .groupBy((c) => [c.post])
       .having((t) => t.flaggedCount.gt(1))
       .go();
