@@ -303,12 +303,24 @@ compute, apply, render и validate правились в одном проход
 
 ### Вне этого цикла
 
-**`one-to-one` и `UNIQUE`.** `one-to-one` на стороне владельца требует `UNIQUE`
-на FK-колонке, иначе это `many-to-one` в БД при заявленном `one-to-one` в DSL.
-`expectedIndexes()` создаёт индекс для любого ref, но `isUnique` берётся из
-`f.unique`, а не из `relation === 'one-to-one'` (`types.ts:248`). Расхождение
-уже есть и без `onDelete`; здесь оно лишь становится заметнее. Отдельный PR,
-когда тесты покажут реальные проблемы.
+**`one-to-one` и `UNIQUE`.** ✅ Закрыто (`a962069` + коммит с `.oneToOne()` ⇒ UNIQUE).
+`one-to-one` на стороне владельца требовал `UNIQUE` на FK-колонке, иначе это
+`many-to-one` в БД при заявленном `one-to-one` в DSL: `expectedIndexes()`
+создавал индекс для любого ref, но `isUnique` брался только из `f.unique`.
+Теперь `isUnique: !!f.unique || relation === 'one-to-one'`, а `relation`
+есть на `FieldIR` и в локальном `IrField` (`sql-pg/src/diff/types.ts`).
+
+Закрытие потребовало ещё одного слоя: `computeDiff()` сверял существующие
+индексы **только по имени**, а имя у `.unique()`-поля и у обычного `f.index`
+совпадает. Без этого переход уникальности не давал ни одной операции —
+поставить и снять `.unique()` молча ничего не меняли, и неуникальный
+`idx_profile_user` так и остался бы неуникальным. Расхождение `isUnique`
+разворачивается в `drop-index` → `add-index` (`a962069`).
+
+Тесты: `test-project/test/ddl-one-to-one.test.ts` (каталог Postgres, отказ
+дубля с `23505`, обратный переход, совпадение превью с apply),
+`test/diff/types.test.ts` (`expectedIndexes`), `test/diff/compute.test.ts`
+(пересоздание индекса в обе стороны).
 
 ---
 

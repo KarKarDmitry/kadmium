@@ -141,6 +141,8 @@ export type IrField = {
   isPrimary?: boolean;
   alias?: string;
   spec?: Record<string, unknown>;
+  /** Тип связи из model DSL. Локальный union — sql-pg не ходит в core. */
+  relation?: 'one-to-many' | 'many-to-one' | 'one-to-one';
   /** ON DELETE из model DSL; уже в канонической форме, маппинг — в core. */
   onDelete?: ReferentialAction;
   /** ON UPDATE из model DSL; уже в канонической форме, маппинг — в core. */
@@ -287,7 +289,11 @@ export function expectedIndexes(
         name: `idx_${tableName}_${f.alias ?? name}`,
         tableName,
         columns: [f.alias ?? name],
-        isUnique: !!f.unique,
+        // `one-to-one` означает «на одну запись цели приходится ровно одна
+        // моя», а это и есть уникальность. Имя индекса у `.unique()`-поля и
+        // у обычного ref-поля совпадает, поэтому проверять тут же — иначе
+        // пользователю пришлось бы дублировать намерение через `.unique()`.
+        isUnique: !!f.unique || f.relation === 'one-to-one',
       });
     }
   }

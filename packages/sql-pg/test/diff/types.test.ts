@@ -486,6 +486,53 @@ describe('expectedIndexes', () => {
     expect(idx[0].name).toBe('idx_posts_author');
   });
 
+  it('one-to-one ref gets a unique index', () => {
+    const fields: Record<string, IrField> = {
+      user: {
+        type: 'ref',
+        ref: 'User',
+        nullable: false,
+        unique: false,
+        relation: 'one-to-one',
+      },
+    };
+    const idx = expectedIndexes('profiles', fields);
+    expect(idx.length).toBe(1);
+    expect(idx[0].name).toBe('idx_profiles_user');
+    expect(idx[0].isUnique).toBe(true);
+  });
+
+  it('many-to-one ref keeps a non-unique index', () => {
+    const fields: Record<string, IrField> = {
+      author: {
+        type: 'ref',
+        ref: 'User',
+        nullable: false,
+        unique: false,
+        relation: 'many-to-one',
+      },
+    };
+    const idx = expectedIndexes('posts', fields);
+    expect(idx.length).toBe(1);
+    expect(idx[0].isUnique).toBe(false);
+  });
+
+  it('a sourceModel one-to-one inverse stays unindexed', () => {
+    // Уникальность должна достаться владельцу FK, а не обратной стороне:
+    // иначе индекс встал бы на колонку, которой у таблицы нет.
+    const fields: Record<string, IrField> = {
+      user: {
+        type: 'ref',
+        ref: 'User',
+        nullable: false,
+        unique: false,
+        relation: 'one-to-one',
+        sourceModel: 'Profile',
+      },
+    };
+    expect(expectedIndexes('users', fields).length).toBe(0);
+  });
+
   it('index: true field gets index', () => {
     const fields: Record<string, IrField> = {
       status: { type: 'string', nullable: false, unique: false, index: true },
