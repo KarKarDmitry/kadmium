@@ -29,10 +29,9 @@ src/
 
 ```typescript
 class User extends Model {
-  id = f.pk;
   name = f.string;
   email = f.string.unique;
-  posts = f.ref('Post', 'one-to-many');
+  posts = f.ref.target(Post, 'posts');
 }
 Model.register(User, Post);
 ```
@@ -43,7 +42,26 @@ Key methods:
 - `$refs()` → inverse relations (Post → User via refs)
 - `Model.resolve(name)` → find class by name from registry
 
-**Field builders** (`model/fields/`): `f.string`, `f.number`, `f.boolean`, `f.pk`, `f.pk.uuid`, `f.ref(model, relation)`
+**Field builders** (`model/fields/`): `f.string`, `f.number`, `f.boolean`, `f.pk`, `f.pk.uuid`, `f.ref.target(model, inverseName)`
+
+### Primary key contract
+
+**PK is identified by `FieldIR.isPrimary` — never by the name `id`.**
+
+- `Model` declares no `id` field. `$build()` injects a default PK **first**, and only if the
+  subclass declared neither a PK nor an `id` key. So `uid = f.pk.uuid` in a subclass displaces
+  the default, while an explicit non-PK `id = f.string` is respected and leaves the model
+  without a PK. Cost: `new User().id` no longer exists — `id` is config, not data.
+- Exactly one PK. `compileModel()` throws naming the offending fields on more than one.
+  Composite PKs are unsupported.
+- PK builders support `.alias()`. The column resolves as `field.alias ?? propertyName`, so
+  `uid = f.pk.uuid.alias('session_uid')` is property `uid` on column `session_uid`.
+- Codegen emits a `['~pk']` phantom holding the **property** name (never the alias), and
+  `findById()` types its argument as `PkShape<M>` from it. Projects without codegen fall back
+  to `~shape['id']`.
+- Relation JOINs take the PK column from IR: `childField` renders under the included model's
+  alias, `parentField` under the base model's — each side's PK comes from its own IR. A
+  hardcoded `'id'` there gave PG `42P01`/`42703` on any custom PK.
 
 ## Layer 2: IR (`ir/`)
 

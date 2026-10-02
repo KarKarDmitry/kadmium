@@ -11,6 +11,7 @@ import {
   Region,
   UserAccount,
   Profile,
+  LoginSession,
 } from '../src/models';
 
 /**
@@ -27,6 +28,7 @@ const MODELS = [
   Region,
   UserAccount,
   Profile,
+  LoginSession,
 ];
 
 /** Загрузить .env в process.env (не перезатирая уже заданные). */

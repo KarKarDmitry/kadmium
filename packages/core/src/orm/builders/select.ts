@@ -115,6 +115,26 @@ interface SelectShared<
 }
 
 /**
+ * Тип значения первичного ключа модели.
+ *
+ * Имя PK приходит фантомом `~pk`, который кодоген ставит рядом с `~shape`
+ * (`declare module` → `['~pk']: 'uid'`). Раньше `findById` жил на
+ * `~shape['id']`, что ломалось о модель с нестандартным PK: у неё в `~shape`
+ * нет ключа `id`, и вызов не собирался.
+ *
+ * Фолбэк на `~shape['id']` — для проектов без кодогена и для рукописных
+ * интерфейсов в тестах. Модель вообще без PK даёт `never`: вызывать
+ * `findById` у неё нечем, и ошибка должна быть на типе, а не в PostgreSQL.
+ */
+export type PkShape<M> = M extends { ['~shape']: infer S }
+  ? M extends { ['~pk']: infer P extends keyof S }
+    ? S[P]
+    : S extends { id: infer I }
+      ? I
+      : never
+  : never;
+
+/**
  * Публичная поверхность `orm.select(Model)`.
  *
  * Объявлена рядом с билдером, а не в общем `handles.ts`: у каждой операции
@@ -155,7 +175,7 @@ export interface SelectHandle<
    *
    * Одна строка или `undefined` — то же, что даёт удалённый `single().findById()`.
    */
-  findById(id: M['~shape']['id']): SelectHandle<M, S, C, 'first'>;
+  findById(id: PkShape<M>): SelectHandle<M, S, C, 'first'>;
 
   /** Одна строка (ставит limit=1). С проекцией — `first(t => [t.id])`. */
   first(): SelectHandle<M, S, C, 'first'>;
@@ -396,7 +416,7 @@ export class SelectQueryBuilder<
    * `FieldType` не содержит этого значения.
    */
   findById(
-    id: TModel['~shape']['id'],
+    id: PkShape<TModel>,
   ): SelectQueryBuilder<TModel, TSelect, TInclude, 'first'> {
     const pkEntry = Object.entries(this.ir.fields).find(
       ([, f]) => f.isPrimary === true,

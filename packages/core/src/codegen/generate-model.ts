@@ -89,6 +89,15 @@ export function generateModel(
   }
   lines.push(`  };`);
 
+  // Фантом `~pk` — имя свойства первичного ключа. По нему `findById()`
+  // выводит тип аргумента (`PkShape<M>`), поэтому нужен именно ключ
+  // модели, а не колонка: колонка может быть переименована через `.alias()`.
+  const pk = fields.find(([, f]) => f.isPrimary === true);
+  if (pk) {
+    lines.push(``);
+    lines.push(`  ['~pk']: '${pk[0]}';`);
+  }
+
   if (defaults.length > 0) {
     lines.push(``);
     lines.push(`  ['~defaults']: {`);

@@ -413,4 +413,77 @@ describe('generateModel', () => {
       expect(out).toContain('author: number;');
     });
   });
+
+  /**
+   * `~pk` — имя свойства первичного ключа, по которому `findById` выводит
+   * тип аргумента (`PkShape<M>`). Это КЛЮЧ модели, а не колонка: колонка
+   * может быть переименована через `.alias()`, и `~pk` обязан остаться
+   * тем, чем пользуется прокси.
+   */
+  describe('~pk', () => {
+    /** Локальный хелпер: одноимённый в describe('~defaults') не виден отсюда. */
+    function pkField(
+      name: string,
+      extra: Partial<FieldIR> = {},
+    ): Record<string, FieldIR> {
+      return {
+        [name]: {
+          type: 'string',
+          tsType: 'string',
+          alias: name,
+          nullable: false,
+          unique: false,
+          index: false,
+          ...extra,
+        },
+      };
+    }
+
+    it('эмитит имя свойства PK', () => {
+      const ir = makeIr({
+        name: 'Account',
+        fields: pkField('uid', {
+          type: 'bigint',
+          tsType: 'number',
+          isPrimary: true,
+        }),
+      });
+      expect(generateModel(ir, 'models/account', [ir])).toContain(
+        "['~pk']: 'uid';",
+      );
+    });
+
+    it('именем остаётся ключ модели, а не alias колонки', () => {
+      const ir = makeIr({
+        name: 'Account',
+        fields: pkField('uid', {
+          type: 'uuid',
+          tsType: 'string',
+          alias: 'user_uid',
+          isPrimary: true,
+        }),
+      });
+      const out = generateModel(ir, 'models/account', [ir]);
+      expect(out).toContain("['~pk']: 'uid';");
+      expect(out).not.toContain("['~pk']: 'user_uid';");
+    });
+
+    it('дефолтный PK называется id', () => {
+      const ir = makeIr({
+        name: 'User',
+        fields: pkField('id', { isPrimary: true }),
+      });
+      expect(generateModel(ir, 'models/user', [ir])).toContain(
+        "['~pk']: 'id';",
+      );
+    });
+
+    it('у модели без PK фантом не эмитится', () => {
+      const ir = makeIr({
+        name: 'Session',
+        fields: pkField('token', {}),
+      });
+      expect(generateModel(ir, 'models/session', [ir])).not.toContain('~pk');
+    });
+  });
 });

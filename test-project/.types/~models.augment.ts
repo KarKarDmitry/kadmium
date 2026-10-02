@@ -5,6 +5,7 @@ import { User } from '../src/models/user';
 import { Bureau } from '../src/models/bureau';
 import { Region } from '../src/models/region';
 import { Comment } from '../src/models/comment';
+import { LoginSession } from '../src/models/login-session';
 import { Profile } from '../src/models/profile';
 import { UserAccount } from '../src/models/user-account';
 
@@ -14,6 +15,8 @@ declare module '../src/models/bureau' {
     id: number;
     name: string | undefined;
   };
+
+  ['~pk']: 'id';
 
   ['~defaults']: {
     id: number;
@@ -38,6 +41,8 @@ declare module '../src/models/comment' {
     post: number | undefined;
     user: number | undefined;
   };
+
+  ['~pk']: 'id';
 
   ['~defaults']: {
     id: number;
@@ -64,6 +69,8 @@ declare module '../src/models/country' {
     name: string | undefined;
     gov: number | undefined;
   };
+
+  ['~pk']: 'id';
 
   ['~defaults']: {
     id: number;
@@ -92,6 +99,8 @@ declare module '../src/models/user' {
     registeredAt: Date | undefined;
   };
 
+  ['~pk']: 'id';
+
   ['~defaults']: {
     id: number;
     active: boolean;
@@ -102,6 +111,7 @@ declare module '../src/models/user' {
     posts: Post[];
     accounts: UserAccount[];
     profile: Profile;
+    loginSessions: LoginSession[];
   };
 
   ['~relInfo']: {
@@ -109,6 +119,7 @@ declare module '../src/models/user' {
     posts: { target: Post; kind: 'one-to-many' };
     accounts: { target: UserAccount; kind: 'one-to-many' };
     profile: { target: Profile; kind: 'one-to-one' };
+    loginSessions: { target: LoginSession; kind: 'one-to-many' };
   };
   }
 }
@@ -123,6 +134,8 @@ declare module '../src/models/post' {
     views: number;
     author: number | undefined;
   };
+
+  ['~pk']: 'id';
 
   ['~defaults']: {
     id: number;
@@ -150,6 +163,8 @@ declare module '../src/models/region' {
     country: number | undefined;
   };
 
+  ['~pk']: 'id';
+
   ['~defaults']: {
     id: number;
   };
@@ -172,6 +187,8 @@ declare module '../src/models/user-account' {
     createdBy: number | undefined;
   };
 
+  ['~pk']: 'id';
+
   ['~rel']: {
     createdBy?: User;
   };
@@ -190,6 +207,8 @@ declare module '../src/models/profile' {
     user: number | undefined;
   };
 
+  ['~pk']: 'id';
+
   ['~defaults']: {
     id: number;
   };
@@ -200,6 +219,26 @@ declare module '../src/models/profile' {
 
   ['~relInfo']: {
     user: { target: User; kind: 'one-to-one' };
+  };
+  }
+}
+
+declare module '../src/models/login-session' {
+  interface LoginSession {
+  ['~shape']: {
+    uid: string;
+    token: string | undefined;
+    user: number | undefined;
+  };
+
+  ['~pk']: 'uid';
+
+  ['~rel']: {
+    user?: User;
+  };
+
+  ['~relInfo']: {
+    user: { target: User; kind: 'many-to-one' };
   };
   }
 }

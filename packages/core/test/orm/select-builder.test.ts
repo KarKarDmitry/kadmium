@@ -62,11 +62,25 @@ const NO_PK_IR: ModelIR = {
  * фильтры теряют `eq`/`.asc()` — тест проверял бы не то.
  */
 interface Account {
+  ['~pk']: 'uid';
   ['~shape']: {
     uid: number;
     handle: string;
     bio: string | undefined;
   };
+  ['~rel']: Record<string, never>;
+  ['~relInfo']: Record<string, never>;
+}
+
+/**
+ * Модель без первичного ключа — `findById` для неё не собирается: звать
+ * нечем, ошибка должна быть на типе, а не в PostgreSQL.
+ *
+ * Тип объявлен явно, потому что имя `Session` уже занято глобальным классом
+ * из `node:inspector`, который молча подставлялся в generic вместо модели.
+ */
+interface Session {
+  ['~shape']: { token: string };
   ['~rel']: Record<string, never>;
   ['~relInfo']: Record<string, never>;
 }
@@ -90,7 +104,8 @@ function userBuilder(adapter?: MockAdapter) {
 
 describe('SelectQueryBuilder — findById', () => {
   it('кидает No primary key field found, если isPrimary не задан', () => {
-    const b = new SelectQueryBuilder<Account>(NO_PK_IR);
+    const b = new SelectQueryBuilder<Session>(NO_PK_IR);
+    // @ts-expect-error — у модели без PK аргумента не существует
     expect(() => b.findById(1)).toThrow('No primary key field found');
   });
 

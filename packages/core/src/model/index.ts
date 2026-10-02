@@ -3,7 +3,6 @@ import { invertRelation } from './fields/model';
 import type { ModelSchema, ModelRelation } from './types/model';
 import type { StandardField } from './types/_base';
 import type { ReferenceField } from './types/ref';
-import type { AbstractFieldBuilder } from './fields/_base';
 
 export type ModelClass = typeof Model;
 
@@ -56,13 +55,12 @@ export class Model {
   }
 
   /**
-   * По умолчанию использует bigint с автоинкрементом.
-   * Можно переопределить в наследниках.
+   * Собрать схему модели.
+   *
+   * Свойства `id` у класса нет намеренно — дефолтный PK добавляется в
+   * `$build()` (см. `withDefaultPrimaryKey`). Поэтому объявить в наследнике
+   * свой PK под другим именем безопасно: объявленный всегда выигрывает.
    */
-  /** @default f.pk (bigint auto-increment) */
-  id: AbstractFieldBuilder = f.pk;
-
-  /** Собрать схему модели */
   $build(): ModelSchema {
     const fields: Record<string, StandardField> = {};
 
@@ -96,7 +94,7 @@ export class Model {
 
     return {
       _meta: { _: 'model', name: this.constructor.name },
-      fields,
+      fields: withDefaultPrimaryKey(fields),
     };
   }
 
@@ -163,4 +161,43 @@ export class Model {
 
 interface StandardFieldBuilderLike {
   $build(): StandardField;
+}
+
+/**
+ * Добавить дефолтный `id` (bigint с автоинкрементом), если модель не
+ * объявила первичный ключ сама.
+ *
+ * Раньше дефолт жил свойством на `Model`, и объявление `uid = f.pk.uuid`
+ * в наследнике его НЕ вытесняло: инициализатор базового класса отрабатывал
+ * первым, так что в IR попадали оба поля с `isPrimary`, `irToColumns()`
+ * помечал обе колонки, а `columnDefSql()` печатал `PRIMARY KEY` инлайн в
+ * каждой — `CREATE TABLE` падал в PostgreSQL с 42710. Плюс `findById()`
+ * брал первое попавшееся `isPrimary` и фильтровал не по той колонке.
+ *
+ * Правила:
+ * - объявлен хоть один primary → дефолт не добавляется (коллизия невозможна);
+ * - ключ `id` занят → не добавляется (явное `id = f.string` — тоже выбор
+ *   разработчика, такая модель остаётся без PK);
+ * - иначе добавляется дефолтный bigserial PK.
+ *
+ * Признак PK здесь — `_meta._type`, а не `FieldIR.isPrimary`: функция
+ * работает на слое схемы (`StandardField`), где признака ещё нет — он
+ * проставляется позже, в `compileModel()`. Приведённые проверки нельзя
+ * «унифицировать» с проверкой `isPrimary` из `compile.ts`.
+ *
+ * Ставится ПЕРВЫМ по порядку: порядок полей определяет порядок колонок в
+ * DDL, проекцию по умолчанию и ключи в сгенерированных `~shape`/`~defaults`.
+ */
+function withDefaultPrimaryKey(
+  fields: Record<string, StandardField>,
+): Record<string, StandardField> {
+  const hasPrimary = Object.values(fields).some(
+    (field) => field._meta._type === 'primary',
+  );
+  if (hasPrimary || 'id' in fields) return fields;
+
+  return {
+    id: { ...f.pk.$build(), alias: 'id' } as StandardField,
+    ...fields,
+  };
 }

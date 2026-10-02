@@ -6,5 +6,16 @@ import { Country } from './country';
 import { Region } from './region';
 import { UserAccount } from './user-account';
 import { Profile } from './profile';
+import { LoginSession } from './login-session';
 
-export { User, Post, Comment, Bureau, Country, Region, UserAccount, Profile };
+export {
+  User,
+  Post,
+  Comment,
+  Bureau,
+  Country,
+  Region,
+  UserAccount,
+  Profile,
+  LoginSession,
+};

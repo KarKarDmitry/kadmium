@@ -14,6 +14,16 @@ export class BasePrimaryField implements AbstractFieldBuilder {
     unique: true,
     nullable: false,
   };
+  private columnAlias?: string;
+
+  /**
+   * Указать другое имя колонки в БД.
+   * По умолчанию — имя поля на модели.
+   */
+  alias(columnName: string) {
+    this.columnAlias = columnName;
+    return this;
+  }
 
   $build(): PrimaryField {
     return {
@@ -21,6 +31,7 @@ export class BasePrimaryField implements AbstractFieldBuilder {
       type: '_',
       db: this.db,
       tsType: 'number',
+      ...(this.columnAlias ? { alias: this.columnAlias } : {}),
     };
   }
 }

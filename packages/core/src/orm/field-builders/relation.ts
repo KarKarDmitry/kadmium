@@ -40,14 +40,23 @@ export class Relation implements IncludedRelation {
     fieldIr: FieldIR | undefined,
     public readonly irLookup?: (name: string) => ModelIR | undefined,
     parentAlias?: string,
+    /** IR модели, которой принадлежит поле связи — базовой для include. */
+    parentIr?: ModelIR,
   ) {
     this.originalName = name;
     this.alias = name;
     this.parentAlias = parentAlias ?? name;
 
-    let parentField = fieldIr?.foreignKey ?? '';
-    let childField = 'id';
+    // JOIN строится как `"<alias связи>"."childField" = "<родитель>"."parentField"`,
+    // поэтому `childField` — колонка включаемой модели (`targetIr`), а
+    // `parentField` — колонка базовой. Это разные модели, поэтому PK берётся
+    // у каждой своей: у связи без `sourceModel` FK лежит на базовой модели,
+    // у inverse — на включаемой, и PK там нужен родителю, а не цели.
     const isInverse = !!fieldIr?.sourceModel;
+    const parentPrimaryKey = parentIr ? primaryKeyColumn(parentIr) : 'id';
+
+    let parentField = fieldIr?.foreignKey ?? '';
+    let childField = primaryKeyColumn(targetIr);
     const relationType: 'one-to-one' | 'one-to-many' | 'many-to-one' =
       fieldIr?.relation === 'one-to-one'
         ? 'one-to-one'
@@ -56,7 +65,7 @@ export class Relation implements IncludedRelation {
           : 'many-to-one';
 
     if (isInverse) {
-      parentField = 'id';
+      parentField = parentPrimaryKey;
       childField = fieldIr?.foreignKey ?? '';
     }
     this.relationType = relationType;
@@ -129,4 +138,23 @@ export class Relation implements IncludedRelation {
     }
     return this;
   }
+}
+
+/**
+ * Колонка первичного ключа модели — по `isPrimary`, а не по имени `id`.
+ *
+ * Имя колонки, а не свойства: `parentField`/`childField` уходят в SQL как
+ * есть (`"alias"."column"`), поэтому нужен именно `FieldIR.alias`.
+ * Раньше здесь стоял литерал `'id'`, и модель с нестандартным PK
+ * (`uid = f.pk.uuid`) давала JOIN по несуществующей колонке → PG 42703.
+ *
+ * Без PK отдаём `'id'`: связи к модели без первичного ключа вырождены, и
+ * падать здесь означало бы сломать инициализацию include ради неиспользуемой
+ * связи — настоящую ошибку пользователь увидит в самом запросе.
+ */
+function primaryKeyColumn(ir: ModelIR): string {
+  for (const [name, field] of Object.entries(ir.fields)) {
+    if (field.isPrimary === true) return field.alias ?? name;
+  }
+  return 'id';
 }

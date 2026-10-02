@@ -387,4 +387,101 @@ describe('compileModel', () => {
       expect(ir.fields.extra).toBeDefined();
     });
   });
+
+  /**
+   * Первичный ключ — единственный на модель.
+   *
+   * Раньше дефолтный `id` жил свойством на `Model`, и объявление своего PK
+   * в наследнике его не вытесняло: инициализатор базового класса отрабатывал
+   * первым, в IR попадали оба поля с `isPrimary`, а `CREATE TABLE` падал в
+   * PostgreSQL с 42710. Дефолт переехал в `$build()` — эти тепы фиксируют,
+   * что объявленный PK всегда выигрывает, а два PK больше невозможны.
+   */
+  describe('primary key', () => {
+    it('добавляет дефолтный bigint PK, если модель не объявила свой', () => {
+      const ir = compileModel(new User());
+      expect(ir.fields.id.isPrimary).toBe(true);
+      expect(ir.fields.id.type).toBe('bigint');
+      expect(ir.fields.id.nullable).toBe(false);
+    });
+
+    it('объявленный PK вытесняет дефолтный id', () => {
+      class ByUid extends Model {
+        uid = f.pk.uuid;
+        label = f.string;
+      }
+      const ir = compileModel(new ByUid());
+      expect(ir.fields.id).toBeUndefined();
+      expect(ir.fields.uid.isPrimary).toBe(true);
+      expect(ir.fields.uid.type).toBe('uuid');
+    });
+
+    it('в IR остаётся ровно один isPrimary', () => {
+      class ByUid extends Model {
+        uid = f.pk.uuid;
+      }
+      const primaries = Object.values(compileModel(new ByUid()).fields).filter(
+        (f) => f.isPrimary,
+      );
+      expect(primaries).toHaveLength(1);
+    });
+
+    it('явный id = f.pk не дублируется дефолтом', () => {
+      class Explicit extends Model {
+        id = f.pk.uuid;
+      }
+      const ir = compileModel(new Explicit());
+      expect(ir.fields.id.isPrimary).toBe(true);
+      expect(ir.fields.id.type).toBe('uuid');
+      expect(Object.values(ir.fields).filter((f) => f.isPrimary)).toHaveLength(
+        1,
+      );
+    });
+
+    it('PK поддерживает .alias(): колонка переименовывается', () => {
+      class Aliased extends Model {
+        uid = f.pk.uuid.alias('user_uid');
+      }
+      const ir = compileModel(new Aliased());
+      expect(ir.fields.uid.alias).toBe('user_uid');
+      expect(ir.fields.uid.isPrimary).toBe(true);
+    });
+
+    it('alias не вытесняет дефолт, если PK не объявлен', () => {
+      const ir = compileModel(new User());
+      expect(ir.fields.id.alias).toBe('id');
+    });
+
+    it('кидает, если разработчик объявил два PK', () => {
+      class TwoPk extends Model {
+        id = f.pk;
+        uid = f.pk.uuid;
+      }
+      expect(() => compileModel(new TwoPk())).toThrow(
+        /несколько primary-ключей/,
+      );
+    });
+
+    it('сообщение ошибки перечисляет имена обоих PK', () => {
+      class TwoPk extends Model {
+        id = f.pk;
+        uid = f.pk.uuid;
+      }
+      expect(() => compileModel(new TwoPk())).toThrow(/id, uid/);
+    });
+
+    it('явный не-PK id запрещает добавление дефолта', () => {
+      class WithExplicitNonPkId extends Model {
+        id = f.string;
+      }
+      const ir = compileModel(new WithExplicitNonPkId());
+      expect(ir.fields.id.isPrimary).toBeFalsy();
+      expect(ir.fields.id.type).toBe('string');
+    });
+
+    it('порядок полей: дефолтный id идёт первым', () => {
+      const ir = compileModel(new User());
+      expect(Object.keys(ir.fields)[0]).toBe('id');
+    });
+  });
 });

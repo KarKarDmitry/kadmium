@@ -47,6 +47,7 @@ export function buildRelation(
     fieldIr,
     irLookup,
     parentAlias,
+    modelIr,
   );
 }
 
