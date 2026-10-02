@@ -50,6 +50,34 @@
 `JSON.stringify` кидает `TypeError: Do not know how to serialize a BigInt`,
 `id + 1` перестаёт компилироваться, фильтры требуют нового класса.
 
+**`f.pk.numeric` добавляется.** Поверхность `f.pk` сейчас `bigint` / `string` /
+`uuid` (`primary.ts:74-83`), и `numeric` в ней — дыра, из-за которой
+пользователь лезет в `db_type` руками. Зачем DSL, когда можно его объявить:
+
+```ts
+{ type: 'decimal', db: { ...base.db, db_type: 'numeric' }, tsType: 'Decimal' }
+```
+
+`tsType` обязан быть `Decimal`, а не `number`: `numeric` без точности держит
+произвольную, и `number` её тихо срежет. `'decimal'` уже есть в `FieldType`
+(`ir/index.ts:25`), IR не трогаем.
+
+**Но это тянет две правки, которых не видно из DSL.** `~defaults` и
+`autoIncrement` считают, что PK без `uuid`/`string` заполняет БД:
+
+```ts
+// codegen/generate-model.ts:16
+return isPrimary && spec?.db_type !== 'uuid' && spec?.db_type !== 'string';
+// sql-pg/src/diff/types.ts:274 — то же самое, второй раз
+```
+
+Для `db_type: 'numeric'` обе дают `true`, то есть поле попадёт в `~defaults` и в
+`autoIncrement`. **Это неверно:** numeric-PK задаёт пользователь, identity там
+нет. В обоих местах нужно добавить `&& db_type !== 'numeric'`.
+
+Это и есть цена дублирования: каждое новое значение `db_type` стоит двух
+синхронных правок в разных пакетах.
+
 ### R2. `bigintString` — точный целочисленный, плюс сторож
 
 - `f.pk.bigintString` и `f.number.bigintString` → `type: 'bigint'`,
@@ -181,7 +209,7 @@ coercion. SELECT надо подключать отдельно.
 для `timestamptz` он даже правильнее: `toISOString()` даёт `Z`, а `timestamptz`
 offset уважает — в отличие от B5.
 
-**Почему не расширять `db_type` на не-primary (дизайн A-lite).** `db_type` —
+**Почему не расширять `db_type` на не-primary.** `db_type` —
 это escape hatch для raw-типа на уровне адаптера, и его allowlist
 (`types.ts:161-165`) намеренно живёт внутри `if (f.type === 'primary')`.
 Смысл `timestamptz` задаёт core, а PG-имя типа — адаптер; протекание этого
@@ -232,6 +260,18 @@ runtime-разбора.
 Размещение — `dependencies`, не `peerDependencies`. С `peer` у приложения будет
 своя копия, и `Decimal.isDecimal` упадёт на экземпляре из чужого
 `node_modules`. Транзитивный пакет в 136 KB — приемлемая цена.
+
+**Ядро импортирует и реэкспортирует `Decimal`:**
+
+```ts
+// packages/core/src/index.ts
+export { Decimal } from 'decimal.js';
+```
+
+Причина не в удобстве, а в B11: `Decimal.isDecimal` должен видеть экземпляр из
+той же копии пакета, иначе проверка молча вернёт `false`. Единая точка входа
+означает и единую версию — смена внутренней зависимости не трогает публичный
+тип пользователя.
 
 - `f.number.decimal()` → `numeric`, `tsType: 'Decimal'`
 - `f.number.decimal(n, m)` → `numeric(n, m)`, `tsType: 'Decimal'`
@@ -295,7 +335,7 @@ register(1186, parseInterval);
 
 Парсер писать не нужно — достаточно объявить `tsType: 'Duration'`.
 
-**Запись требует своего сериализатора.** Замерено:
+**Запись требует сериализатора, и он принадлежит адаптеру.** Замерено:
 
 ```
 плоский объект {days: 3}  →  "{\"days\":3}"     ← JSON, в БД улетит мусор
@@ -305,13 +345,37 @@ register(1186, parseInterval);
 `pg` зовёт `toPostgres()` только когда метод реально есть, поэтому экземпляр
 проходит, а объектный литерал падает в `JSON.stringify` (тот же механизм, что
 B11). Свой сериализатор нужен ровно затем, чтобы пользователю не пришлось
-конструировать `new PostgresInterval(...)` — это зависимость адаптера, и тащить
+конструировать `new PostgresInterval(...)`: это зависимость адаптера, и тащить
 её в публичный API ядра нельзя.
 
-- сериализатор живёт в core рядом с прочими `tsType`-coercion, отдаёт строку
-  литерала, PG выводит тип из контекста — как в B11
-- на вход принимается и строка (`'3 days'`), и объект
+**`Duration` сериализует адаптер, не ядро.** `'3 days'` — это литерал
+PostgreSQL, а не значение, значит знать его формат ядро не должно. Разделение:
+**ядро решает когда (по `tsType`), адаптер решает как (в формате PG)** —
+метод `Dialect.serializeValue` (см. `plans/dialect.md` §3.1). Хук обязателен:
+без него `f.interval` не работает ни в одном адаптере, а «работает только у pg»
+— та хрупкость, ради которой существует `SqlAdapter`.
+
+В отличие от `Decimal`, чьи `toString()`/`toJSON()` не зависят от БД (поэтому
+B11 живёт в core), форма интервала зависит.
+
+- на вход принимается и строка (`'3 days'`), и плоский объект
+- в сыром `sql`-фрагменте контекста поля нет, поэтому `tsType` неизвестен и
+  используется строковая форма: `sql\`${field} + ${'1 day'}::interval\``.
+  `SqlPart` строку принимает уже сегодня. Структурное распознавание по семи
+  ключам отклонено — оно зашило бы словарь PostgreSQL в ядро и ловило бы
+  ложные срабатывания на JSON-колонке с теми же ключами
 - ни `postgres-interval`, ни что-либо ещё в `dependencies` ядра не добавляется
+
+**Переносимость: только PostgreSQL.** `interval` как тип колонки есть только в
+PG. В MySQL/MariaDB `INTERVAL` — ключевое слово для арифметики
+(`INTERVAL expr unit`), колонку создать нельзя, и в списке типов MySQL его
+нет. В SQLite пять классов хранения (`NULL`, `INTEGER`, `REAL`, `TEXT`, `BLOB`)
+— ни даты, ни интервала. У Oracle это **два** разных типа
+(`INTERVAL DAY TO SECOND` и `INTERVAL YEAR TO MONTH`). У SQL Server типа нет
+вовсе, есть `DATEADD`/`DATEDIFF`.
+
+Значит `tsType: 'Duration'` — сознательно PG-only, а не универсальное понятие.
+См. правило переносимости в разделе 5.
 
 ### R8. `f.string` → `text`, `.varchar(n)`, `f.text` → `text`
 
@@ -529,6 +593,63 @@ numeric  = 16 байт
 PK лежит и в индексе, и в heap. Это довод **против** замены `bigintString` на
 `Decimal` (см. R2), а не отдельная задача.
 
+### B13. Кодоген не импортирует не-примитивные `tsType` 🔴 (блокер R6/R7)
+
+`generate-model.ts:41-54` собирает имена в `imports`, но строку импорта эмитит
+**только если имя совпало с другой моделью**:
+
+```ts
+for (const name of sorted) {
+  const other = allIrs.find((m) => m.name === name);
+  if (other) {                                    // ← только для моделей
+    importLines.push(`  import { ${name} } from '${targetPath}';`);
+  }
+}
+```
+
+Проверено прогоном кодогена с `tsType: 'Decimal'` и `'Duration'`:
+
+```ts
+import { User } from '../src/models/user';   // модель — импорт есть
+
+  ['~shape']: {
+    id: number;
+    amount: Decimal;      // ← импорта нет
+    window: Duration;     // ← импорта нет
+```
+
+У пользователя будет `Cannot find name 'Decimal'`. Все существующие тесты
+кодогена используют только имена моделей (`tsType: 'User'`, `'Post'`), так что
+ветка никогда не проверялась.
+
+Лечится таблицей `tsType` → модуль, с импортом всегда из ядра:
+
+```ts
+const TS_TYPE_IMPORTS: Record<string, string> = {
+  Decimal: '@karkardmitry/kadmium-core',
+  Duration: '@karkardmitry/kadmium-core',
+};
+```
+
+Точка входа ровно одна — та, что даёт R6 (реэкспорт), поэтому B13 и R6 обязаны
+лежать рядом.
+
+### B14. R8 конфликтует с `db_type: 'string'` 🟡 (блокер R8)
+
+`sql-pg/src/diff/types.ts:163` отдаёт `character varying`:
+
+```ts
+if (dbType === 'string') return 'character varying';
+```
+
+а R8 и итоговая матрица утверждают, что `f.pk.string` уезжает в `text`. Одно из
+двух ложно. Если оставить `character varying` для `f.pk.string`, а `f.string`
+перевести на `text`, то `pgType()` и интроспекция разойдутся → бесконечный
+`alter-type`.
+
+R8 обязан включать смену этого маппинга на `text`. Сейчас R8 про него не
+упоминает.
+
 ---
 
 ## 4. Про `$1::bigint`: не нужен
@@ -556,34 +677,36 @@ PK лежит и в индексе, и в heap. Это довод **против
 ## 5. Итоговая матрица
 
 `Статус` — ✅ есть · 🆕 добавить · 🔁 меняется.
+`Переносимость` — 🌍 все СУБД · 🐘 только PostgreSQL.
 
-| DSL | PG | TS | Статус |
-|---|---|---|---|
-| `f.string` | `text` | `string` | 🔁 было `character varying` |
-| `f.string.varchar(n)` | `character varying(n)` | `string` | 🆕 R8 |
-| `f.text` | `text` | `string` | 🆕 R8 |
-| `f.bool` | `boolean` | `boolean` | ✅ |
-| `f.number` | `integer` | `number` | ✅ |
-| `f.number.decimal()` | `numeric` | **`Decimal`** | 🔁 было `number`, R6 |
-| `f.number.decimal(n, m=0)` | `numeric(n, m)` | `Decimal` | 🆕 R6 |
-| `f.number.bigint` | `bigint` | `number` | 🆕 новое |
-| `f.number.bigintString` | `bigint` | `string` | 🆕 R2 |
-| `f.number.float` | `double precision` | `number` | 🆕 новое |
-| `f.datetime` | `timestamp` | `Date` | ✅ единственный здоровый |
-| `f.datetime.date()` | `date` | **`string`** | 🔁 было `Date`, R4 |
-| `f.datetime.time()` | `time` | **`string`** | 🔁 было `Date`, R4+B1 |
-| `f.datetime.withTimeZone()` | `timestamptz` | `Date` | 🆕 R5 |
-| `f.interval` | `interval` | `Duration` | 🆕 R7 |
-| `f.uuid` | `uuid` | `string` | 🆕 новое |
-| `f.binary` | `bytea` | `Buffer` | 🆕 |
-| `f.inet` | `inet` | `string` | 🆕 |
-| `f.array(<поле>)` | `<элемент>[]` | по `tsType` элемента | 🆕 R9 |
-| `f.pk` / `f.pk.bigint` | `bigint` | `number` | ✅ R1, без изменений |
-| `f.pk.bigintString` | `bigint` | `string` | 🆕 R2 |
-| `f.pk.string` | `text` | `string` | 🔁 было `character varying`, R8 |
-| `f.pk.uuid` | `uuid` | `string` | ✅ работает |
-| `f.ref` | = PK цели | = `tsType` цели | ✅ наследует (`types.ts:167-176`) |
-| `f.ref.oneToOne` / `.manyToOne` | то же | то же | ✅ 1:1 добавляет `UNIQUE` (`4ea10ce`) |
+| DSL | PG | TS | Статус | Перенос |
+|---|---|---|---|---|
+| `f.pk.numeric` | `numeric` | `Decimal` | 🆕 R1 | 🌍 |
+| `f.string` | `text` | `string` | 🔁 было `character varying` 🌍 |
+| `f.string.varchar(n)` | `character varying(n)` | `string` | 🆕 R8 🌍 |
+| `f.text` | `text` | `string` | 🆕 R8 🌍 |
+| `f.bool` | `boolean` | `boolean` | ✅ 🌍 |
+| `f.number` | `integer` | `number` | ✅ 🌍 |
+| `f.number.decimal()` | `numeric` | **`Decimal`** | 🔁 было `number`, R6 🌍 |
+| `f.number.decimal(n, m=0)` | `numeric(n, m)` | `Decimal` | 🆕 R6 🌍 |
+| `f.number.bigint` | `bigint` | `number` | 🆕 новое 🌍 |
+| `f.number.bigintString` | `bigint` | `string` | 🆕 R2 🌍 |
+| `f.number.float` | `double precision` | `number` | 🆕 новое 🌍 |
+| `f.datetime` | `timestamp` | `Date` | ✅ единственный здоровый 🌍 |
+| `f.datetime.date()` | `date` | **`string`** | 🔁 было `Date`, R4 🌍 |
+| `f.datetime.time()` | `time` | **`string`** | 🔁 было `Date`, R4+B1 🌍 |
+| `f.datetime.withTimeZone()` | `timestamptz` | `Date` | 🆕 R5 🌍 |
+| `f.interval` | `interval` | `Duration` | 🆕 R7 | 🐘 |
+| `f.uuid` | `uuid` | `string` | 🆕 новое 🌍 |
+| `f.binary` | `bytea` | `Buffer` | 🆕 | 🐘 |
+| `f.inet` | `inet` | `string` | 🆕 | 🐘 |
+| `f.array(<поле>)` | `<элемент>[]` | по `tsType` элемента | 🆕 R9 | 🐘 |
+| `f.pk` / `f.pk.bigint` | `bigint` | `number` | ✅ R1, без изменений 🌍 |
+| `f.pk.bigintString` | `bigint` | `string` | 🆕 R2 🌍 |
+| `f.pk.string` | `text` | `string` | 🔁 было `character varying`, R8 🌍 |
+| `f.pk.uuid` | `uuid` | `string` | ✅ работает 🌍 |
+| `f.ref` | = PK цели | = `tsType` цели | ✅ наследует (`types.ts:167-176`) 🌍 |
+| `f.ref.oneToOne` / `.manyToOne` | то же | то же | ✅ 1:1 добавляет `UNIQUE` (`4ea10ce`) 🌍 |
 
 Три наблюдения по матрице:
 
@@ -593,6 +716,31 @@ PK лежит и в индексе, и в heap. Это довод **против
   покрывает.
 - **`f.string` и `f.text` дают одинаковый `text`** и различаются только
   валидацией (R8).
+
+### Правило переносимости
+
+Проверено по документации СУБД:
+
+| СУБД | `interval` | массивы-колонки |
+|---|---|---|
+| PostgreSQL | тип колонки, 7 компонентов | есть |
+| MySQL / MariaDB | `INTERVAL` — **ключевое слово** (`INTERVAL expr unit`), колонку создать нельзя; в списке типов отсутствует | нет (JSON) |
+| SQLite | нет — 5 классов хранения: `NULL`, `INTEGER`, `REAL`, `TEXT`, `BLOB` | нет |
+| SQL Server | нет; `DATEADD`/`DATEDIFF` с единицей-ключевым словом. Ближайшее — `TIME`, но это время суток, не длительность (потолок 24 ч) | нет |
+| Oracle | **два** типа: `INTERVAL DAY TO SECOND` и `INTERVAL YEAR TO MONTH` | VARRAY |
+
+**Правило: адаптер, не умеющий хранить тип, бросает на этапе DDL — и называет
+тип в ошибке. Не подставляет приблизительный аналог.**
+
+Ошибиться на миграции дешевле, чем создать колонку не того типа: `f.interval`
+в модели у SQLite-юзера — это осознанный запрос, который диалект не может
+выполнить, и внятная ошибка на `kadmium db push` полезнее, чем колонка `TEXT` с
+непрозрачной семантикой. Реализуется через `Dialect.supports(tsType)` —
+см. `plans/dialect.md` §3.1.
+
+`f` остаётся в core: DSL выражает намерение, а не возможность, и составные
+билдеры (`f.array(f.string)`) не должны склеиваться из двух пакетов. Обоснование
+— `plans/dialect.md` §4.1.
 
 ### Мёртвая поверхность
 
@@ -646,36 +794,45 @@ PK лежит и в индексе, и в heap. Это довод **против
 | 3 | **B10**: `format_type` + убрать `startsWith('varchar')` | **Поднят на 3** — блокер сразу для `varchar(n)`, `decimal(n,m)` и массивов |
 | 4 | **B9+B1+B2**: тесты на date/time, `pgType` для `time`, `date`/`time` → `string` | Ломающее изменение `~shape`, но альтернатива пишет неверные данные |
 | 5 | **B7**: молчаливые fallback'и → громкие ошибки | Мелочь, но открывает (10) |
-| 6 | **R5** `withTimeZone()` — флаг `tz` в `spec` + ветка в `pgType` | ~3 строки. Самостоятелен, ни на что не завязан |
-| 7 | **R8** `varchar(n)` / `f.text` + **R6** `decimal(n,m)` | После (3), иначе длина и масштаб невидимы |
-| 8 | **B11**: `Decimal` → строка на границе параметров | Обязательно вместе с (7), иначе `WHERE amount = $1` падает |
-| 9 | Недостающие билдеры под уже готовый адаптер: `f.uuid`, `f.number.bigint`, `f.number.float` | `pgType()` и `createBaseFilter()` их оба обрабатывают, ~60 строк, ноль правок в sql-pg |
-| 10 | **B8**: кодоген и ref на реальный `tsType` | Ожидает дизайн A |
-| 11 | Дизайн A: `db_type` для не-primary | После (3) |
-| 12 | **R2** `bigintString` + общий фильтр с `Decimal` | Вместе с (1), фильтр отдельно |
-| 13 | **R9** `f.array` + `ArrayFilter` + элементный coercion | После сходимости (3) |
-| 14 | **R7** `f.interval` + сериализатор `Duration` | Чтение бесплатно (`pg-types` уже парсит oid 1186), писать только сериализатор. Рядом с (8) — тот же приём |
-| 15 | `f.binary`, `f.inet` | — |
-| 16 | Удаление `min`/`max` | **Строго после `plans/validation.md`** |
-| 17 | `enum` | Нужен `CREATE TYPE` в DDL |
+| 6 | **`plans/dialect.md`** — `Dialect` в контракт, `diff` перестаёт течь в core | **Первый**, потому что (7), (8), (14) и правило переносимости ставят на `Dialect.serializeValue` и `Dialect.supports` |
+| 7 | **R5** `withTimeZone()` — флаг `tz` в `spec` + ветка в `pgType` | ~3 строки. Самостоятелен, ни на что не завязан |
+| 8 | **R8** `varchar(n)` / `f.text` + **B14** смена `db_type: 'string'` → `text` | После (3), иначе длина невидима. B14 обязателен, иначе бесконечный diff |
+| 9 | **R6** `decimal(n,m)` + реэкспорт `Decimal` + **B13** импорты в кодогене | B13 обязателен вместе с R6: `Decimal` в `~shape` без импорта не компилируется |
+| 10 | **B11**: `Decimal` → строка на границе параметров | Вместе с (9), иначе `WHERE amount = $1` падает |
+| 11 | **R1** `f.pk.numeric` + две правки `~defaults`/`autoIncrement` | После (9), потому что `tsType` = `Decimal` из R6 |
+| 12 | Недостающие билдеры под уже готовый адаптер: `f.uuid`, `f.number.bigint`, `f.number.float` | `pgType()` и `createBaseFilter()` их оба обрабатывают, ~60 строк, ноль правок в sql-pg |
+| 13 | **B8**: кодоген и ref на реальный `tsType` | Ожидает дизайн A |
+| 14 | Дизайн A: `db_type` для не-primary | После (3) |
+| 15 | **R2** `bigintString` + общий фильтр с `Decimal` | Вместе с (1), фильтр отдельно |
+| 16 | **R9** `f.array` + `ArrayFilter` + элементный coercion | После сходимости (3) |
+| 17 | **R7** `f.interval` + `Dialect.serializeValue` для `Duration` | Чтение бесплатно (`pg-types` уже парсит oid 1186), писать только сериализатор. Требует (6) |
+| 18 | `f.binary`, `f.inet` | Оба PostgreSQL-only, см. правило переносимости |
+| 19 | Удаление `min`/`max` | **Строго после `plans/validation.md`** |
+| 20 | `enum` | Нужен `CREATE TYPE` в DDL |
 
 ---
 
 ## 8. Открытые вопросы
 
-Продуктовые и архитектурные вопросы закрыты (см. R5, R7). Остались технические:
+Закрыто за обсуждение: `timestamptz` (флаг, не новый IR-тип), форма `Duration`
+(плоский объект), место сериализатора (адаптер), `Decimal` в публичном API
+(реэкспорт из ядра), `f` не выносится в диалект, `escapeParam` не закладывается,
+типы diff едут в контракт.
 
-1. **`db_type` вне primary — свободная строка или enum?** Дизайн A снимает гейт
-   `if (f.type === 'primary')`, и тогда опечатка в `db_type` обычного поля уедет
-   в DDL как несуществующий тип. Нужен либо allowlist, либо громкая ошибка на
-   неизвестное значение (сводятся к B7).
-2. **`Duration` без арифметики — приемлемо ли?** Решение принято: значений
-   достаточно для чтения и записи, но `d1 + d2` невозможно. Если понадобится
-   арифметика, ей нужна опорная дата (`d.addTo(date)`) — это отдельный тип.
-3. **`Decimal` в `dependencies` core меняет публичную поверхность пакета.**
-   `Decimal` попадёт в `~shape` пользователей, то есть тип из чужого пакета
-   становится частью их API. Согласовано осознанно, но вспомнить при первом
-   релизе.
+Остались технические:
+
+1. **`db_type` вне primary — свободная строка или allowlist?** Дизайн A снимает
+   гейт `if (f.type === 'primary')`, и тогда опечатка в `db_type` обычного поля
+   уедет в DDL как несуществующий тип. Нужен либо allowlist, либо громкая ошибка
+   на неизвестное значение (сводятся к B7).
+2. **Нужен ли переносимый `f.duration`?** Не принят. Если появится диалект №2,
+   интервал станет недоступен, а для TTL/retry/timeout хватит целого числа
+   миллисекунд — это `f.number.bigint`. Если `f.duration` понадобится, его
+   вводить надо вместе с `plans/dialect.md`, а не раньше.
+3. **`Duration` без арифметики.** Считается приемлемым: арифметика требует
+   опорной даты (`'2026-01-31' + '1 month'` = `2026-02-28`), поэтому и должна
+   выполняться в SQL. Если понадобится TS-хелпер, ему нужна опорная дата —
+   `d.addTo(date)`, то есть отдельный тип.
 
 ---
 
