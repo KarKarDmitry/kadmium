@@ -21,7 +21,7 @@ import type {
   DropIndexOp,
   DropTableOp,
   IrField,
-} from '../../src/diff/types';
+} from '@karkardmitry/kadmium-sql-types';
 
 export const userFields: Record<string, IrField> = {
   id: { type: 'primary', nullable: false, unique: true, isPrimary: true },

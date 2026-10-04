@@ -4,19 +4,27 @@
  * Ported from kadmium-core's db-mutator, adapted for our IR types.
  */
 
-import type { DbDdlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type { DiffResult, IrField, HealthCheckResult } from './types';
+import type {
+  DbDdlAdapter,
+  DiffResult,
+  HealthCheckResult,
+  IrField,
+} from '@karkardmitry/kadmium-sql-types';
 import { computeDiff } from './compute';
 
+// Re-export: публичный API sql-pg не должен ломаться у потребителей,
+// импортирующих контракт diff-а отсюда. Каноническое место — sql-types.
 export type {
   DiffOp,
   DiffResult,
   HealthCheckResult,
   IrField,
+  IrModel,
   AddColumnOp,
   DropColumnOp,
   AlterTypeOp,
   AlterNullableOp,
+  AlterDefaultOp,
   AddIndexOp,
   DropIndexOp,
   AddForeignKeyOp,
@@ -24,7 +32,7 @@ export type {
   AlterForeignKeyOp,
   CreateTableOp,
   DropTableOp,
-} from './types';
+} from '@karkardmitry/kadmium-sql-types';
 
 export {
   pgType,

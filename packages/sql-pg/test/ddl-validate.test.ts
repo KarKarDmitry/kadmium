@@ -5,7 +5,7 @@ import {
   assertReferentialAction,
   assertDiffOpSqlSafe,
 } from '../src/ddl-validate';
-import type { DiffOp } from '../src/diff/types';
+import type { DiffOp } from '@karkardmitry/kadmium-sql-types';
 
 describe('assertSqlIdentifier', () => {
   it('accepts snake_case, camelCase, digits after first char', () => {

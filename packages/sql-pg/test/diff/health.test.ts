@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { diffToHealth } from '../../src/diff/index';
-import type { DiffResult } from '../../src/diff/types';
+import type { DiffResult } from '@karkardmitry/kadmium-sql-types';
 
 function makeDiff(overrides: Partial<DiffResult['summary']> = {}): DiffResult {
   return {

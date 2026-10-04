@@ -15,7 +15,7 @@ import {
   dropLegacyIndexOp,
   dropPostsOp,
 } from './fixtures';
-import type { DiffOp } from '../../src/diff/types';
+import type { DiffOp } from '@karkardmitry/kadmium-sql-types';
 
 describe('renderSql', () => {
   it('returns a no-op comment for an empty diff', () => {

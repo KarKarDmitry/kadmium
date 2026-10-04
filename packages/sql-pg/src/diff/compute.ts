@@ -6,7 +6,11 @@ import type {
   DbDdlAdapter,
   DbForeignKey,
 } from '@karkardmitry/kadmium-sql-types';
-import type { DiffOp, DiffResult, IrField } from './types';
+import type {
+  DiffOp,
+  DiffResult,
+  IrField,
+} from '@karkardmitry/kadmium-sql-types';
 import {
   pgType,
   normalizePgType,

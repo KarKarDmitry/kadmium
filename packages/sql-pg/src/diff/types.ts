@@ -3,170 +3,20 @@
  */
 
 import type {
+  AddIndexOp,
   DbColumn,
-  DbIndex,
   DbForeignKey,
-  ReferentialAction,
+  DbIndex,
+  DiffOp,
+  IrField,
 } from '@karkardmitry/kadmium-sql-types';
 
-/* ── Diff Operation Types ── */
-
-export interface AddColumnOp {
-  type: 'add-column';
-  table: string;
-  column: DbColumn;
-}
-
-export interface DropColumnOp {
-  type: 'drop-column';
-  table: string;
-  columnName: string;
-}
-
-export interface AlterTypeOp {
-  type: 'alter-type';
-  table: string;
-  columnName: string;
-  oldType: string;
-  newType: string;
-}
-
-export interface AlterNullableOp {
-  type: 'alter-nullable';
-  table: string;
-  columnName: string;
-  oldNullable: boolean;
-  newNullable: boolean;
-}
-
-/**
- * Смена `DEFAULT` существующей колонки.
- *
- * `newDefault === null` означает `DROP DEFAULT` — так же, как `null` в
- * `DbColumn.defaultValue` означает отсутствие дефолта при создании.
- * Сравнение с базой идёт через `defaultsEqual()`, а не `===`: PostgreSQL
- * хранит переписанный разбором литерал, поэтому текстовое равенство для
- * временных типов не наступает никогда.
- */
-export interface AlterDefaultOp {
-  type: 'alter-default';
-  table: string;
-  columnName: string;
-  oldDefault: string | null;
-  newDefault: string | null;
-}
-
-export interface AddIndexOp {
-  type: 'add-index';
-  index: DbIndex;
-}
-
-export interface DropIndexOp {
-  type: 'drop-index';
-  indexName: string;
-  tableName: string;
-}
-
-export interface AddForeignKeyOp {
-  type: 'add-foreign-key';
-  fk: DbForeignKey;
-}
-
-export interface DropForeignKeyOp {
-  type: 'drop-foreign-key';
-  fkName: string;
-  tableName: string;
-}
-
-/**
- * Смена определения существующего FK: действия, целевой таблицы или колонок.
- *
- * Отдельная операция, а не пара `drop-foreign-key` + `add-foreign-key`, потому
- * что `checkHealth` считает добавленный FK «отсутствующим ограничением» и
- * покраснел бы на исправной схеме. Postgres не умеет ALTER CONSTRAINT по
- * частям — внутри операции ограничение пересоздаётся, но для диффа и для
- * отчёта это изменение существующего FK, а не появление нового.
- */
-export interface AlterForeignKeyOp {
-  type: 'alter-foreign-key';
-  fkName: string;
-  tableName: string;
-  oldFk: DbForeignKey;
-  newFk: DbForeignKey;
-}
-
-export interface CreateTableOp {
-  type: 'create-table';
-  table: string;
-  columns: DbColumn[];
-}
-
-export interface DropTableOp {
-  type: 'drop-table';
-  table: string;
-}
-
-export type DiffOp =
-  | AddColumnOp
-  | DropColumnOp
-  | AlterTypeOp
-  | AlterNullableOp
-  | AlterDefaultOp
-  | AddIndexOp
-  | DropIndexOp
-  | AddForeignKeyOp
-  | DropForeignKeyOp
-  | AlterForeignKeyOp
-  | CreateTableOp
-  | DropTableOp;
-
-export interface DiffResult {
-  operations: DiffOp[];
-  hasChanges: boolean;
-  summary: {
-    addedTables: number;
-    droppedTables: number;
-    addedColumns: number;
-    droppedColumns: number;
-    alteredColumns: number;
-    alteredDefaults: number;
-    addedIndexes: number;
-    droppedIndexes: number;
-    addedForeignKeys: number;
-    droppedForeignKeys: number;
-    alteredForeignKeys: number;
-  };
-}
-
-export interface HealthCheckResult {
-  isHealthy: boolean;
-  issues: string[];
-  summary: {
-    tablesMissing: number;
-    tablesExpected: number;
-    tablesMatching: number;
-  };
-}
+// Контракт diff-а (DiffOp/DiffResult/HealthCheckResult) переехал в
+// `@karkardmitry/kadmium-sql-types`: `computeDiff()` одинаков для всех диалектов,
+// а объявлять его в пакете адаптера означало, что `core` обязан импортировать
+// этот адаптер ради одних типов.
 
 /* ── IR field type → PG data type ── */
-
-export type IrField = {
-  type: string;
-  ref?: string;
-  sourceModel?: string;
-  nullable: boolean;
-  unique: boolean;
-  index?: boolean;
-  isPrimary?: boolean;
-  alias?: string;
-  spec?: Record<string, unknown>;
-  /** Тип связи из model DSL. Локальный union — sql-pg не ходит в core. */
-  relation?: 'one-to-many' | 'many-to-one' | 'one-to-one';
-  /** ON DELETE из model DSL; уже в канонической форме, маппинг — в core. */
-  onDelete?: ReferentialAction;
-  /** ON UPDATE из model DSL; уже в канонической форме, маппинг — в core. */
-  onUpdate?: ReferentialAction;
-};
 
 export function pgType(
   name: string,

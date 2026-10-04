@@ -7,7 +7,7 @@
  * выражения по allowlist-символам + запрет statement-breaker'ов и комментариев.
  */
 
-import type { DiffOp } from './diff/types';
+import type { DiffOp } from '@karkardmitry/kadmium-sql-types';
 
 /** Unquoted SQL-идентификатор (Postgres): буква/подчёркивание, далее буквы/цифры/_. */
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;

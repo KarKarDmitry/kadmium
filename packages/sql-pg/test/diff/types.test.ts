@@ -9,7 +9,7 @@ import {
   expectedIndexes,
   expectedForeignKeys,
 } from '../../src/diff/types';
-import type { IrField } from '../../src/diff/types';
+import type { IrField } from '@karkardmitry/kadmium-sql-types';
 import type { ReferentialAction } from '@karkardmitry/kadmium-sql-types';
 
 const irs = [

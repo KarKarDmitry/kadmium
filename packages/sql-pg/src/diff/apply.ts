@@ -3,7 +3,7 @@
  */
 
 import type { DbDdlAdapter, SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type { DiffOp, DiffResult } from './types';
+import type { DiffOp, DiffResult } from '@karkardmitry/kadmium-sql-types';
 import { createTableColumns } from './types';
 
 /** Render a single DiffOp as a human-readable description */

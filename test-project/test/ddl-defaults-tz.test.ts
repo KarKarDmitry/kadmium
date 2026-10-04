@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { renderDefault } from '@karkardmitry/kadmium-sql-pg';
 import { makeHarness, type Harness } from './helpers';
-import type { IrField } from '@karkardmitry/kadmium-sql-pg/dist/diff';
+import type { IrField } from '@karkardmitry/kadmium-sql-types';
 import type { DbColumn } from '@karkardmitry/kadmium-sql-types';
 
 /**

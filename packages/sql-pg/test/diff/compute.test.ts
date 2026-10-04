@@ -14,7 +14,7 @@ import {
   userFields,
   MockDdl,
 } from './fixtures';
-import type { IrField } from '../../src/diff/types';
+import type { IrField } from '@karkardmitry/kadmium-sql-types';
 
 function syncedDdl(): MockDdl {
   const ddl = new MockDdl();

@@ -358,6 +358,187 @@ export interface DbForeignKey {
   onUpdate: ReferentialAction;
 }
 
+// ── Schema diff: operations ──
+//
+// Контракт миграций живёт здесь, а не в пакете адаптера: `computeDiff()` и
+// `applyDiff()` одинаковы для любого диалекта и отличаются только интроспекцией
+// (`DbDdlAdapter`) и отображением типов (`Dialect`). Пока эти операции были
+// типами пакета адаптера, `core` был обязан импортировать этот адаптер — при
+// установке из npm `kadmium db:*` падал с MODULE_NOT_FOUND.
+
+export interface AddColumnOp {
+  type: 'add-column';
+  table: string;
+  column: DbColumn;
+}
+
+export interface DropColumnOp {
+  type: 'drop-column';
+  table: string;
+  columnName: string;
+}
+
+export interface AlterTypeOp {
+  type: 'alter-type';
+  table: string;
+  columnName: string;
+  oldType: string;
+  newType: string;
+}
+
+export interface AlterNullableOp {
+  type: 'alter-nullable';
+  table: string;
+  columnName: string;
+  oldNullable: boolean;
+  newNullable: boolean;
+}
+
+/**
+ * Смена `DEFAULT` существующей колонки.
+ *
+ * `newDefault === null` означает `DROP DEFAULT` — так же, как `null` в
+ * `DbColumn.defaultValue` означает отсутствие дефолта при создании.
+ * Сравнение с базой идёт через `Dialect.defaultsEqual()`, а не `===`: PostgreSQL
+ * хранит переписанный разбором литерал, поэтому текстовое равенство для
+ * временных типов не наступает никогда.
+ */
+export interface AlterDefaultOp {
+  type: 'alter-default';
+  table: string;
+  columnName: string;
+  oldDefault: string | null;
+  newDefault: string | null;
+}
+
+export interface AddIndexOp {
+  type: 'add-index';
+  index: DbIndex;
+}
+
+export interface DropIndexOp {
+  type: 'drop-index';
+  indexName: string;
+  tableName: string;
+}
+
+export interface AddForeignKeyOp {
+  type: 'add-foreign-key';
+  fk: DbForeignKey;
+}
+
+export interface DropForeignKeyOp {
+  type: 'drop-foreign-key';
+  fkName: string;
+  tableName: string;
+}
+
+/**
+ * Смена определения существующего FK: действия, целевой таблицы или колонок.
+ *
+ * Отдельная операция, а не пара `drop-foreign-key` + `add-foreign-key`, потому
+ * что `checkHealth` считает добавленный FK «отсутствующим ограничением» и
+ * покраснел бы на исправной схеме. Postgres не умеет ALTER CONSTRAINT по
+ * частям — внутри операции ограничение пересоздаётся, но для диффа и для
+ * отчёта это изменение существующего FK, а не появление нового.
+ */
+export interface AlterForeignKeyOp {
+  type: 'alter-foreign-key';
+  fkName: string;
+  tableName: string;
+  oldFk: DbForeignKey;
+  newFk: DbForeignKey;
+}
+
+export interface CreateTableOp {
+  type: 'create-table';
+  table: string;
+  columns: DbColumn[];
+}
+
+export interface DropTableOp {
+  type: 'drop-table';
+  table: string;
+}
+
+export type DiffOp =
+  | AddColumnOp
+  | DropColumnOp
+  | AlterTypeOp
+  | AlterNullableOp
+  | AlterDefaultOp
+  | AddIndexOp
+  | DropIndexOp
+  | AddForeignKeyOp
+  | DropForeignKeyOp
+  | AlterForeignKeyOp
+  | CreateTableOp
+  | DropTableOp;
+
+export interface DiffResult {
+  operations: DiffOp[];
+  hasChanges: boolean;
+  summary: {
+    addedTables: number;
+    droppedTables: number;
+    addedColumns: number;
+    droppedColumns: number;
+    alteredColumns: number;
+    alteredDefaults: number;
+    addedIndexes: number;
+    droppedIndexes: number;
+    addedForeignKeys: number;
+    droppedForeignKeys: number;
+    alteredForeignKeys: number;
+  };
+}
+
+export interface HealthCheckResult {
+  isHealthy: boolean;
+  issues: string[];
+  summary: {
+    tablesMissing: number;
+    tablesExpected: number;
+    tablesMatching: number;
+  };
+}
+
+// ── Schema diff: input ──
+
+/**
+ * Поле IR в том виде, в котором его видит миграция.
+ *
+ * Структурный тип: `FieldIR` из `core/ir` ему удовлетворяет без правок — у
+ * него `type: FieldType` (assignable в `string`), тот же набор `relation` и
+ * уже канонические `ReferentialAction`. Держим копию, а не импорт, по двум
+ * причинам: `core` не должен зависеть от адаптера, а IR — это публичный
+ * контракт, который собирают руками и передают в `computeDiff()` напрямую.
+ */
+export type IrField = {
+  type: string;
+  ref?: string;
+  sourceModel?: string;
+  nullable: boolean;
+  unique: boolean;
+  index?: boolean;
+  isPrimary?: boolean;
+  alias?: string;
+  spec?: Record<string, unknown>;
+  /** Тип связи из model DSL. */
+  relation?: 'one-to-many' | 'many-to-one' | 'one-to-one';
+  /** ON DELETE из model DSL; уже в канонической форме, маппинг — в core. */
+  onDelete?: ReferentialAction;
+  /** ON UPDATE из model DSL; уже в канонической форме, маппинг — в core. */
+  onUpdate?: ReferentialAction;
+};
+
+/** Модель в том виде, в котором её видит миграция. */
+export interface IrModel {
+  name: string;
+  collection: string;
+  fields: Record<string, IrField>;
+}
+
 export interface DbDdlAdapter {
   inspectTables(): Promise<DbTable[]>;
   /** Batched introspection — one round trip for all requested tables (rows carry tableName). */

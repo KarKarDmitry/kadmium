@@ -5,7 +5,7 @@
  * preview is always consistent with what PgDdlAdapter executes.
  */
 
-import type { DiffOp, DiffResult } from './types';
+import type { DiffOp, DiffResult } from '@karkardmitry/kadmium-sql-types';
 import { createTableColumns } from './types';
 import { assertDiffOpSqlSafe } from '../ddl-validate';
 import {
