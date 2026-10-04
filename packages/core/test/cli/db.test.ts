@@ -9,6 +9,8 @@ import type {
   DbIndex,
   DbForeignKey,
   SqlAdapter,
+  Dialect,
+  IrField,
 } from '@karkardmitry/kadmium-sql-types';
 import { KadmiumApp } from '../../src/core/kadmium-app';
 import { dbCheck, dbPush, dbSql, dbClear } from '../../src/cli/db';
@@ -162,10 +164,24 @@ const healthyUsers: DbColumn[] = [
   },
 ];
 
+/** Диалект для CLI-тестов: движок обязан получить его вместе с адаптером. */
+const testDialect: Dialect = {
+  typeName(f: IrField) {
+    // `f.pk` компилируется в `bigint`, а не в `primary` — отсюда `bigint`.
+    if (f.type === 'primary') return 'integer';
+    if (f.type === 'bigint') return 'bigint';
+    return 'character varying';
+  },
+  normalizeTypeName: (n) => n.toLowerCase(),
+  renderDefault: () => null,
+  defaultsEqual: (_f, expected, actual) => expected === actual,
+};
+
 function makeApp(ddl: MockDb): KadmiumApp {
   const app = new KadmiumApp();
   const { adapter } = makeAdapter(ddl);
   app.modules.sql.set(adapter);
+  app.modules.dialect.set(testDialect);
   app.appCore.register([User]);
   return app;
 }

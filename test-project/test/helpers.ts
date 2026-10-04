@@ -1,3 +1,4 @@
+import { pgDialect } from '@karkardmitry/kadmium-sql-pg';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { AppCore, OrmManager, type ModelIR } from '@karkardmitry/kadmium-core';
@@ -93,9 +94,9 @@ export async function dropAllTables(adapter: PgAdapter): Promise<void> {
 
 /** Создать схему из моделей через computeDiff + applyDiff. */
 export async function syncSchema(h: Harness): Promise<void> {
-  const { computeDiff, applyDiff } =
-    await import('@karkardmitry/kadmium-sql-pg');
-  const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+  const { computeDiff } = await import('@karkardmitry/kadmium-core');
+  const { applyDiff } = await import('@karkardmitry/kadmium-sql-pg');
+  const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
   await applyDiff(diff, h.adapter.ddl);
 }
 

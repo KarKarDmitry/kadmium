@@ -1,35 +1,31 @@
 /**
- * computeDiff — compare IR models with actual DB state.
+ * computeDiff — сравнить IR с фактическим состоянием базы.
+ *
+ * Диалект приходит параметром: движок сам ничего не знает про PostgreSQL, а
+ * `renderDefault`/`normalizeTypeName` — это всё, чем базы различаются в части
+ * сравнения колонок.
  */
 
 import type {
   DbDdlAdapter,
   DbForeignKey,
-} from '@karkardmitry/kadmium-sql-types';
-import type {
+  Dialect,
   DiffOp,
   DiffResult,
-  IrField,
+  IrModel,
 } from '@karkardmitry/kadmium-sql-types';
 import {
-  pgType,
-  normalizePgType,
-  isPrimaryField,
-  isAutoIncrementField,
-  irToColumns,
-  expectedIndexes,
   expectedForeignKeys,
-  renderDefault,
-  defaultsEqual,
-} from './types';
+  expectedIndexes,
+  irToColumns,
+  isAutoIncrementField,
+  isPrimaryField,
+} from './expected';
 
 export async function computeDiff(
-  irs: Array<{
-    name: string;
-    collection: string;
-    fields: Record<string, IrField>;
-  }>,
+  irs: readonly IrModel[],
   ddl: DbDdlAdapter,
+  dialect: Dialect,
 ): Promise<DiffResult> {
   const operations: DiffOp[] = [];
   const summary: DiffResult['summary'] = {
@@ -74,7 +70,7 @@ export async function computeDiff(
   for (const ir of irs) {
     const tableName = ir.collection;
     if (!dbTables.has(tableName)) {
-      const columns = irToColumns(tableName, ir.fields, irs);
+      const columns = irToColumns(tableName, ir.fields, irs, dialect);
       operations.push({ type: 'create-table', table: tableName, columns });
       summary.addedTables++;
 
@@ -119,14 +115,14 @@ export async function computeDiff(
 
       if (!dbCol) {
         // New column
-        const col = irToColumns(tableName, { [name]: f }, irs)[0];
+        const col = irToColumns(tableName, { [name]: f }, irs, dialect)[0];
         operations.push({ type: 'add-column', table: tableName, column: col });
         summary.addedColumns++;
       } else {
         // Check type
-        const expectedType = pgType(f, irs);
-        const normalizedExpected = normalizePgType(expectedType);
-        const normalizedActual = normalizePgType(dbCol.dataType);
+        const expectedType = dialect.typeName(f, irs);
+        const normalizedExpected = dialect.normalizeTypeName(expectedType);
+        const normalizedActual = dialect.normalizeTypeName(dbCol.dataType);
 
         if (normalizedActual !== normalizedExpected) {
           operations.push({
@@ -158,8 +154,8 @@ export async function computeDiff(
         // сломало бы вставку в колонку, которая работает. Присваиваем
         // conservative: лучше не заметить чужой дефолт, чем его снести.
         if (!isAutoIncrementField(f) && !dbCol.autoIncrement) {
-          const expectedDefault = renderDefault(f);
-          if (!defaultsEqual(f, expectedDefault, dbCol.defaultValue)) {
+          const expectedDefault = dialect.renderDefault(f);
+          if (!dialect.defaultsEqual(f, expectedDefault, dbCol.defaultValue)) {
             operations.push({
               type: 'alter-default',
               table: tableName,

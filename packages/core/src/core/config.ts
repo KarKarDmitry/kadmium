@@ -2,11 +2,20 @@
  * Типы конфигурации kadmium проекта.
  */
 
-import { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import { Dialect, SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 
 export interface KadmiumModules {
   /** SQL адаптер (PgAdapter, SqliteAdapter и т.д.) */
   sql?: SqlAdapter;
+
+  /**
+   * Диалект для миграций: имена типов и `DEFAULT`.
+   *
+   * Отдельно от адаптера, потому что движку диффа нужен только он, а сам
+   * адаптер ничего не знает про IR: одно и то же `pgDialect` обслуживает и
+   * `PgAdapter`, и любой сторонний адаптер поверх PostgreSQL.
+   */
+  dialect?: Dialect;
 }
 
 export interface KadmiumConfig {

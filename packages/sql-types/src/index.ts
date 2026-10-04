@@ -532,9 +532,16 @@ export type IrField = {
   onUpdate?: ReferentialAction;
 };
 
-/** Модель в том виде, в котором её видит миграция. */
+/**
+ * Модель в том виде, в котором её видит миграция.
+ *
+ * `collection` — не описание, а имя таблицы: `computeDiff()` строит из него
+ * множество ожидаемых таблиц и по нему же понимает, какую таблицу в базе
+ * считать лишней.
+ */
 export interface IrModel {
   name: string;
+  collection: string;
   fields: Record<string, IrField>;
 }
 

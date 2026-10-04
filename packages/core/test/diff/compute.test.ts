@@ -13,8 +13,13 @@ import {
   userColumns,
   userFields,
   MockDdl,
+  stubDialect,
 } from './fixtures';
-import type { IrField } from '@karkardmitry/kadmium-sql-types';
+import type {
+  Dialect,
+  IrField,
+  IrModel,
+} from '@karkardmitry/kadmium-sql-types';
 
 function syncedDdl(): MockDdl {
   const ddl = new MockDdl();
@@ -61,7 +66,7 @@ function syncedDdl(): MockDdl {
 
 describe('computeDiff', () => {
   it('reports no changes when schema matches models', async () => {
-    const diff = await computeDiff(irs, syncedDdl());
+    const diff = await computeDiff(irs, syncedDdl(), stubDialect);
     expect(diff.hasChanges).toBe(false);
     expect(diff.operations).toEqual([]);
     expect(diff.summary.addedTables).toBe(0);
@@ -70,7 +75,7 @@ describe('computeDiff', () => {
   it('creates new tables with indexes and foreign keys', async () => {
     const ddl = new MockDdl();
     ddl.setSchema([]);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary).toMatchObject({
       addedTables: 2,
@@ -138,7 +143,7 @@ describe('computeDiff', () => {
       'posts',
       postColumns.filter((c) => c.name !== 'title'),
     );
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.addedColumns).toBe(1);
     expect(diff.operations).toEqual([
@@ -164,7 +169,7 @@ describe('computeDiff', () => {
         isUnique: false,
       },
     ]);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.droppedColumns).toBe(1);
     expect(
@@ -182,7 +187,7 @@ describe('computeDiff', () => {
         c.name === 'author' ? { ...c, dataType: 'bigint' } : c,
       ),
     );
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.alteredColumns).toBe(1);
     expect(diff.operations).toContainEqual({
@@ -202,7 +207,7 @@ describe('computeDiff', () => {
         c.name === 'name' ? { ...c, isNullable: true } : c,
       ),
     );
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.alteredColumns).toBe(1);
     expect(diff.operations).toContainEqual({
@@ -214,162 +219,73 @@ describe('computeDiff', () => {
     });
   });
 
-  it('emits alter-default when the default differs', async () => {
-    const ddl = syncedDdl();
-    const irsWithDefault = [
-      {
-        ...irs[0],
-        fields: {
-          ...userFields,
-          name: {
-            type: 'string',
-            nullable: false,
-            unique: false,
-            spec: { default: 'new' },
-          },
-        } as Record<string, IrField>,
-      },
+  // Движок не сравнивает дефолты сам: он спрашивает у диалекта, что в модели,
+  // и спрашивает, равно ли. Смысл обоих тестов — в этом разделении, а
+  // PostgreSQL-форматы литералов проверяет `sql-pg` (`defaultsEqual`).
+  it('delegates the default comparison to the dialect', async () => {
+    const nameField: IrField = {
+      type: 'string',
+      nullable: false,
+      unique: false,
+      spec: { default: 'new' },
+    };
+    const irsWithDefault: IrModel[] = [
+      { ...irs[0], fields: { ...userFields, name: nameField } },
       irs[1],
     ];
+    const ddl = syncedDdl();
     ddl.columns.set(
       'users',
       userColumns.map((c) =>
-        c.name === 'name'
-          ? { ...c, defaultValue: "'old'::character varying" }
-          : c,
+        c.name === 'name' ? { ...c, defaultValue: "'old'" } : c,
       ),
     );
-    const diff = await computeDiff(irsWithDefault, ddl);
+    const dialect: Dialect = {
+      ...stubDialect,
+      renderDefault: (f) => (f === nameField ? "'new'" : null),
+      defaultsEqual: (f) => f !== nameField,
+    };
+    const diff = await computeDiff(irsWithDefault, ddl, dialect);
 
     expect(diff.summary.alteredDefaults).toBe(1);
     expect(diff.operations).toContainEqual({
       type: 'alter-default',
       table: 'users',
       columnName: 'name',
-      oldDefault: "'old'::character varying",
+      oldDefault: "'old'",
       newDefault: "'new'",
     });
   });
 
-  it('emits DROP DEFAULT when the model has none but the DB does', async () => {
-    const ddl = syncedDdl();
-    ddl.columns.set(
-      'users',
-      userColumns.map((c) =>
-        c.name === 'name' ? { ...c, defaultValue: "'legacy'::text" } : c,
-      ),
-    );
-    const diff = await computeDiff(irs, ddl);
-
-    expect(diff.summary.alteredDefaults).toBe(1);
-    expect(diff.operations).toContainEqual({
-      type: 'alter-default',
-      table: 'users',
-      columnName: 'name',
-      oldDefault: "'legacy'::text",
-      newDefault: null,
-    });
-  });
-
-  // Регрессия, из-за которой начинали работу: интроспекция отдаёт дефолт
-  // последовательности текстом, а модель для `serial`-PK ожидает `null`.
-  // Без защиты diff предложил бы DROP DEFAULT и сломал бы INSERT.
-  it('never touches nextval on an autoIncrement PK', async () => {
-    const ddl = syncedDdl();
-    ddl.columns.set(
-      'users',
-      userColumns.map((c) =>
-        c.name === 'id'
-          ? {
-              ...c,
-              dataType: 'bigint',
-              autoIncrement: true,
-              defaultValue: "nextval('users_id_seq'::regclass)",
-            }
-          : c,
-      ),
-    );
-    const diff = await computeDiff(irs, ddl);
-
-    expect(diff.operations.filter((o) => o.type === 'alter-default')).toEqual(
-      [],
-    );
-  });
-
-  // Обратная сторона защиты: сработать должен именно предикат по IR, а не по
-  // строке интроспекции. Если бы дефолт последовательности сносили, цена ошибки
-  // несимметрична — сломанный INSERT против незамеченного чужого дефолта.
-  it('skips autoIncrement PK even when introspection says otherwise', async () => {
-    const ddl = syncedDdl();
-    ddl.columns.set(
-      'users',
-      userColumns.map((c) =>
-        c.name === 'id'
-          ? {
-              ...c,
-              dataType: 'bigint',
-              autoIncrement: false,
-              defaultValue: "nextval('users_id_seq'::regclass)",
-            }
-          : c,
-      ),
-    );
-    const diff = await computeDiff(irs, ddl);
-
-    expect(diff.operations.filter((o) => o.type === 'alter-default')).toEqual(
-      [],
-    );
-  });
-
-  // PostgreSQL переписывает литерал timestamptz в свой формат, поэтому
-  // буквальное сравнение давало бы неидемпотентный diff: каждая миграция
-  // заново «чинила» бы уже правильную колонку.
-  it('treats a timestamptz default as equal across PG literal formats', async () => {
-    const irsTz = [
-      {
-        name: 'User',
-        collection: 'users',
-        fields: {
-          id: userFields.id,
-          seenAt: {
-            type: 'datetime',
-            nullable: false,
-            unique: false,
-            spec: { default: new Date(Date.UTC(2024, 0, 1)), tz: true },
-          },
-        } as Record<string, IrField>,
-      },
+  // Неидемпотентный diff: если бы движок сравнивал текст сам, каждая миграция
+  // заново «чинила» бы уже правильную колонку — PostgreSQL возвращает
+  // переписанный разбором литерал.
+  it('emits no alter-default when the dialect reports equality', async () => {
+    const nameField: IrField = {
+      type: 'string',
+      nullable: false,
+      unique: false,
+      spec: { default: 'new' },
+    };
+    const irsWithDefault: IrModel[] = [
+      { ...irs[0], fields: { ...userFields, name: nameField } },
+      irs[1],
     ];
-    const ddl = new MockDdl();
-    ddl.setSchema(
-      [{ name: 'users' }],
-      {
-        users: [
-          {
-            name: 'id',
-            tableName: 'users',
-            dataType: 'bigint',
-            isNullable: false,
-            defaultValue: null,
-            isPrimary: true,
-            isUnique: true,
-            autoIncrement: true,
-          },
-          {
-            name: 'seenAt',
-            tableName: 'users',
-            dataType: 'timestamp with time zone',
-            isNullable: false,
-            defaultValue: "'2024-01-01 00:00:00+00'::timestamp with time zone",
-            isPrimary: false,
-            isUnique: false,
-          },
-        ],
-      },
-      {},
-      {},
+    const ddl = syncedDdl();
+    ddl.columns.set(
+      'users',
+      userColumns.map((c) =>
+        c.name === 'name'
+          ? { ...c, defaultValue: "'new'::character varying" }
+          : c,
+      ),
     );
-    const diff = await computeDiff(irsTz, ddl);
+    const dialect: Dialect = {
+      ...stubDialect,
+      renderDefault: (f) => (f === nameField ? "'new'" : null),
+      defaultsEqual: () => true,
+    };
+    const diff = await computeDiff(irsWithDefault, ddl, dialect);
 
     expect(diff.operations.filter((o) => o.type === 'alter-default')).toEqual(
       [],
@@ -379,7 +295,7 @@ describe('computeDiff', () => {
   it('emits add-index for a missing unique index', async () => {
     const ddl = syncedDdl();
     ddl.indexes.set('users', []);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.addedIndexes).toBe(1);
     expect(
@@ -405,7 +321,7 @@ describe('computeDiff', () => {
         isUnique: false,
       },
     ]);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.droppedIndexes).toBe(1);
     expect(diff.summary.addedIndexes).toBe(1);
@@ -440,7 +356,7 @@ describe('computeDiff', () => {
         isUnique: true,
       },
     ]);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.droppedIndexes).toBe(1);
     const idxOps = diff.operations.filter(
@@ -454,7 +370,7 @@ describe('computeDiff', () => {
   });
 
   it('does not touch an index whose uniqueness already matches', async () => {
-    const diff = await computeDiff(irs, syncedDdl());
+    const diff = await computeDiff(irs, syncedDdl(), stubDialect);
     expect(
       diff.operations.filter(
         (o) => o.type === 'drop-index' || o.type === 'add-index',
@@ -475,7 +391,7 @@ describe('computeDiff', () => {
         isUnique: false,
       },
     ]);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.droppedIndexes).toBe(1);
     expect(
@@ -505,7 +421,7 @@ describe('computeDiff', () => {
         isUnique: true,
       },
     ]);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.droppedIndexes).toBe(0);
   });
@@ -513,7 +429,7 @@ describe('computeDiff', () => {
   it('emits add-foreign-key for a missing FK', async () => {
     const ddl = syncedDdl();
     ddl.foreignKeys.set('posts', []);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.addedForeignKeys).toBe(1);
     expect(
@@ -538,7 +454,7 @@ describe('computeDiff', () => {
         onUpdate: 'NO ACTION',
       },
     ]);
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.summary.droppedForeignKeys).toBe(1);
     expect(
@@ -585,7 +501,11 @@ describe('computeDiff', () => {
 
     it('emits alter-foreign-key when ON DELETE changes', async () => {
       const ddl = syncedDdl();
-      const diff = await computeDiff(irsWithAction('CASCADE'), ddl);
+      const diff = await computeDiff(
+        irsWithAction('CASCADE'),
+        ddl,
+        stubDialect,
+      );
 
       expect(diff.summary.alteredForeignKeys).toBe(1);
       expect(diff.summary.addedForeignKeys).toBe(0);
@@ -605,6 +525,7 @@ describe('computeDiff', () => {
       const diff = await computeDiff(
         irsWithAction(undefined, 'RESTRICT'),
         syncedDdl(),
+        stubDialect,
       );
       expect(diff.summary.alteredForeignKeys).toBe(1);
       expect(
@@ -617,7 +538,7 @@ describe('computeDiff', () => {
     it('emits alter-foreign-key when the action is removed from the model', async () => {
       const ddl = syncedDdl();
       fkIn(ddl, { name: 'fk_posts_author', onDelete: 'CASCADE' });
-      const diff = await computeDiff(irs, ddl);
+      const diff = await computeDiff(irs, ddl, stubDialect);
 
       expect(diff.summary.alteredForeignKeys).toBe(1);
       expect(
@@ -649,7 +570,7 @@ describe('computeDiff', () => {
           },
         },
       ];
-      const diff = await computeDiff(renamed, ddl);
+      const diff = await computeDiff(renamed, ddl, stubDialect);
 
       expect(diff.summary.alteredForeignKeys).toBe(1);
       expect(
@@ -663,7 +584,11 @@ describe('computeDiff', () => {
     it('no op when the action already matches', async () => {
       const ddl = syncedDdl();
       fkIn(ddl, { name: 'fk_posts_author', onDelete: 'CASCADE' });
-      const diff = await computeDiff(irsWithAction('CASCADE'), ddl);
+      const diff = await computeDiff(
+        irsWithAction('CASCADE'),
+        ddl,
+        stubDialect,
+      );
 
       expect(diff.summary.alteredForeignKeys).toBe(0);
       expect(diff.operations).toEqual([]);
@@ -731,6 +656,7 @@ describe('computeDiff', () => {
           },
         ],
         ddl,
+        stubDialect,
       );
 
       expect(diff.summary.alteredForeignKeys).toBe(1);
@@ -745,7 +671,11 @@ describe('computeDiff', () => {
     it('a missing FK with a differing action is still an add, not an alter', async () => {
       const ddl = syncedDdl();
       ddl.foreignKeys.set('posts', []);
-      const diff = await computeDiff(irsWithAction('CASCADE'), ddl);
+      const diff = await computeDiff(
+        irsWithAction('CASCADE'),
+        ddl,
+        stubDialect,
+      );
 
       expect(diff.summary.addedForeignKeys).toBe(1);
       expect(diff.summary.alteredForeignKeys).toBe(0);
@@ -758,7 +688,7 @@ describe('computeDiff', () => {
   it('does not auto-drop tables missing from the models', async () => {
     const ddl = syncedDdl();
     ddl.tables.push({ name: 'logs' });
-    const diff = await computeDiff(irs, ddl);
+    const diff = await computeDiff(irs, ddl, stubDialect);
 
     expect(diff.operations.some((o) => o.type === 'drop-table')).toBe(false);
     expect(diff.summary.droppedTables).toBe(0);
@@ -780,7 +710,7 @@ describe('computeDiff', () => {
     };
     const ddl = new MockDdl();
     ddl.setSchema([]);
-    const diff = await computeDiff([ir], ddl);
+    const diff = await computeDiff([ir], ddl, stubDialect);
 
     const create = diff.operations.find((o) => o.type === 'create-table');
     expect(
@@ -811,7 +741,7 @@ describe('computeDiff', () => {
     };
     const ddl = new MockDdl();
     ddl.setSchema([]);
-    const diff = await computeDiff([ir], ddl);
+    const diff = await computeDiff([ir], ddl, stubDialect);
 
     const create = diff.operations.find((o) => o.type === 'create-table');
     expect(
@@ -823,7 +753,7 @@ describe('computeDiff', () => {
 
   it('introspects via 4 batched calls regardless of table count', async () => {
     const ddl = syncedDdl();
-    await computeDiff(irs, ddl);
+    await computeDiff(irs, ddl, stubDialect);
 
     const inspectCalls = ddl.calls.filter((c) =>
       c.method.startsWith('inspect'),

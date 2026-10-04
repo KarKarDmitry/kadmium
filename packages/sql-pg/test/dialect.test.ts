@@ -24,8 +24,12 @@ describe('pgDialect', () => {
 
   it('typeName resolves a ref through the target model PK', () => {
     const irs: IrModel[] = [
-      { name: 'User', fields: { id: fld('primary') } },
-      { name: 'Post', fields: { author: { ...fld('ref'), ref: 'User' } } },
+      { name: 'User', collection: 'users', fields: { id: fld('primary') } },
+      {
+        name: 'Post',
+        collection: 'posts',
+        fields: { author: { ...fld('ref'), ref: 'User' } },
+      },
     ];
     expect(pgDialect.typeName(irs[1].fields.author, irs)).toBe('integer');
   });

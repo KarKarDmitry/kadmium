@@ -10,14 +10,12 @@
  * уникальность, чтобы проверить обратный переход.
  */
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from 'vitest';
+import { pgDialect } from '@karkardmitry/kadmium-sql-pg';
 import { makeHarness, type Harness } from './helpers';
 import { resetSchemaAndSeed, type SeedData } from './fixtures';
 import { User as UserModel, Profile as ProfileModel } from '../src/models';
-import {
-  computeDiff,
-  applyDiff,
-  renderSql,
-} from '@karkardmitry/kadmium-sql-pg';
+import { computeDiff } from '@karkardmitry/kadmium-core';
+import { applyDiff, renderSql } from '@karkardmitry/kadmium-sql-pg';
 
 let h: Harness;
 let seed: SeedData;
@@ -122,13 +120,13 @@ describe('ddl: oneToOne() produces a unique index', () => {
 
 describe('ddl: oneToOne() and computeDiff agree', () => {
   it('no drift on a freshly synced schema', async () => {
-    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     expect(diff.hasChanges).toBe(false);
   });
 
   it('dropping the uniqueness is a diff that Postgres really applies', async () => {
     const target = irsWithNonUniqueProfileUser();
-    const diff = await computeDiff(target, h.adapter.ddl);
+    const diff = await computeDiff(target, h.adapter.ddl, pgDialect);
 
     expect(diff.summary.droppedIndexes).toBe(1);
     expect(diff.summary.addedIndexes).toBe(1);
@@ -158,7 +156,11 @@ describe('ddl: oneToOne() and computeDiff agree', () => {
 
   it('the preview agrees with what apply does', async () => {
     const sql = renderSql(
-      await computeDiff(irsWithNonUniqueProfileUser(), h.adapter.ddl),
+      await computeDiff(
+        irsWithNonUniqueProfileUser(),
+        h.adapter.ddl,
+        pgDialect,
+      ),
     );
 
     expect(sql).toContain('DROP INDEX IF EXISTS "idx_profile_user"');

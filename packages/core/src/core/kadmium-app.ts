@@ -1,4 +1,4 @@
-import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type { Dialect, SqlAdapter } from '@karkardmitry/kadmium-sql-types';
 import { AppCore } from './app-core';
 import { OrmManager } from '../orm/orm';
 import { ModuleSlot } from './modules';
@@ -16,12 +16,14 @@ export class KadmiumApp {
   public orm!: OrmManager;
   public modules: {
     sql: ModuleSlot<SqlAdapter>;
+    dialect: ModuleSlot<Dialect>;
   };
 
   constructor() {
     this.appCore = new AppCore();
     this.modules = {
       sql: new ModuleSlot<SqlAdapter>(),
+      dialect: new ModuleSlot<Dialect>(),
     };
     // При установке SQL адаптера — прокидываем в AppCore
     this.modules.sql.onSet((adapter) => {
@@ -37,6 +39,9 @@ export class KadmiumApp {
     if (configModules) {
       if (!this.modules.sql.has && configModules.sql) {
         this.modules.sql.set(configModules.sql);
+      }
+      if (!this.modules.dialect.has && configModules.dialect) {
+        this.modules.dialect.set(configModules.dialect);
       }
     }
 

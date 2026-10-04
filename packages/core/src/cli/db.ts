@@ -2,12 +2,11 @@ import { readdirSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { createInterface } from 'readline';
 import { KadmiumApp } from '../core/kadmium-app';
+import { computeDiff, checkHealth } from '../diff/index';
 import {
-  computeDiff,
   applyDiff,
   applyDiffTransactional,
   renderSql,
-  checkHealth,
 } from '@karkardmitry/kadmium-sql-pg';
 import { CHECK, CROSS, BULLET, WARN, DOT, box } from './format';
 
@@ -15,6 +14,21 @@ function getDdl(app: KadmiumApp) {
   const adapter = app.modules.sql.get();
   if (!adapter) throw new Error('No SQL adapter configured');
   return adapter.ddl;
+}
+
+/**
+ * Диалект обязателен для диффа: без него нечем превратить тип из IR в SQL-тип
+ * и отрендерить `DEFAULT`. Отдельная проверка, а не `getDdl`, потому что
+ * забытый `dialect` в конфиге — это ошибка конфигурации, а не подключения.
+ */
+function getDialect(app: KadmiumApp) {
+  const dialect = app.modules.dialect.get();
+  if (!dialect) {
+    throw new Error(
+      'No dialect configured. Add `dialect: pgDialect` to modules in kadmium.config.ts',
+    );
+  }
+  return dialect;
 }
 
 /** Ask a yes/no question on the terminal. Defaults to "no" when not a TTY. */
@@ -48,7 +62,7 @@ async function exec<T>(app: KadmiumApp, fn: () => Promise<T>): Promise<T> {
 export async function dbCheck(app: KadmiumApp): Promise<void> {
   await exec(app, async () => {
     const ddl = getDdl(app);
-    const health = await checkHealth(app.appCore.allIrs, ddl);
+    const health = await checkHealth(app.appCore.allIrs, ddl, getDialect(app));
 
     console.log('');
     if (health.isHealthy) {
@@ -84,7 +98,7 @@ export async function dbPush(app: KadmiumApp): Promise<void> {
     const adapter = app.modules.sql.get();
     if (!adapter) throw new Error('No SQL adapter configured');
     const ddl = adapter.ddl;
-    const diff = await computeDiff(app.appCore.allIrs, ddl);
+    const diff = await computeDiff(app.appCore.allIrs, ddl, getDialect(app));
 
     if (!diff.hasChanges) {
       console.log(
@@ -209,7 +223,7 @@ export async function dbSql(
 ): Promise<void> {
   await exec(app, async () => {
     const ddl = getDdl(app);
-    const diff = await computeDiff(app.appCore.allIrs, ddl);
+    const diff = await computeDiff(app.appCore.allIrs, ddl, getDialect(app));
 
     let fullPath: string;
     if (!outputPath) {

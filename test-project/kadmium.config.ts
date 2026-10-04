@@ -1,10 +1,13 @@
 import { defineConfig } from '@karkardmitry/kadmium-core';
-import { PgAdapter } from '@karkardmitry/kadmium-sql-pg';
+import { PgAdapter, pgDialect } from '@karkardmitry/kadmium-sql-pg';
 
 export default defineConfig({
   modelSources: ['src/models/**/*.ts'],
   modelsPath: '../src/models',
   modules: {
+    // Диалект обязателен рядом с адаптером: движок диффа спрашивает его про
+    // имена типов и `DEFAULT`. Ставится один раз, а не на каждый адаптер.
+    dialect: pgDialect,
     sql: new PgAdapter({
       host: process.env.PGHOST || 'localhost',
       port: Number(process.env.PGPORT) || 5432,

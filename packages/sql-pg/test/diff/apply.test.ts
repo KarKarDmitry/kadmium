@@ -22,7 +22,11 @@ import {
   dropPostsOp,
   MockDdl,
 } from './fixtures';
-import { AddColumnOp, AddForeignKeyOp, AddIndexOp } from '../../src/diff';
+import type {
+  AddColumnOp,
+  AddForeignKeyOp,
+  AddIndexOp,
+} from '@karkardmitry/kadmium-sql-types';
 
 afterEach(() => {
   vi.restoreAllMocks();

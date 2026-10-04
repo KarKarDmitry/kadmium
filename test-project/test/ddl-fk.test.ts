@@ -8,15 +8,12 @@
  * прошёл бы и на SQL, который никто не выполнил.
  */
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from 'vitest';
+import { pgDialect } from '@karkardmitry/kadmium-sql-pg';
 import { makeHarness, type Harness } from './helpers';
 import { resetSchemaAndSeed } from './fixtures';
 import type { ReferentialAction } from '@karkardmitry/kadmium-core';
-import {
-  computeDiff,
-  applyDiff,
-  renderSql,
-  checkHealth,
-} from '@karkardmitry/kadmium-sql-pg';
+import { computeDiff, checkHealth } from '@karkardmitry/kadmium-core';
+import { applyDiff, renderSql } from '@karkardmitry/kadmium-sql-pg';
 
 let h: Harness;
 
@@ -87,7 +84,10 @@ function irsWithPostAction(action: ReferentialAction) {
  */
 async function applyAction(action: ReferentialAction): Promise<void> {
   const target = irsWithPostAction(action);
-  await applyDiff(await computeDiff(target, h.adapter.ddl), h.adapter.ddl);
+  await applyDiff(
+    await computeDiff(target, h.adapter.ddl, pgDialect),
+    h.adapter.ddl,
+  );
 }
 
 describe('ddl: referential actions reach Postgres', () => {
@@ -104,7 +104,7 @@ describe('ddl: referential actions reach Postgres', () => {
   });
 
   it('computeDiff sees no drift on a freshly synced schema', async () => {
-    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     expect(diff.hasChanges).toBe(false);
     expect(diff.summary.alteredForeignKeys).toBe(0);
   });
@@ -115,6 +115,7 @@ describe('ddl: changing the action on an existing table', () => {
     const diff = await computeDiff(
       irsWithPostAction('RESTRICT'),
       h.adapter.ddl,
+      pgDialect,
     );
 
     expect(diff.summary.alteredForeignKeys).toBe(1);
@@ -147,13 +148,13 @@ describe('ddl: changing the action on an existing table', () => {
 
   it('altering the action back is itself a diff, and re-syncs clean', async () => {
     await applyAction('RESTRICT');
-    const back = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const back = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     expect(back.summary.alteredForeignKeys).toBe(1);
 
     await applyDiff(back, h.adapter.ddl);
-    expect((await computeDiff(h.app.allIrs, h.adapter.ddl)).hasChanges).toBe(
-      false,
-    );
+    expect(
+      (await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect)).hasChanges,
+    ).toBe(false);
     expect((await catalogRule(POSTS_FK)).delete_rule).toBe('CASCADE');
   });
 });
@@ -163,6 +164,7 @@ describe('ddl: checkHealth on a drifted action', () => {
     const health = await checkHealth(
       irsWithPostAction('RESTRICT'),
       h.adapter.ddl,
+      pgDialect,
     );
 
     expect(health.isHealthy).toBe(false);
@@ -181,7 +183,11 @@ describe('ddl: RESTRICT vs NO ACTION', () => {
     // нечувствительной к регистру коллации — ни того, ни другого DSL не даёт,
     // поэтому отдельный behavioral-тест был бы недостижим.
     const sql = renderSql(
-      await computeDiff(irsWithPostAction('RESTRICT'), h.adapter.ddl),
+      await computeDiff(
+        irsWithPostAction('RESTRICT'),
+        h.adapter.ddl,
+        pgDialect,
+      ),
     );
 
     expect(sql).toContain(

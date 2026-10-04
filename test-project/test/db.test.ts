@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { pgDialect } from '@karkardmitry/kadmium-sql-pg';
 import { makeHarness, syncSchema, type Harness } from './helpers';
 
 let h: Harness;
@@ -15,16 +16,18 @@ afterAll(async () => {
 
 describe('db: schema diff + health', () => {
   it('computeDiff reports no changes when schema is in sync', async () => {
-    const { computeDiff } = await import('@karkardmitry/kadmium-sql-pg');
-    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const { computeDiff } = await import('@karkardmitry/kadmium-core');
+
+    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     expect(diff.hasChanges).toBe(false);
     expect(diff.summary.addedTables).toBe(0);
     expect(diff.summary.addedColumns).toBe(0);
   });
 
   it('checkHealth is healthy', async () => {
-    const { checkHealth } = await import('@karkardmitry/kadmium-sql-pg');
-    const health = await checkHealth(h.app.allIrs, h.adapter.ddl);
+    const { checkHealth } = await import('@karkardmitry/kadmium-core');
+
+    const health = await checkHealth(h.app.allIrs, h.adapter.ddl, pgDialect);
     expect(health.isHealthy).toBe(true);
     // 10 моделей: 9 исходных + CalendarEvent (матрица datetime/date/time).
     expect(health.summary.tablesExpected).toBe(10);
@@ -32,17 +35,18 @@ describe('db: schema diff + health', () => {
   });
 
   it('renderSql returns no-op when clean', async () => {
-    const { computeDiff, renderSql } =
-      await import('@karkardmitry/kadmium-sql-pg');
-    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const { computeDiff } = await import('@karkardmitry/kadmium-core');
+    const { renderSql } = await import('@karkardmitry/kadmium-sql-pg');
+    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     expect(renderSql(diff)).toContain('No changes needed');
   });
 
   it('detects a missing table as unhealthy', async () => {
     const { computeDiff, diffToHealth } =
-      await import('@karkardmitry/kadmium-sql-pg');
+      await import('@karkardmitry/kadmium-core');
+
     // Эмулируем diff с отсутствующей таблицей
-    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     const altered = { ...diff, summary: { ...diff.summary, addedTables: 1 } };
     const health = diffToHealth(h.app.allIrs, altered);
     expect(health.isHealthy).toBe(false);
@@ -53,8 +57,9 @@ describe('db: schema diff + health', () => {
     await h.adapter.ddl.raw(
       'CREATE TABLE IF NOT EXISTS "unmanaged_extra" (id bigint)',
     );
-    const { computeDiff } = await import('@karkardmitry/kadmium-sql-pg');
-    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const { computeDiff } = await import('@karkardmitry/kadmium-core');
+
+    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     // droppedTables не заполняется при создании (не авто-дроп)
     const hasDrop = diff.operations.some(
       (o) => o.type === 'drop-table' && o.table === 'unmanaged_extra',

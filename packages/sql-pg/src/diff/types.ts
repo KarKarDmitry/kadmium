@@ -1,21 +1,17 @@
 /**
- * Schema diff — types and IR → PG mapping helpers.
+ * PostgreSQL-специфичная часть миграции: имена типов и `DEFAULT`.
+ *
+ * Реализация методов `Dialect`. Всё, что не зависит от того, какая база под
+ * миграцией, живёт в `core/src/diff/expected.ts`.
  */
 
 import type {
   AddIndexOp,
   DbColumn,
-  DbForeignKey,
-  DbIndex,
   DiffOp,
   IrField,
   IrModel,
 } from '@karkardmitry/kadmium-sql-types';
-
-// Контракт diff-а (DiffOp/DiffResult/HealthCheckResult) переехал в
-// `@karkardmitry/kadmium-sql-types`: `computeDiff()` одинаков для всех диалектов,
-// а объявлять его в пакете адаптера означало, что `core` обязан импортировать
-// этот адаптер ради одних типов.
 
 /* ── IR field type → PG data type ── */
 
@@ -32,8 +28,11 @@ export function pgType(f: IrField, irs: readonly IrModel[]): string {
       (m) => m.name.toLowerCase() === f.ref!.toLowerCase(),
     );
     if (target) {
-      const pkField = Object.values(target.fields).find((pf) =>
-        isPrimaryField(pf),
+      // Инлайн предиката, а не импорт `isPrimaryField()` из core: адаптер не
+      // должен знать про core. Двойник живёт в `core/src/diff/expected.ts` —
+      // условие намеренно совпадает, при изменении править оба.
+      const pkField = Object.values(target.fields).find(
+        (pf) => pf.isPrimary === true || pf.type === 'primary',
       );
       if (pkField) return pgType(pkField, irs);
     }
@@ -78,26 +77,6 @@ export function normalizePgType(type: string): string {
 }
 
 /* ── IR → columns helper ── */
-
-export function isPrimaryField(f: IrField): boolean {
-  return f.isPrimary === true || f.type === 'primary';
-}
-
-/**
- * PK, который PostgreSQL наполняет сам — `serial`/`bigserial`.
- *
- * Единый предикат для `irToColumns()` и `computeDiff()`: расходиться они не
- * должны, потому что от него зависит, чей дефолт — наш или базы. У
- * autoIncrement-колонки дефолт принадлежит последовательности (`nextval(...)`),
- * а не модели, и сравнивать его с `renderDefault()` нельзя.
- */
-export function isAutoIncrementField(f: IrField): boolean {
-  return (
-    isPrimaryField(f) &&
-    f.spec?.db_type !== 'uuid' &&
-    f.spec?.db_type !== 'string'
-  );
-}
 
 /**
  * Локальный wall-clock в виде, который понимает PostgreSQL.
@@ -243,67 +222,6 @@ export function defaultsEqual(
   return false;
 }
 
-export function irToColumns(
-  tableName: string,
-  irFields: Record<string, IrField>,
-  irs: Array<{ name: string; fields: Record<string, IrField> }>,
-): DbColumn[] {
-  // Два первичных ключа дают два `PRIMARY KEY` инлайн в CREATE TABLE, и
-  // PostgreSQL отвечает `42710 multiple primary keys are not allowed` —
-  // сообщение про эту колонку ничего не говорит. Ловим здесь, где IR
-  // превращается в колонки, а не полагаемся на `compileModel()`: `ModelIR` —
-  // публичный контракт, и IR можно собрать руками и отдать прямо в
-  // `computeDiff()`. Модели, собранные через `Model`, до сюда не доходят с
-  // двумя ключами — их ловит `assertSinglePrimaryKey()` в core.
-  const primaryFields = Object.entries(irFields).filter(([, f]) =>
-    isPrimaryField(f),
-  );
-  if (primaryFields.length > 1) {
-    throw new Error(
-      `Model "${tableName}": объявлено несколько primary-ключей — ${primaryFields
-        .map(([name]) => name)
-        .join(', ')}. Первичный ключ должен быть один.`,
-    );
-  }
-
-  return Object.entries(irFields)
-    .filter(([, f]) => !f.sourceModel)
-    .map(([name, f]) => ({
-      name: f.alias ?? name,
-      tableName,
-      dataType: pgType(f, irs),
-      isNullable: f.nullable && !isPrimaryField(f),
-      defaultValue: renderDefault(f),
-      isPrimary: isPrimaryField(f),
-      isUnique: f.unique || isPrimaryField(f),
-      autoIncrement: isAutoIncrementField(f),
-    }));
-}
-
-export function expectedIndexes(
-  tableName: string,
-  irFields: Record<string, IrField>,
-): DbIndex[] {
-  const indexes: DbIndex[] = [];
-  for (const [name, f] of Object.entries(irFields)) {
-    if (f.sourceModel || isPrimaryField(f)) continue;
-    // Ref fields automatically get an index
-    if (f.unique || f.index || f.type === 'ref') {
-      indexes.push({
-        name: `idx_${tableName}_${f.alias ?? name}`,
-        tableName,
-        columns: [f.alias ?? name],
-        // `one-to-one` означает «на одну запись цели приходится ровно одна
-        // моя», а это и есть уникальность. Имя индекса у `.unique()`-поля и
-        // у обычного ref-поля совпадает, поэтому проверять тут же — иначе
-        // пользователю пришлось бы дублировать намерение через `.unique()`.
-        isUnique: !!f.unique || f.relation === 'one-to-one',
-      });
-    }
-  }
-  return indexes;
-}
-
 /**
  * Колонки для `CREATE TABLE` — без инлайн `UNIQUE` у колонок, которым
  * достанется отдельный `add-index`.
@@ -335,36 +253,4 @@ export function createTableColumns(
     ...c,
     isUnique: indexedColumns.has(c.name) ? false : c.isUnique,
   }));
-}
-
-export function expectedForeignKeys(
-  tableName: string,
-  irFields: Record<string, IrField>,
-  irs: Array<{ name: string; fields: Record<string, IrField> }>,
-): DbForeignKey[] {
-  const fks: DbForeignKey[] = [];
-  for (const [name, f] of Object.entries(irFields)) {
-    if (f.sourceModel || !f.ref) continue;
-    const target = irs.find((m) => m.name === f.ref);
-    if (!target) continue;
-    const pkEntry = Object.entries(target.fields).find(([, pf]) =>
-      isPrimaryField(pf),
-    );
-    if (!pkEntry) continue;
-    const [pkName] = pkEntry;
-
-    fks.push({
-      name: `fk_${tableName}_${f.alias ?? name}`,
-      tableName,
-      columns: [f.alias ?? name],
-      refTable: f.ref.toLowerCase(),
-      refColumns: [pkName],
-      // Отсутствие действия в модели — это NO ACTION, а не «действия нет»:
-      // так ведёт себя Postgres по умолчанию, и миграции не появляются там,
-      // где onDelete() не вызван.
-      onDelete: f.onDelete ?? 'NO ACTION',
-      onUpdate: f.onUpdate ?? 'NO ACTION',
-    });
-  }
-  return fks;
 }

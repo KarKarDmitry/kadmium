@@ -374,17 +374,13 @@ export function createDebugAdapter(): SqlAdapter {
 }
 
 export {
-  computeDiff,
   applyDiff,
   applyDiffTransactional,
   renderSql,
-  checkHealth,
   pgType,
   normalizePgType,
-  diffToHealth,
   renderDefault,
 } from './diff';
-export type { DiffOp, DiffResult, HealthCheckResult } from './diff';
 export { pgDialect } from './dialect';
 export { PgDdlAdapter } from './ddl-adapter';
 export { ResultReshaper } from './result-reshaper';

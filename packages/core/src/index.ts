@@ -48,3 +48,15 @@ export {
 export type { ErrorCode, KadmiumConfig, CodegenProject } from './core/index';
 
 export { generateToFile, checkSync } from './codegen/index';
+
+// Schema diff. Движок миграций живёт здесь, а не в пакете адаптера: `kadmium
+// db:migrate` публикуется как bin в core, и при статическом импорте адаптера
+// установка из npm падала с MODULE_NOT_FOUND.
+export { computeDiff, checkHealth, diffToHealth } from './diff/index';
+export type {
+  DiffOp,
+  DiffResult,
+  HealthCheckResult,
+  IrField,
+  IrModel,
+} from '@karkardmitry/kadmium-sql-types';

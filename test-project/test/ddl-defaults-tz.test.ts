@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { pgDialect } from '@karkardmitry/kadmium-sql-pg';
 import { renderDefault } from '@karkardmitry/kadmium-sql-pg';
 import { makeHarness, type Harness } from './helpers';
 import type { IrField } from '@karkardmitry/kadmium-sql-types';
@@ -162,8 +163,9 @@ describe('DEFAULT идемпотентен для diff', () => {
   ];
 
   const alterDefaults = async (fields: Record<string, IrField>) => {
-    const { computeDiff } = await import('@karkardmitry/kadmium-sql-pg');
-    const diff = await computeDiff(irsOf(fields), h.adapter.ddl);
+    const { computeDiff } = await import('@karkardmitry/kadmium-core');
+
+    const diff = await computeDiff(irsOf(fields), h.adapter.ddl, pgDialect);
     return diff.operations.filter((o) => o.type === 'alter-default');
   };
 
@@ -260,16 +262,16 @@ describe('DEFAULT идемпотентен для diff', () => {
     );
     const fields = { id: idField, n: field('int', { default: 0 }) };
 
-    const { computeDiff, applyDiff } =
-      await import('@karkardmitry/kadmium-sql-pg');
-    const before = await computeDiff(irsOf(fields), h.adapter.ddl);
+    const { computeDiff } = await import('@karkardmitry/kadmium-core');
+    const { applyDiff } = await import('@karkardmitry/kadmium-sql-pg');
+    const before = await computeDiff(irsOf(fields), h.adapter.ddl, pgDialect);
     expect(before.hasChanges).toBe(true);
     await applyDiff(before, h.adapter.ddl);
 
     // Повторный diff обязан быть пустым: иначе каждая миграция заново
     // «чинила» бы уже приведённую колонку.
-    expect((await computeDiff(irsOf(fields), h.adapter.ddl)).hasChanges).toBe(
-      false,
-    );
+    expect(
+      (await computeDiff(irsOf(fields), h.adapter.ddl, pgDialect)).hasChanges,
+    ).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { f } from '@karkardmitry/kadmium-core';
 import { Post as PostModel, Comment as CommentModel } from '../src/models';
 import { makeHarness, type Harness } from './helpers';
 import { resetAndSeed } from './fixtures';
-import { IrField } from '@karkardmitry/kadmium-sql-pg/dist/diff';
+import type { IrField } from '@karkardmitry/kadmium-core';
 
 let h: Harness;
 

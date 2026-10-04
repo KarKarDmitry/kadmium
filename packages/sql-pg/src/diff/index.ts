@@ -1,108 +1,14 @@
 /**
- * Schema diff — barrel export + health check.
+ * Schema diff — PostgreSQL-часть.
  *
- * Ported from kadmium-core's db-mutator, adapted for our IR types.
+ * Здесь осталось то, что по природе PostgreSQL: имена типов и текст `DEFAULT`
+ * (`types.ts`), SQL-текст DDL (`ddl-sql.ts`, `render.ts`) и его валидация.
+ * Принятие решений — `computeDiff()`, `checkHealth()`, `expectedIndexes()` и
+ * прочие — живёт в `core/src/diff/`, потому что одинаково для любой базы.
  */
 
-import type {
-  DbDdlAdapter,
-  DiffResult,
-  HealthCheckResult,
-  IrField,
-} from '@karkardmitry/kadmium-sql-types';
-import { computeDiff } from './compute';
+export { pgType, normalizePgType, renderDefault } from './types';
+export { createTableColumns } from './types';
 
-// Re-export: публичный API sql-pg не должен ломаться у потребителей,
-// импортирующих контракт diff-а отсюда. Каноническое место — sql-types.
-export type {
-  DiffOp,
-  DiffResult,
-  HealthCheckResult,
-  IrField,
-  IrModel,
-  AddColumnOp,
-  DropColumnOp,
-  AlterTypeOp,
-  AlterNullableOp,
-  AlterDefaultOp,
-  AddIndexOp,
-  DropIndexOp,
-  AddForeignKeyOp,
-  DropForeignKeyOp,
-  AlterForeignKeyOp,
-  CreateTableOp,
-  DropTableOp,
-} from '@karkardmitry/kadmium-sql-types';
-
-export {
-  pgType,
-  normalizePgType,
-  isPrimaryField,
-  renderDefault,
-  irToColumns,
-  expectedIndexes,
-  expectedForeignKeys,
-} from './types';
-
-export { computeDiff } from './compute';
 export { applyDiff, applyDiffTransactional } from './apply';
 export { renderSql } from './render';
-
-/* ════════════════════════════════════════
-   Health Check
-   ════════════════════════════════════════ */
-
-export async function checkHealth(
-  irs: Array<{
-    name: string;
-    collection: string;
-    fields: Record<string, IrField>;
-  }>,
-  ddl: DbDdlAdapter,
-): Promise<HealthCheckResult> {
-  const diff = await computeDiff(irs, ddl);
-  return diffToHealth(irs, diff);
-}
-
-export function diffToHealth(
-  irs: Array<{ name: string; collection: string }>,
-  diff: DiffResult,
-): HealthCheckResult {
-  const issues: string[] = [];
-
-  if (diff.summary.addedTables > 0) {
-    issues.push(`${diff.summary.addedTables} table(s) missing from database`);
-  }
-  if (diff.summary.addedColumns > 0) {
-    issues.push(`${diff.summary.addedColumns} column(s) missing`);
-  }
-  if (diff.summary.droppedColumns > 0) {
-    issues.push(`${diff.summary.droppedColumns} extra column(s) in database`);
-  }
-  if (diff.summary.alteredColumns > 0) {
-    issues.push(
-      `${diff.summary.alteredColumns} column(s) have type/nullability changes`,
-    );
-  }
-  if (diff.summary.addedIndexes > 0) {
-    issues.push(`${diff.summary.addedIndexes} index(es) missing`);
-  }
-  if (diff.summary.addedForeignKeys > 0) {
-    issues.push(`${diff.summary.addedForeignKeys} foreign key(s) missing`);
-  }
-  if (diff.summary.alteredForeignKeys > 0) {
-    issues.push(
-      `${diff.summary.alteredForeignKeys} foreign key(s) with a different referential action`,
-    );
-  }
-
-  return {
-    isHealthy: issues.length === 0,
-    issues,
-    summary: {
-      tablesMissing: diff.summary.addedTables,
-      tablesExpected: irs.length,
-      tablesMatching: irs.length - diff.summary.addedTables,
-    },
-  };
-}

@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { pgDialect } from '@karkardmitry/kadmium-sql-pg';
 import { CalendarEvent } from '../../../src/models';
 import { makeHarness, type Harness } from '../../helpers';
 
@@ -100,8 +101,9 @@ describe('date/time: значение доезжает строкой и воз�
   });
 
   it('withTimeZone(): повторный db:push не предлагает alter-type', async () => {
-    const { computeDiff } = await import('@karkardmitry/kadmium-sql-pg');
-    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl);
+    const { computeDiff } = await import('@karkardmitry/kadmium-core');
+
+    const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
     const altering = diff.operations.filter((op) => op.type === 'alter-type');
 
     // Тип из IR и тип из интроспекции обязаны совпадать, иначе каждая миграция
