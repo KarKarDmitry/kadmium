@@ -237,6 +237,56 @@ export interface SqlSelectItem {
   readonly slotOrder: readonly SlotDefinition[];
 }
 
+// ── Read coercion (B3/B4) ──
+
+/**
+ * Сторож точности при приведении к `number`.
+ *
+ * `tsType` отвечает на вопрос «что получить», а `guard` — «что прислала база
+ * и какая потеря недопустима». Разделены намеренно: `Number.isSafeInteger`
+ * нельзя применять ко всем `tsType: 'number'`, иначе `float` со значением
+ * `1.5` упал бы как нецелое.
+ */
+export type CoercionGuard =
+  /** int2/int4/int8: целое, терять разряды нельзя */
+  | 'int8'
+  /** numeric/decimal: произвольная точность, double перестаёт быть точным */
+  | 'numeric'
+  /** float4/float8: неточность заложена в тип, сторожа нет */
+  | 'float';
+
+/** Одна колонка, значение которой приводится к `tsType`. */
+export interface CoercionColumn {
+  /** Ключ в строке результата: пропс модели либо алиас селекта. */
+  readonly prop: string;
+  readonly tsType: ResultTsType;
+  readonly guard: CoercionGuard;
+  /**
+   * Модель и колонка для текста ошибки. Не влияет на приведение: причина
+   * «почему это не число» читается только в сообщении.
+   */
+  readonly source: string;
+}
+
+/**
+ * План приведения для одного уровня результата.
+ *
+ * В `columns` лежат **только** колонки, которые нужно привести: остальное
+ * проходит как есть. Поэтому на горячем пути `run().fill().go()` план либо
+ * отсутствует, либо почти пуст, а не перебирает всю строку.
+ *
+ * Строится один раз на билдере (у него есть IR) и едет в скомпилированном
+ * запросе: у `CompiledQuery` нет IR — только `sqb` с сужённым `targetIr`,
+ * в котором `tsType` отсутствует.
+ */
+export interface CoercionNode {
+  readonly columns: readonly CoercionColumn[];
+  /** Вложенные связи: имя свойства в строке → план поддерева. */
+  readonly includes?: Readonly<Record<string, CoercionNode>>;
+  /** true — значение включения это массив строк, false — один объект. */
+  readonly many?: boolean;
+}
+
 /**
  * Скомпилированный запрос (План 3, B1B2): SQL-текст с $N-плейсхолдерами,
  * значения (маркеры слотов на месте ожидания fill) и порядок слотов.
@@ -258,6 +308,12 @@ export type CompiledQuery<
   readonly single: boolean;
   /** Снапшот sqb после materializeSelects — reshape-контекст (B2) */
   readonly sqb: ReadonlySqb;
+  /**
+   * План приведения значений при чтении (B3/B4); `undefined` — приводить
+   * нечего. Опционален: это не меняет поведение запроса и не обязателен для
+   * адаптера, который про него ничего не знает.
+   */
+  readonly coerce?: CoercionNode;
 };
 
 // ── Adapter interface ──
