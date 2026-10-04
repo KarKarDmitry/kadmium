@@ -104,8 +104,10 @@ export class PgDdlAdapter {
       defaultValue: r.column_default,
       isPrimary: r.is_primary,
       isUnique: r.is_unique,
-      autoIncrement:
-        r.data_type === 'integer' && r.column_default?.includes('nextval'),
+      // Признак принадлежности дефолта последовательности, а не ширины типа:
+      // `bigserial` даёт `data_type = 'bigint'`, и проверка на `integer` его
+      // пропускала. На этом стоит защита от снятия `nextval(...)` в diff.
+      autoIncrement: !!r.column_default?.includes('nextval'),
     }));
   }
 

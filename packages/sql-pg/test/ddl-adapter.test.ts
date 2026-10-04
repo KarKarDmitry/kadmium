@@ -63,7 +63,7 @@ describe('PgDdlAdapter', () => {
         defaultValue: null,
         isPrimary: true,
         isUnique: true,
-        autoIncrement: undefined,
+        autoIncrement: false,
       });
       expect(client.query.mock.calls[0][1][0]).toEqual(['users', 'posts']);
     });
@@ -87,7 +87,10 @@ describe('PgDdlAdapter', () => {
       expect(result[0].autoIncrement).toBe(true);
     });
 
-    it('autoIncrement false when data_type is not integer', async () => {
+    // Признак принадлежности дефолта последовательности, а не ширины типа:
+    // `bigserial` даёт `data_type = 'bigint'`, и проверка на `integer` его
+    // пропускала. На этом стоит защита от снятия `nextval(...)` в diff.
+    it('autoIncrement true для bigserial (data_type = bigint)', async () => {
       client.query.mockResolvedValue({
         rows: [
           {
@@ -96,6 +99,25 @@ describe('PgDdlAdapter', () => {
             data_type: 'bigint',
             is_nullable: 'NO',
             column_default: "nextval('users_id_seq'::regclass)",
+            character_maximum_length: null,
+            is_primary: true,
+            is_unique: true,
+          },
+        ],
+      });
+      const result = await ddl.inspectAllColumns(['users']);
+      expect(result[0].autoIncrement).toBe(true);
+    });
+
+    it('autoIncrement false без nextval', async () => {
+      client.query.mockResolvedValue({
+        rows: [
+          {
+            table_name: 'users',
+            column_name: 'id',
+            data_type: 'bigint',
+            is_nullable: 'NO',
+            column_default: null,
             character_maximum_length: null,
             is_primary: true,
             is_unique: true,
