@@ -4,6 +4,18 @@
  * Core depends on this, adapters implement it.
  */
 
+// ── Result type vocabulary ──
+
+/**
+ * TypeScript-тип, в котором значение приходит к пользователю.
+ *
+ * Закрытый набор вместо произвольной строки: coercion при чтении (B3/B4)
+ * решает по нему, приводить ли значение, и любое новое значение из этого
+ * списка обязано быть обработано явно, а не молча проскочить мимо.
+ * Поле IR-типа, для которого заявлен TS-тип, лежит в `FieldIR.tsType`.
+ */
+export type ResultTsType = 'number' | 'string' | 'boolean' | 'Date';
+
 // ── AST types (read-only view for adapter) ──
 
 export interface WhereCondition {

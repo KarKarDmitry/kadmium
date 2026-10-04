@@ -7,6 +7,7 @@ import {
   DateFilter,
 } from '../../src/orm/field-builders/filters';
 import { BaseFilter } from '../../src/orm/field-builders/base-filter';
+import type { FieldIR } from '../../src/ir/index';
 import { makeSqb, makeUserIR } from './helpers';
 
 const sqb = makeSqb();
@@ -39,7 +40,7 @@ describe('createFilter', () => {
   });
 
   it('datetime → DateFilter', () => {
-    const datetimeIr = {
+    const datetimeIr: FieldIR = {
       type: 'datetime' as const,
       alias: 'created',
       tsType: 'Date',
@@ -54,7 +55,7 @@ describe('createFilter', () => {
   it('date → StringFilter', () => {
     // `date` объявлен как string, и `FieldTypeToFilter` в proxy.d.ts отдаёт
     // для него StringFilter — рантайм обязан отдавать тот же класс.
-    const dateIr = {
+    const dateIr: FieldIR = {
       type: 'date' as const,
       alias: 'birth',
       tsType: 'string',
@@ -68,7 +69,7 @@ describe('createFilter', () => {
   });
 
   it('time → StringFilter', () => {
-    const timeIr = {
+    const timeIr: FieldIR = {
       type: 'time' as const,
       alias: 'at',
       tsType: 'string',
@@ -82,10 +83,11 @@ describe('createFilter', () => {
   });
 
   it('unknown type → BaseFilter', () => {
-    const jsonbIr = {
+    // Неизвестен именно FieldType (`jsonb` нет в юнионе), а не tsType.
+    const jsonbIr: FieldIR = {
       type: 'jsonb' as any,
       alias: 'data',
-      tsType: 'any',
+      tsType: 'string',
       nullable: false,
       unique: false,
       index: false,

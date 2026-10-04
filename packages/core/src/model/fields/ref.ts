@@ -98,7 +98,9 @@ export class ReferenceFieldBuilder extends StandartFieldBuilder {
       _meta: { _: 'field', _type: 'ref' },
       ref: this.targetModel,
       relation: this.relation,
-      tsType: this.targetModel,
+      // tsType не задаём: у FK-колонки он равен tsType целевого PK, который
+      // резолвится в compileModel. Имя модели здесь было импорт-хаком для
+      // кодгена и попадало в `~shape` как 'number' у любого PK (B8).
       ...(this.foreignKeyField ? { foreignKey: this.foreignKeyField } : {}),
       ...(this.inverseField ? { inverse: this.inverseField } : {}),
       ...(this.onDeleteAction ? { onDelete: this.onDeleteAction } : {}),

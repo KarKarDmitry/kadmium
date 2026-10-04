@@ -6,9 +6,12 @@
  * Это единственный контракт между слоями.
  */
 
-import type { ReferentialAction } from '@karkardmitry/kadmium-sql-types';
+import type {
+  ReferentialAction,
+  ResultTsType,
+} from '@karkardmitry/kadmium-sql-types';
 
-export type { ReferentialAction };
+export type { ReferentialAction, ResultTsType };
 
 export type FieldType =
   | 'string'
@@ -72,11 +75,45 @@ export function toReferentialAction(
   return REFERENTIAL_ACTION_BY_INPUT[action];
 }
 
+/**
+ * Единственное место, где строка из model-слоя становится `ResultTsType`.
+ *
+ * Бросает, а не подставляет заглушку: молчаливое `'unknown'` или имя модели
+ * здесь означало бы, что `~shape` врёт, а coercion (B3/B4) не знает, чего
+ * ждать, и молча оставит значение как есть. Ошибка на этапе компиляции модели
+ * указывает на конкретное поле — это дешевле, чем расхождение типов в рантайме.
+ */
+export function toResultTsType(
+  raw: unknown,
+  ctx: { model: string; field: string },
+): ResultTsType {
+  if (
+    raw === 'number' ||
+    raw === 'string' ||
+    raw === 'boolean' ||
+    raw === 'Date'
+  ) {
+    return raw;
+  }
+  throw new Error(
+    `compileModel: ${ctx.model}.${ctx.field} declares tsType ${JSON.stringify(raw)}, ` +
+      `expected one of: 'number', 'string', 'boolean', 'Date'. ` +
+      `For f.ref.target(M) the target primary key's tsType is resolved automatically.`,
+  );
+}
+
 export interface FieldIR {
   /** Тип поля в терминах модели */
   type: FieldType;
-  /** TypeScript-тип для кодогенерации */
-  tsType: string;
+  /**
+   * TypeScript-тип значения для кодогенерации и coercion при чтении.
+   *
+   * Закрытый юнион `ResultTsType`, а не строка: у ref-полей сюда кладётся
+   * tsType целевого PK (раньше туда писалось имя модели — импорт-хак, который
+   * кодген использовал, чтобы не тянуть `import { User }`, а `~shape` при
+   * этом получал `'number'` у любого PK, включая uuid).
+   */
+  tsType: ResultTsType;
   /** Имя колонки в БД */
   alias: string;
   /** Разрешён ли null */

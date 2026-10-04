@@ -37,19 +37,14 @@ export function generateModel(
     ([, f]) => !f.sourceModel && isFilledByDatabase(f),
   );
 
-  // Собираем импорты типов, которые нужны внутри declare module
+  // Собираем импорты типов, которые нужны внутри declare module.
+  // Имена моделей берём из ref/sourceModel: `~rel` и `~relInfo` печатают их как
+  // тип (`author: User`), а `FieldIR.tsType` — закрытый юнион примитивов и
+  // имени модели уже не содержит.
   const imports = new Set<string>();
   for (const [, field] of fields) {
-    if (
-      field.tsType &&
-      field.tsType !== ir.name &&
-      field.tsType !== 'string' &&
-      field.tsType !== 'number' &&
-      field.tsType !== 'boolean' &&
-      field.tsType !== 'Date'
-    ) {
-      imports.add(field.tsType);
-    }
+    const target = field.sourceModel ?? field.ref;
+    if (target && target !== ir.name) imports.add(target);
   }
 
   // Импорты внутри declare module
@@ -81,11 +76,10 @@ export function generateModel(
     // Inverse refs (sourceModel) — не попадают в ~shape, только в ~rel
     if (field.sourceModel) continue;
 
-    // Forward refs — raw FK тип (number), а не имя модели
-    const tsType = field.ref ? 'number' : field.tsType;
-    lines.push(
-      `    ${name}: ${field.nullable ? `${tsType} | undefined` : tsType};`,
-    );
+    // FK-колонка: tsType уже равен tsType целевого PK (его резолвит
+    // compileModel), поэтому у uuid-PK здесь 'string', а не 'number' (B8).
+    const value = field.nullable ? `${field.tsType} | undefined` : field.tsType;
+    lines.push(`    ${name}: ${value};`);
   }
   lines.push(`  };`);
 
@@ -103,8 +97,7 @@ export function generateModel(
     lines.push(`  ['~defaults']: {`);
     for (const [name, field] of defaults) {
       // Типы те же, что в ~shape: ~defaults — это Pick<~shape, …>.
-      const tsType = field.ref ? 'number' : field.tsType;
-      lines.push(`    ${name}: ${tsType};`);
+      lines.push(`    ${name}: ${field.tsType};`);
     }
     lines.push(`  };`);
   }

@@ -2,13 +2,14 @@ import type { StandardField } from './_base';
 import type { RelationType } from './model';
 import type { ReferentialActionInput } from '../../ir/index';
 
-// Ref tsType = имя целевой модели (динамически, от билдера)
+// tsType не объявляется: у FK-колонки он равен tsType целевого PK, который
+// резолвит compileModel. Раньше здесь лежало имя модели — и кодген использовал
+// его, чтобы решить, нужен ли импорт, а в `~shape` подставлял 'number' (B8).
 
 export interface ReferenceField extends StandardField {
   _meta: { _: 'field'; _type: 'ref' };
   ref: string;
   relation: RelationType;
-  tsType: string;
   /** Имя поля обратной связи на целевой модели */
   inverse?: string;
   /** Имя FK-колонки в БД (по умолчанию - имя поля) */

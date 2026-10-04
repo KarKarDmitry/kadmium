@@ -7,7 +7,7 @@ function makeFieldIr(overrides?: Partial<FieldIR>): FieldIR {
   return {
     type: 'ref',
     alias: 'posts',
-    tsType: 'Post[]',
+    tsType: 'number',
     nullable: true,
     unique: false,
     index: false,

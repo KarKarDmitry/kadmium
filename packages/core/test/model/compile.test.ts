@@ -175,10 +175,38 @@ describe('compileModel', () => {
       expect(ir.fields.author.foreignKey).toBe('authorId');
     });
 
-    it('ref field tsType is target model name', () => {
+    it('ref field tsType is the target PK tsType, not the model name', () => {
       Model.register(User, Post);
       const ir = compileModel(new Post());
-      expect(ir.fields.author.tsType).toBe('User');
+      // Не 'User': имя модели в tsType было импорт-хаком для кодгена.
+      expect(ir.fields.author.tsType).toBe('number');
+    });
+
+    it('ref to a uuid-PK target gets tsType string', () => {
+      class Account extends Model {
+        uid = f.pk.uuid;
+      }
+      class Session extends Model {
+        accountId = f.ref.target(Account, 'sessions');
+      }
+      Model.register(Account, Session);
+      const ir = compileModel(new Session());
+      // Раньше кодген подставлял 'number' у ЛЮБОГО ref — колонка uuid
+      // получала number, и coercion (B3/B4) приводил бы её не по той карте.
+      expect(ir.fields.accountId.tsType).toBe('string');
+    });
+
+    it('ref tsType resolves through the target registry, not the field name', () => {
+      class Tag extends Model {
+        label = f.string;
+      }
+      class Note extends Model {
+        tagId = f.ref.target(Tag, 'notes');
+      }
+      Model.register(Tag, Note);
+      const ir = compileModel(new Note());
+      expect(ir.fields.tagId.ref).toBe('Tag');
+      expect(ir.fields.tagId.tsType).toBe('number');
     });
   });
 

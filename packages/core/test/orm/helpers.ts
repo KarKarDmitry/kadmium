@@ -139,7 +139,7 @@ export function makeUserIR(): ModelIR {
       posts: {
         type: 'ref',
         alias: 'posts',
-        tsType: 'Post[]',
+        tsType: 'number',
         nullable: true,
         unique: false,
         index: false,

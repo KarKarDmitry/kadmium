@@ -61,7 +61,7 @@ describe('generateModel', () => {
       fields: {
         authorId: {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           alias: 'authorId',
           nullable: false,
           unique: false,
@@ -83,7 +83,7 @@ describe('generateModel', () => {
       fields: {
         posts: {
           type: 'ref',
-          tsType: 'Post',
+          tsType: 'number',
           alias: 'posts',
           nullable: false,
           unique: false,
@@ -106,7 +106,7 @@ describe('generateModel', () => {
       fields: {
         authorId: {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           alias: 'authorId',
           nullable: false,
           unique: false,
@@ -126,7 +126,7 @@ describe('generateModel', () => {
       fields: {
         parentId: {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           alias: 'parentId',
           nullable: true,
           unique: false,
@@ -147,7 +147,7 @@ describe('generateModel', () => {
       fields: {
         authorId: {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           alias: 'authorId',
           nullable: false,
           unique: false,
@@ -167,7 +167,7 @@ describe('generateModel', () => {
       fields: {
         authorId: {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           alias: 'authorId',
           nullable: false,
           unique: false,
@@ -197,7 +197,7 @@ describe('generateModel', () => {
       fields: {
         authorId: {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           alias: 'authorId',
           nullable: true,
           unique: false,
@@ -218,7 +218,7 @@ describe('generateModel', () => {
       fields: {
         authorId: {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           alias: 'authorId',
           nullable: false,
           unique: false,
@@ -251,7 +251,7 @@ describe('generateModel', () => {
       fields: {
         profile: {
           type: 'ref',
-          tsType: 'Profile',
+          tsType: 'number',
           alias: 'profile',
           nullable: true,
           unique: false,
@@ -280,7 +280,7 @@ describe('generateModel', () => {
       fields: {
         accounts: {
           type: 'ref',
-          tsType: 'UserAccount',
+          tsType: 'number',
           alias: 'accounts',
           nullable: false,
           unique: false,
@@ -388,7 +388,7 @@ describe('generateModel', () => {
         name: 'Post',
         fields: fieldWith('comments', {
           type: 'ref',
-          tsType: 'Comment',
+          tsType: 'number',
           ref: 'Comment',
           relation: 'one-to-many',
           sourceModel: 'Post',
@@ -405,7 +405,7 @@ describe('generateModel', () => {
         name: 'Post',
         fields: fieldWith('author', {
           type: 'ref',
-          tsType: 'User',
+          tsType: 'number',
           ref: 'User',
           relation: 'many-to-one',
           spec: { default: 1 },

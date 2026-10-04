@@ -1,11 +1,12 @@
 import { Model } from './index';
 import type { ModelSchema } from './types/model';
 import type { ReferenceField } from './types/ref';
-import type { ModelIR, FieldIR } from '../ir/index';
+import type { ModelIR, FieldIR, ResultTsType } from '../ir/index';
 import {
   assertSinglePrimaryKey,
   toSnakeCase,
   toReferentialAction,
+  toResultTsType,
 } from '../ir/index';
 
 /**
@@ -23,6 +24,7 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
   const refs = model.$refs();
 
   const fields: Record<string, FieldIR> = {};
+  const refTsTypes = new Map<string, ResultTsType>();
 
   for (const [name, field] of Object.entries(schema.fields)) {
     // Сохраняем db_type из поля (для uuid PK, etc.)
@@ -43,9 +45,18 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
     const resolvedType =
       rawType == null || rawType === '_' ? field._meta._type : rawType;
 
+    const isRefField = field._meta._type === 'ref';
+
     const base: FieldIR = {
       type: normalizeType(resolvedType),
-      tsType: field.tsType ?? 'unknown',
+      // ref-поле tsType не объявляет: у него ниже он выводится из целевого PK,
+      // поэтому здесь берём заведомо валидный placeholder, а не падаем.
+      tsType: isRefField
+        ? 'number'
+        : toResultTsType(field.tsType, {
+            model: schema._meta.name,
+            field: name,
+          }),
       alias: field.alias ?? name,
       nullable: field.db.nullable,
       unique: field.db.unique,
@@ -55,12 +66,15 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
     };
 
     // Если ref-поле — добавляем метаданные связи
-    if (field._meta._type === 'ref') {
+    if (isRefField) {
       const ref = field as ReferenceField;
       base.ref = ref.ref;
       base.relation = ref.relation;
       base.inverse = ref.inverse;
       base.foreignKey = ref.foreignKey;
+      // FK-колонка хранит значение PK цели, поэтому её tsType — tsType
+      // целевого PK (у uuid-PK это 'string', а не 'number' — B8).
+      base.tsType = resolveRefTsType(ref.ref, refTsTypes);
       // Действие копируется только здесь: поля-владельцы колонки ниже, у
       // обратных связей (sourceModel) FK нет — см. цикл обратных связей ниже.
       if (ref.onDelete) base.onDelete = toReferentialAction(ref.onDelete);
@@ -77,7 +91,7 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
 
     fields[rel.inverse!] = {
       type: 'ref',
-      tsType: rel.sourceModel ?? rel.field,
+      tsType: resolveRefTsType(rel.sourceModel ?? rel.field, refTsTypes),
       alias: rel.inverse!,
       nullable: rel.relation === 'one-to-one',
       unique: false,
@@ -108,7 +122,10 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
           if (rel.inverse && !fields[rel.inverse]) {
             fields[rel.inverse!] = {
               type: 'ref',
-              tsType: rel.sourceModel ?? rel.field,
+              tsType: resolveRefTsType(
+                rel.sourceModel ?? rel.field,
+                refTsTypes,
+              ),
               alias: rel.inverse!,
               nullable: rel.relation === 'one-to-one',
               unique: false,
@@ -141,6 +158,49 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
   // и `isPrimary` не бывает.
   assertSinglePrimaryKey(ir);
   return ir;
+}
+
+/**
+ * tsType значения, которое отдаёт FK-колонка (и обратная связь).
+ *
+ * Это tsType целевого PK: у `author = f.ref.target(User)` колонка хранит
+ * ровно то, что лежит в `User`'s PK. Раньше сюда писалось имя модели, и это
+ * портило две вещи: кодген решал по нему, нужен ли `import { User }`, а в
+ * `~shape` подставлял `'number'` у любого PK — включая uuid (B8).
+ *
+ * `$build()` целевой модели здесь безопасен: ref-поле сохраняет имя и
+ * ничего не резолвит (`fields/ref.ts`), поэтому рекурсии в `compileModel`
+ * не возникает.
+ *
+ * Нерегистрированная цель — `console.warn`, а не throw: так же поступает
+ * `$relations()` (`model/index.ts`), и `Model.clear()` в тестах не должен
+ * превращать компиляцию в исключение.
+ */
+function resolveRefTsType(
+  targetName: string,
+  cache: Map<string, ResultTsType>,
+): ResultTsType {
+  const cached = cache.get(targetName);
+  if (cached) return cached;
+
+  const Target = Model.resolve(targetName);
+  let resolved: ResultTsType = 'number';
+  if (Target) {
+    const pk = Object.values(new Target().$build().fields).find(
+      (f) => f._meta._type === 'primary',
+    );
+    if (pk?.tsType === 'number' || pk?.tsType === 'string') {
+      resolved = pk.tsType;
+    }
+  } else {
+    console.warn(
+      `[compileModel] target model "${targetName}" is not registered; ` +
+        `assuming tsType 'number' for its foreign key. Call Model.register().`,
+    );
+  }
+
+  cache.set(targetName, resolved);
+  return resolved;
 }
 
 /**
