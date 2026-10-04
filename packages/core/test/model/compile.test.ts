@@ -35,12 +35,14 @@ describe('compileModel', () => {
       expect(ir.fields.active.type).toBe('boolean');
     });
 
-    it('maps time to datetime', () => {
+    // Схлопывание `time` в `datetime` делало ветку `pgType('time')` мёртвым
+    // кодом: колонка `time` не создавалась, а `db:push` считал схему актуальной.
+    it('maps time to time', () => {
       class M extends Model {
         created = f.datetime.time;
       }
       const ir = compileModel(new M());
-      expect(ir.fields.created.type).toBe('datetime');
+      expect(ir.fields.created.type).toBe('time');
     });
 
     it('maps datetime to datetime', () => {

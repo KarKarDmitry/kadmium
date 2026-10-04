@@ -31,6 +31,9 @@ export function compileModel(model: Model, sourceFile?: string): ModelIR {
       Record<string, unknown> | undefined;
     const spec: Record<string, unknown> = {};
     if (dbType) spec.db_type = dbType;
+    // `withTimeZone()` — флаг, а не db_type: смысл задаёт ядро, а PG-имя типа
+    // выбирает адаптер.
+    if (field.db?.tz) spec.tz = true;
     if (fieldSpec && fieldSpec.default !== undefined) {
       spec.default = fieldSpec.default;
     }
@@ -149,7 +152,11 @@ function normalizeType(raw: string): FieldIR['type'] {
     string: 'string',
     number: 'number',
     boolean: 'boolean',
-    time: 'datetime',
+    // `time` обязан остаться `time`: схлопывание в `datetime` делало ветку
+    // `pgType('time')` и `normalizePgType('time without time zone')` мёртвым
+    // кодом — колонка `time` никогда не создавалась, вместо неё была
+    // `timestamp`, а `db:push` молчал, считая схему актуальной.
+    time: 'time',
     datetime: 'datetime',
     date: 'date',
     ref: 'ref',

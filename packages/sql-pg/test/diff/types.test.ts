@@ -113,6 +113,42 @@ describe('pgType', () => {
     ).toBe('integer');
   });
 
+  // `time` и `datetime` — разные колонки. Раньше `time` уезжал в `timestamp`,
+  // и значение вроде '14:30:45.123' отвергалось PG (22007) как timestamp.
+  it('time → time without time zone', () => {
+    expect(
+      pgType('at', { type: 'time', nullable: false, unique: false }, []),
+    ).toBe('time without time zone');
+  });
+
+  // Длинная форма, а не 'timestamptz': у normalizePgType нет ветки-коллапсера
+  // для `with`, поэтому короткое имя не сошлось бы с интроспекцией и давало бы
+  // бесконечный alter-type.
+  it('datetime with spec.tz → timestamp with time zone', () => {
+    expect(
+      pgType(
+        'at',
+        {
+          type: 'datetime',
+          nullable: false,
+          unique: false,
+          spec: { tz: true },
+        },
+        [],
+      ),
+    ).toBe('timestamp with time zone');
+  });
+
+  it('spec.tz игнорируется для не-datetime типов', () => {
+    expect(
+      pgType(
+        'on',
+        { type: 'date', nullable: false, unique: false, spec: { tz: true } },
+        [],
+      ),
+    ).toBe('date');
+  });
+
   it('int → integer', () => {
     expect(
       pgType('count', { type: 'int', nullable: false, unique: false }, []),
@@ -159,10 +195,12 @@ describe('pgType', () => {
     ).toBe('timestamp without time zone');
   });
 
-  it('time → timestamp', () => {
+  // Не `timestamp`: время суток — отдельная колонка. Схлопывание в timestamp
+  // давало PG 22007 на '14:30:45.123' и тихий `db:push` без alter-type.
+  it('time → time without time zone (не timestamp)', () => {
     expect(
       pgType('start', { type: 'time', nullable: false, unique: false }, []),
-    ).toBe('timestamp without time zone');
+    ).toBe('time without time zone');
   });
 
   it('uuid → uuid', () => {

@@ -51,17 +51,34 @@ describe('createFilter', () => {
     expect(f).toBeInstanceOf(DateFilter);
   });
 
-  it('date → DateFilter', () => {
+  it('date → StringFilter', () => {
+    // `date` объявлен как string, и `FieldTypeToFilter` в proxy.d.ts отдаёт
+    // для него StringFilter — рантайм обязан отдавать тот же класс.
     const dateIr = {
       type: 'date' as const,
       alias: 'birth',
-      tsType: 'Date',
+      tsType: 'string',
       nullable: false,
       unique: false,
       index: false,
     };
     const f = createFilter(sqb, 'birth', 'u', dateIr);
-    expect(f).toBeInstanceOf(DateFilter);
+    expect(f).toBeInstanceOf(StringFilter);
+    expect(f).not.toBeInstanceOf(DateFilter);
+  });
+
+  it('time → StringFilter', () => {
+    const timeIr = {
+      type: 'time' as const,
+      alias: 'at',
+      tsType: 'string',
+      nullable: false,
+      unique: false,
+      index: false,
+    };
+    const f = createFilter(sqb, 'at', 'u', timeIr);
+    expect(f).toBeInstanceOf(StringFilter);
+    expect(f).not.toBeInstanceOf(DateFilter);
   });
 
   it('unknown type → BaseFilter', () => {

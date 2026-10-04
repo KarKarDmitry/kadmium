@@ -33,16 +33,24 @@ import {
   type ManyRowsSqlBuilder,
 } from './helpers';
 
-// Per-pool int8 (bigint) → number parser.
+// Per-pool type parsers.
 // Avoids global pgTypes.setTypeParser which conflicts with other pg users.
-// ⚠️ Limitation: values > 2^53 lose precision. Use uuid/string PK for large ids.
+// ⚠️ int8: values > 2^53 lose precision through Number(). Use uuid/string PK for large ids.
+const DATE_OID = 1082;
+const INT8_OID = 20;
+
 function createKadmiumTypes() {
   const int8Parser = (val: string | null) =>
     val === null ? null : Number(val);
 
   return {
     getTypeParser(oid: TypeId, format?: TypeFormat) {
-      if (oid === 20) return int8Parser;
+      if (oid === INT8_OID) return int8Parser;
+      // `date` отдаём строкой 'YYYY-MM-DD': парсер по умолчанию строит Date в
+      // локальной зоне процесса, и календарный день оттуда теряется — дата
+      // '2026-10-02' в Asia/Tokyo читалась бы как 2026-10-01T15:00Z. Тип
+      // объявлен как string, поэтому и приходить должна строка.
+      if (oid === DATE_OID) return (val: string | null) => val;
       return pgTypes.getTypeParser(oid, format);
     },
     setTypeParser: pgTypes.setTypeParser,

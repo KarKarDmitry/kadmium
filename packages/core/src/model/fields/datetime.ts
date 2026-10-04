@@ -7,32 +7,48 @@ import {
   DateTimeField,
 } from '../types/datetime';
 
-export abstract class BaseDateTimeFieldBuilder extends StandartFieldBuilder {
-  protected spec: BaseDateTimeField_Spec = {};
+/**
+ * `YYYY-MM-DD`. Календарный день без времени: сравнение строк здесь равно
+ * сравнению дат, поэтому `date` не нуждается ни в `Date`, ни в арифметике.
+ */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-  default(val: Date) {
+/** `HH:MM:SS` с необязательными миллисекундами — ровно то, что отдаёт драйвер. */
+const TIME_RE = /^\d{2}:\d{2}:\d{2}(\.\d{1,3})?$/;
+
+/**
+ * Базовый билдер времени. Параметр `TValue` — тип значения поля: `Date` для
+ * `datetime`, `string` для `date` и `time`. Он же уходит в `spec`, поэтому
+ * `default()` на `date` не примет `Date` и наоборот.
+ */
+export abstract class BaseDateTimeFieldBuilder<
+  TValue = Date,
+> extends StandartFieldBuilder {
+  protected spec: BaseDateTimeField_Spec<TValue> = {};
+
+  default(val: TValue) {
     this._validate(val, 'default');
     this.spec.default = val;
     return this;
   }
 
-  min(val: Date) {
+  min(val: TValue) {
     this._validate(val, 'min');
     this.spec.min = val;
     return this;
   }
 
-  max(val: Date) {
+  max(val: TValue) {
     this._validate(val, 'max');
     this.spec.max = val;
     return this;
   }
 
-  protected _validate(_val: Date, _field: string): void {
+  protected _validate(_val: TValue, _field: string): void {
     // Base: no strict validation
   }
 
-  $build(): BaseDateTimeField {
+  $build(): BaseDateTimeField<TValue> {
     const base = super.$build();
     return {
       ...base,
@@ -44,46 +60,37 @@ export abstract class BaseDateTimeFieldBuilder extends StandartFieldBuilder {
   }
 }
 
-export class DateFieldBuilder extends BaseDateTimeFieldBuilder {
-  protected _validate(val: Date, field: string): void {
-    if (
-      val.getUTCHours() !== 0 ||
-      val.getUTCMinutes() !== 0 ||
-      val.getUTCSeconds() !== 0 ||
-      val.getUTCMilliseconds() !== 0
-    ) {
+export class DateFieldBuilder extends BaseDateTimeFieldBuilder<string> {
+  protected _validate(val: string, field: string): void {
+    if (typeof val !== 'string' || !DATE_RE.test(val)) {
       throw new Error(
-        `Date field "${field}" value has time components. Use midnight UTC (00:00:00.000).`,
+        `Date field "${field}" value must be a "YYYY-MM-DD" string, got ${JSON.stringify(val)}.`,
       );
     }
   }
 
   $build(): DateField {
     const base = super.$build();
-    return { ...base, type: 'date', tsType: 'Date' };
+    return { ...base, type: 'date', tsType: 'string' };
   }
 }
 
-export class TimeFieldBuilder extends BaseDateTimeFieldBuilder {
-  protected _validate(val: Date, field: string): void {
-    if (
-      val.getUTCFullYear() !== 1970 ||
-      val.getUTCMonth() !== 0 ||
-      val.getUTCDate() !== 1
-    ) {
+export class TimeFieldBuilder extends BaseDateTimeFieldBuilder<string> {
+  protected _validate(val: string, field: string): void {
+    if (typeof val !== 'string' || !TIME_RE.test(val)) {
       throw new Error(
-        `Time field "${field}" value has date components. Use epoch date (1970-01-01).`,
+        `Time field "${field}" value must be an "HH:MM:SS" string, got ${JSON.stringify(val)}.`,
       );
     }
   }
 
   $build(): TimeField {
     const base = super.$build();
-    return { ...base, type: 'time' };
+    return { ...base, type: 'time', tsType: 'string' };
   }
 }
 
-export class DateTimeFieldBuilder extends BaseDateTimeFieldBuilder {
+export class DateTimeFieldBuilder extends BaseDateTimeFieldBuilder<Date> {
   get date() {
     return new DateFieldBuilder();
   }
@@ -91,8 +98,20 @@ export class DateTimeFieldBuilder extends BaseDateTimeFieldBuilder {
     return new TimeFieldBuilder();
   }
 
+  /**
+   * Хранить как `timestamptz` — момент времени, а не местная строка.
+   *
+   * Флаг, а не новый IR-тип: `renderDefault` и фильтр ветвятся по
+   * `type === 'datetime'`, и с новым типом `timestamptz` они молча ушли бы в
+   * ветку по умолчанию. Имя PG-типа остаётся делом адаптера.
+   */
+  withTimeZone() {
+    this.db.tz = true;
+    return this;
+  }
+
   $build(): DateTimeField {
     const base = super.$build();
-    return { ...base, type: 'datetime' };
+    return { ...base, type: 'datetime', tsType: 'Date' };
   }
 }

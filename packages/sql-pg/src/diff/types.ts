@@ -183,8 +183,19 @@ export function pgType(
   if (f.type === 'float') return 'double precision';
   if (f.type === 'boolean') return 'boolean';
   if (f.type === 'date') return 'date';
-  if (f.type === 'datetime' || f.type === 'time')
-    return 'timestamp without time zone';
+  if (f.type === 'datetime') {
+    // `withTimeZone()` помечается флагом в spec, а не отдельным IR-типом.
+    // Длинная форма обязательна: интроспекция вернёт именно её
+    // (`timestamp with time zone`), а у `normalizePgType` нет ветки-коллапсера
+    // для `with` — короткая запись дала бы бесконечный alter-type.
+    return f.spec?.tz
+      ? 'timestamp with time zone'
+      : 'timestamp without time zone';
+  }
+  // `time` — время суток, а не инстант. Раньше оно уезжало в
+  // `timestamp without time zone`, и колонка `time` не создавалась вовсе: в
+  // базу уходил `timestamp`, а PG отвергал '14:30:45.123' с 22007.
+  if (f.type === 'time') return 'time without time zone';
   if (f.type === 'uuid') return 'uuid';
   return 'text';
 }

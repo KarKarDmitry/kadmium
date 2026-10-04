@@ -8,6 +8,8 @@ export type _DBOptions = {
   unique: boolean;
   nullable: boolean;
   db_type?: string;
+  /** `datetime` хранить как `timestamptz` (инстант), а не как местную строку. */
+  tz?: boolean;
 };
 
 export interface StandardField {

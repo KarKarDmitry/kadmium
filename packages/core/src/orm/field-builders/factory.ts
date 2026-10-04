@@ -64,9 +64,15 @@ function createBaseFilter(
     case 'boolean':
       return new BooleanFilter(sqb, field, alias, column);
     case 'datetime':
+      return new DateFilter(sqb, field, alias, column);
+    // `date` и `time` объявлены как строки (`tsType: 'string'`), и
+    // `FieldTypeToFilter` в proxy.d.ts отдаёт для них `StringFilter` — здесь
+    // должен быть тот же класс, иначе типы и рантайм разойдутся. Сравнение
+    // корректно: у `YYYY-MM-DD` и `HH:MM:SS` лексикографический порядок
+    // совпадает с хронологическим.
     case 'date':
     case 'time':
-      return new DateFilter(sqb, field, alias, column);
+      return new StringFilter(sqb, field, alias, column);
     default:
       return new BaseFilter(sqb, field, alias, column);
   }
