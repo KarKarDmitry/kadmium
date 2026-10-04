@@ -109,6 +109,8 @@ export async function dbPush(app: KadmiumApp): Promise<void> {
       lines.push(`    -${s.droppedColumns} column(s) to drop`);
     if (s.alteredColumns > 0)
       lines.push(`    ~${s.alteredColumns} column(s) to alter`);
+    if (s.alteredDefaults > 0)
+      lines.push(`    ~${s.alteredDefaults} default(s) to alter`);
     if (s.addedIndexes > 0)
       lines.push(`    +${s.addedIndexes} index(es) to add`);
     if (s.droppedIndexes > 0)

@@ -12,6 +12,7 @@ import {
   addColumnSql,
   addForeignKeySql,
   addIndexSql,
+  alterDefaultSql,
   alterNullableSql,
   alterTypeSql,
   createTableSql,
@@ -41,6 +42,8 @@ function opToSql(op: DiffOp, operations: ReadonlyArray<DiffOp>): string {
       return `${alterTypeSql(op.table, op.columnName, op.newType)};`;
     case 'alter-nullable':
       return `${alterNullableSql(op.table, op.columnName, op.newNullable)};`;
+    case 'alter-default':
+      return `${alterDefaultSql(op.table, op.columnName, op.newDefault)};`;
     case 'add-index':
       return `${addIndexSql(op.index)};`;
     case 'drop-index':

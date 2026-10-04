@@ -39,6 +39,23 @@ export interface AlterNullableOp {
   newNullable: boolean;
 }
 
+/**
+ * Смена `DEFAULT` существующей колонки.
+ *
+ * `newDefault === null` означает `DROP DEFAULT` — так же, как `null` в
+ * `DbColumn.defaultValue` означает отсутствие дефолта при создании.
+ * Сравнение с базой идёт через `defaultsEqual()`, а не `===`: PostgreSQL
+ * хранит переписанный разбором литерал, поэтому текстовое равенство для
+ * временных типов не наступает никогда.
+ */
+export interface AlterDefaultOp {
+  type: 'alter-default';
+  table: string;
+  columnName: string;
+  oldDefault: string | null;
+  newDefault: string | null;
+}
+
 export interface AddIndexOp {
   type: 'add-index';
   index: DbIndex;
@@ -94,6 +111,7 @@ export type DiffOp =
   | DropColumnOp
   | AlterTypeOp
   | AlterNullableOp
+  | AlterDefaultOp
   | AddIndexOp
   | DropIndexOp
   | AddForeignKeyOp
@@ -111,6 +129,7 @@ export interface DiffResult {
     addedColumns: number;
     droppedColumns: number;
     alteredColumns: number;
+    alteredDefaults: number;
     addedIndexes: number;
     droppedIndexes: number;
     addedForeignKeys: number;
@@ -220,10 +239,73 @@ export function isPrimaryField(f: IrField): boolean {
   return f.isPrimary === true || f.type === 'primary';
 }
 
+/**
+ * PK, который PostgreSQL наполняет сам — `serial`/`bigserial`.
+ *
+ * Единый предикат для `irToColumns()` и `computeDiff()`: расходиться они не
+ * должны, потому что от него зависит, чей дефолт — наш или базы. У
+ * autoIncrement-колонки дефолт принадлежит последовательности (`nextval(...)`),
+ * а не модели, и сравнивать его с `renderDefault()` нельзя.
+ */
+export function isAutoIncrementField(f: IrField): boolean {
+  return (
+    isPrimaryField(f) &&
+    f.spec?.db_type !== 'uuid' &&
+    f.spec?.db_type !== 'string'
+  );
+}
+
+/**
+ * Локальный wall-clock в виде, который понимает PostgreSQL.
+ *
+ * Формат повторяет `pg`'s `dateToString` (`pg/lib/utils.js:85`) — намеренно без
+ * офсета: колонка `timestamp without time zone` означает местное время, а PG
+ * офсет в такой колонке всё равно игнорирует. Если писать офсет, он будет
+ * молча выброшен, а `DEFAULT` и параметр разойдутся при первом же переводе
+ * часов.
+ *
+ * Связано с дефолтом `pg.defaults.parseInputDatesAsUTC = false`: включишь его —
+ * и параметры поедут в UTC, а эта функция останется локальной.
+ */
+function formatLocalTimestamp(d: Date): string {
+  const p = (n: number, w = 2) => String(n).padStart(w, '0');
+  return (
+    `${p(d.getFullYear(), 4)}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+    `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`
+  );
+}
+
+/** `YYYY-MM-DD` по локальному календарю — календарный день без времени. */
+function formatLocalDate(d: Date): string {
+  const p = (n: number, w = 2) => String(n).padStart(w, '0');
+  return `${p(d.getFullYear(), 4)}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** `HH:MM:SS.SSS` по локальным часам. */
+function formatLocalTime(d: Date): string {
+  const p = (n: number, w = 2) => String(n).padStart(w, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+}
+
+/**
+ * `timestamptz` хранит инстант, а не wall-clock, поэтому его `DEFAULT` обязан
+ * быть инстантом: `toISOString()` даёт `Z`, и PostgreSQL нормализует его в
+ * UTC. Локальное время без офсета здесь было бы ошибкой — его разобрали бы в
+ * `TimeZone` сервера, а не клиента.
+ */
+function formatInstant(d: Date): string {
+  return d.toISOString();
+}
+
+function quoteLiteral(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+}
+
 /** Рендерит default-значение как корректный SQL-литерал по типу поля. */
 export function renderDefault(f: IrField): string | null {
   const value = f.spec?.default;
   if (value === undefined || value === null) return null;
+  const isDate = value instanceof Date;
   switch (f.type) {
     case 'boolean':
       return value === true || value === 'true' ? 'true' : 'false';
@@ -234,17 +316,87 @@ export function renderDefault(f: IrField): string | null {
     case 'float':
     case 'numeric':
       return String(value);
-    case 'datetime':
+    // `date` и `time` — строки (`YYYY-MM-DD`, `HH:MM:SS[.sss]`). `Date` сюда
+    // попадает только от JS-вызывающего, минуя типы: берём локальные
+    // компоненты, иначе в `date`-колонку уехал бы инстант.
     case 'date':
+      return quoteLiteral(isDate ? formatLocalDate(value) : String(value));
     case 'time':
-      return `'${String(value instanceof Date ? value.toISOString() : value)
-        .replace(/\\/g, '\\\\')
-        .replace(/'/g, "''")}'`;
+      return quoteLiteral(isDate ? formatLocalTime(value) : String(value));
+    case 'datetime':
+      if (isDate) {
+        return quoteLiteral(
+          f.spec?.tz ? formatInstant(value) : formatLocalTimestamp(value),
+        );
+      }
+      return quoteLiteral(String(value));
     case 'string':
     case 'uuid':
     default:
-      return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+      return quoteLiteral(String(value));
   }
+}
+
+/**
+ * Снимает обвязку, которую PostgreSQL добавляет при хранении `DEFAULT`.
+ *
+ * `information_schema.columns.column_default` — это не то, что мы написали, а
+ * результат разбора PG: к нашим литералам она дописывает приведение типа
+ * (`'hello'::character varying`), а литералы временных типов переписывает в
+ * свой формат (`'2024-01-01T00:00:00.000Z'` → `'2024-01-01 00:00:00+00'`).
+ * Без такой нормализации любое сравнение строк порождало бы бесконечный
+ * `alter-default`.
+ *
+ * Срезается только хвост `::type` (возможно, вложенный — `'x'::text::varchar`)
+ * и внешние скобки. Внутренние скобки и содержимое литерала не трогаются.
+ */
+function stripDefaultDecorations(raw: string): string {
+  let s = raw.trim();
+  // Внешние скобки: PG ставит их, когда в выражении есть приведение типа.
+  while (s.startsWith('(') && s.endsWith(')')) {
+    s = s.slice(1, -1).trim();
+  }
+  // Хвост `::type` — с конца, innermost-первым: `'x'::text::character varying`.
+  for (;;) {
+    const m = /^(.*)::[A-Za-z_][A-Za-z0-9_ ]*(?:\([^()]*\))?$/.exec(s);
+    if (!m) break;
+    s = m[1].trim();
+  }
+  return s;
+}
+
+/** `'abc'` → `abc`; числа и `true`/`false` не трогает. */
+function unquoteDefault(s: string): string {
+  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
+    return s.slice(1, -1).replace(/''/g, "'");
+  }
+  return s;
+}
+
+/**
+ * Совпадают ли дефолты по смыслу, а не по тексту.
+ *
+ * Для `timestamptz` строковое равенство невозможно в принципе: PostgreSQL
+ * переписывает литерал в свой формат, и наш `DEFAULT` никогда не совпадёт с
+ * интроспекцией буквально. Поэтому инстанты сравниваются через `Date.parse` —
+ * это единственный способ понять, что `'...Z'` и `'...+00'` одно и то же
+ * значение.
+ */
+export function defaultsEqual(
+  f: IrField,
+  expected: string | null,
+  actual: string | null,
+): boolean {
+  if (expected === null || actual === null) return expected === actual;
+  const ours = unquoteDefault(stripDefaultDecorations(expected));
+  const theirs = unquoteDefault(stripDefaultDecorations(actual));
+  if (ours === theirs) return true;
+  if (f.type === 'datetime' && f.spec?.tz) {
+    const a = Date.parse(ours);
+    const b = Date.parse(theirs);
+    return !Number.isNaN(a) && a === b;
+  }
+  return false;
 }
 
 export function irToColumns(
@@ -280,10 +432,7 @@ export function irToColumns(
       defaultValue: renderDefault(f),
       isPrimary: isPrimaryField(f),
       isUnique: f.unique || isPrimaryField(f),
-      autoIncrement:
-        isPrimaryField(f) &&
-        f.spec?.db_type !== 'uuid' &&
-        f.spec?.db_type !== 'string',
+      autoIncrement: isAutoIncrementField(f),
     }));
 }
 

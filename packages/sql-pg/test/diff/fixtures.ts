@@ -11,6 +11,7 @@ import type {
   AddIndexOp,
   AlterForeignKeyOp,
   AlterNullableOp,
+  AlterDefaultOp,
   AlterTypeOp,
   CreateTableOp,
   DiffOp,
@@ -318,6 +319,14 @@ export const alterNameNullableOp = (): AlterNullableOp => ({
   newNullable: false,
 });
 
+export const alterNameDefaultOp = (): AlterDefaultOp => ({
+  type: 'alter-default',
+  table: 'users',
+  columnName: 'name',
+  oldDefault: "'old'::character varying",
+  newDefault: "'new'",
+});
+
 export const addFkOp = (): AddForeignKeyOp => ({
   type: 'add-foreign-key',
   fk: {
@@ -395,6 +404,7 @@ export function diff(
       addedColumns: 0,
       droppedColumns: 0,
       alteredColumns: 0,
+      alteredDefaults: 0,
       addedIndexes: 0,
       droppedIndexes: 0,
       addedForeignKeys: 0,

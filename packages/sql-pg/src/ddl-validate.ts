@@ -133,6 +133,15 @@ export function assertDiffOpSqlSafe(op: DiffOp): void {
       assertSqlIdentifier(op.table, 'table name');
       assertSqlIdentifier(op.columnName, 'column name');
       break;
+    case 'alter-default':
+      assertSqlIdentifier(op.table, 'table name');
+      assertSqlIdentifier(op.columnName, 'column name');
+      // `newDefault === null` — это DROP DEFAULT, выражения нет и валидировать
+      // нечего. `oldDefault` приходит из интроспекции, в SQL не подставляется
+      // (compare-and-set не поддержан), поэтому проверяется только новое.
+      if (op.newDefault !== null)
+        assertSqlExpression(op.newDefault, `default of ${op.columnName}`);
+      break;
     case 'add-index':
       assertSqlIdentifier(op.index.name, 'index name');
       assertSqlIdentifier(op.index.tableName, 'table name');

@@ -13,6 +13,7 @@ import {
   alterAuthorFkOp,
   alterAuthorTypeOp,
   alterNameNullableOp,
+  alterNameDefaultOp,
   createUsersOp,
   diff,
   dropCategoryFkOp,
@@ -111,6 +112,7 @@ describe('applyDiff', () => {
       dropLegacyColumnOp(),
       alterAuthorTypeOp(),
       alterNameNullableOp(),
+      alterNameDefaultOp(),
       addLegacyIndexOp(),
       dropLegacyIndexOp(),
       addFkOp(),
@@ -126,10 +128,11 @@ describe('applyDiff', () => {
     expect(byName.get('dropColumn')).toEqual(['posts', 'legacy']);
     expect(byName.get('alterType')).toEqual(['posts', 'author', 'integer']);
     expect(byName.get('alterNullable')).toEqual(['users', 'name', false]);
-    expect(byName.get('addIndex')).toEqual([(ops[4] as AddIndexOp).index]);
+    expect(byName.get('alterDefault')).toEqual(['users', 'name', "'new'"]);
+    expect(byName.get('addIndex')).toEqual([(ops[5] as AddIndexOp).index]);
     expect(byName.get('dropIndex')).toEqual(['idx_posts_legacy']);
     expect(byName.get('addForeignKey')).toEqual([
-      (ops[6] as AddForeignKeyOp).fk,
+      (ops[7] as AddForeignKeyOp).fk,
     ]);
     expect(byName.get('dropForeignKey')).toEqual([
       'fk_posts_category',

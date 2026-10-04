@@ -21,6 +21,8 @@ function opToString(op: DiffOp): string {
       return `ALTER TYPE ${op.table}.${op.columnName}: ${op.oldType} → ${op.newType}`;
     case 'alter-nullable':
       return `ALTER NULLABLE ${op.table}.${op.columnName}: ${op.oldNullable} → ${op.newNullable}`;
+    case 'alter-default':
+      return `ALTER DEFAULT ${op.table}.${op.columnName}: ${op.oldDefault ?? '∅'} → ${op.newDefault ?? '∅'}`;
     case 'add-index':
       return `ADD INDEX ${op.index.name} on ${op.index.tableName}`;
     case 'drop-index':
@@ -122,6 +124,9 @@ async function executeOp(op: DiffOp, ddl: DbDdlAdapter): Promise<void> {
       break;
     case 'alter-nullable':
       await ddl.alterNullable(op.table, op.columnName, op.newNullable);
+      break;
+    case 'alter-default':
+      await ddl.alterDefault(op.table, op.columnName, op.newDefault);
       break;
     case 'add-index':
       await ddl.addIndex(op.index);

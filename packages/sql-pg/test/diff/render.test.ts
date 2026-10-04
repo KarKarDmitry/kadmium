@@ -7,6 +7,7 @@ import {
   alterAuthorFkOp,
   alterAuthorTypeOp,
   alterNameNullableOp,
+  alterNameDefaultOp,
   createUsersOp,
   diff,
   dropCategoryFkOp,
@@ -66,12 +67,20 @@ COMMIT;
     expect(sql).toContain('"email" character varying NOT NULL  UNIQUE');
   });
 
+  it('renders DROP DEFAULT when the model has no default', () => {
+    const drop = diff([{ ...alterNameDefaultOp(), newDefault: null }]);
+    expect(renderSql(drop)).toContain(
+      'ALTER TABLE "users" ALTER COLUMN "name" DROP DEFAULT;',
+    );
+  });
+
   it('renders every op type', () => {
     const ops: DiffOp[] = [
       addTitleColumnOp(),
       dropLegacyColumnOp(),
       alterAuthorTypeOp(),
       alterNameNullableOp(),
+      alterNameDefaultOp(),
       dropLegacyIndexOp(),
       addFkOp(),
       dropCategoryFkOp(),
@@ -88,6 +97,9 @@ COMMIT;
     );
     expect(sql).toContain(
       'ALTER TABLE "users" ALTER COLUMN "name" SET NOT NULL;',
+    );
+    expect(sql).toContain(
+      'ALTER TABLE "users" ALTER COLUMN "name" SET DEFAULT \'new\';',
     );
     expect(sql).toContain('DROP INDEX IF EXISTS "idx_posts_legacy";');
     expect(sql).toContain(

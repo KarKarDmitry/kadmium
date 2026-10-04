@@ -71,6 +71,7 @@ describe('db: applyDiffTransactional', () => {
     addedColumns: 0,
     droppedColumns: 0,
     alteredColumns: 0,
+    alteredDefaults: 0,
     addedIndexes: 0,
     droppedIndexes: 0,
     addedForeignKeys: 0,

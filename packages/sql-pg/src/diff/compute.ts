@@ -11,9 +11,12 @@ import {
   pgType,
   normalizePgType,
   isPrimaryField,
+  isAutoIncrementField,
   irToColumns,
   expectedIndexes,
   expectedForeignKeys,
+  renderDefault,
+  defaultsEqual,
 } from './types';
 
 export async function computeDiff(
@@ -31,6 +34,7 @@ export async function computeDiff(
     addedColumns: 0,
     droppedColumns: 0,
     alteredColumns: 0,
+    alteredDefaults: 0,
     addedIndexes: 0,
     droppedIndexes: 0,
     addedForeignKeys: 0,
@@ -142,6 +146,25 @@ export async function computeDiff(
             newNullable: expectedNullable,
           });
           summary.alteredColumns++;
+        }
+
+        // Check DEFAULT. Колонки с последовательностью исключены с обеих
+        // сторон: их дефолт принадлежит базе (`nextval(...)`), а не модели, и
+        // сравнение с `renderDefault() === null` снесло бы его — то есть
+        // сломало бы вставку в колонку, которая работает. Присваиваем
+        // conservative: лучше не заметить чужой дефолт, чем его снести.
+        if (!isAutoIncrementField(f) && !dbCol.autoIncrement) {
+          const expectedDefault = renderDefault(f);
+          if (!defaultsEqual(f, expectedDefault, dbCol.defaultValue)) {
+            operations.push({
+              type: 'alter-default',
+              table: tableName,
+              columnName: colName,
+              oldDefault: dbCol.defaultValue,
+              newDefault: expectedDefault,
+            });
+            summary.alteredDefaults++;
+          }
         }
       }
     }

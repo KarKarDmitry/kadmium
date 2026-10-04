@@ -214,6 +214,168 @@ describe('computeDiff', () => {
     });
   });
 
+  it('emits alter-default when the default differs', async () => {
+    const ddl = syncedDdl();
+    const irsWithDefault = [
+      {
+        ...irs[0],
+        fields: {
+          ...userFields,
+          name: {
+            type: 'string',
+            nullable: false,
+            unique: false,
+            spec: { default: 'new' },
+          },
+        } as Record<string, IrField>,
+      },
+      irs[1],
+    ];
+    ddl.columns.set(
+      'users',
+      userColumns.map((c) =>
+        c.name === 'name'
+          ? { ...c, defaultValue: "'old'::character varying" }
+          : c,
+      ),
+    );
+    const diff = await computeDiff(irsWithDefault, ddl);
+
+    expect(diff.summary.alteredDefaults).toBe(1);
+    expect(diff.operations).toContainEqual({
+      type: 'alter-default',
+      table: 'users',
+      columnName: 'name',
+      oldDefault: "'old'::character varying",
+      newDefault: "'new'",
+    });
+  });
+
+  it('emits DROP DEFAULT when the model has none but the DB does', async () => {
+    const ddl = syncedDdl();
+    ddl.columns.set(
+      'users',
+      userColumns.map((c) =>
+        c.name === 'name' ? { ...c, defaultValue: "'legacy'::text" } : c,
+      ),
+    );
+    const diff = await computeDiff(irs, ddl);
+
+    expect(diff.summary.alteredDefaults).toBe(1);
+    expect(diff.operations).toContainEqual({
+      type: 'alter-default',
+      table: 'users',
+      columnName: 'name',
+      oldDefault: "'legacy'::text",
+      newDefault: null,
+    });
+  });
+
+  // Регрессия, из-за которой начинали работу: интроспекция отдаёт дефолт
+  // последовательности текстом, а модель для `serial`-PK ожидает `null`.
+  // Без защиты diff предложил бы DROP DEFAULT и сломал бы INSERT.
+  it('never touches nextval on an autoIncrement PK', async () => {
+    const ddl = syncedDdl();
+    ddl.columns.set(
+      'users',
+      userColumns.map((c) =>
+        c.name === 'id'
+          ? {
+              ...c,
+              dataType: 'bigint',
+              autoIncrement: true,
+              defaultValue: "nextval('users_id_seq'::regclass)",
+            }
+          : c,
+      ),
+    );
+    const diff = await computeDiff(irs, ddl);
+
+    expect(diff.operations.filter((o) => o.type === 'alter-default')).toEqual(
+      [],
+    );
+  });
+
+  // Обратная сторона защиты: сработать должен именно предикат по IR, а не по
+  // строке интроспекции. Если бы дефолт последовательности сносили, цена ошибки
+  // несимметрична — сломанный INSERT против незамеченного чужого дефолта.
+  it('skips autoIncrement PK even when introspection says otherwise', async () => {
+    const ddl = syncedDdl();
+    ddl.columns.set(
+      'users',
+      userColumns.map((c) =>
+        c.name === 'id'
+          ? {
+              ...c,
+              dataType: 'bigint',
+              autoIncrement: false,
+              defaultValue: "nextval('users_id_seq'::regclass)",
+            }
+          : c,
+      ),
+    );
+    const diff = await computeDiff(irs, ddl);
+
+    expect(diff.operations.filter((o) => o.type === 'alter-default')).toEqual(
+      [],
+    );
+  });
+
+  // PostgreSQL переписывает литерал timestamptz в свой формат, поэтому
+  // буквальное сравнение давало бы неидемпотентный diff: каждая миграция
+  // заново «чинила» бы уже правильную колонку.
+  it('treats a timestamptz default as equal across PG literal formats', async () => {
+    const irsTz = [
+      {
+        name: 'User',
+        collection: 'users',
+        fields: {
+          id: userFields.id,
+          seenAt: {
+            type: 'datetime',
+            nullable: false,
+            unique: false,
+            spec: { default: new Date(Date.UTC(2024, 0, 1)), tz: true },
+          },
+        } as Record<string, IrField>,
+      },
+    ];
+    const ddl = new MockDdl();
+    ddl.setSchema(
+      [{ name: 'users' }],
+      {
+        users: [
+          {
+            name: 'id',
+            tableName: 'users',
+            dataType: 'bigint',
+            isNullable: false,
+            defaultValue: null,
+            isPrimary: true,
+            isUnique: true,
+            autoIncrement: true,
+          },
+          {
+            name: 'seenAt',
+            tableName: 'users',
+            dataType: 'timestamp with time zone',
+            isNullable: false,
+            defaultValue: "'2024-01-01 00:00:00+00'::timestamp with time zone",
+            isPrimary: false,
+            isUnique: false,
+          },
+        ],
+      },
+      {},
+      {},
+    );
+    const diff = await computeDiff(irsTz, ddl);
+
+    expect(diff.operations.filter((o) => o.type === 'alter-default')).toEqual(
+      [],
+    );
+  });
+
   it('emits add-index for a missing unique index', async () => {
     const ddl = syncedDdl();
     ddl.indexes.set('users', []);

@@ -87,14 +87,46 @@ describe('renderDefault: SQL literal per field type', () => {
     ).toBe('false');
   });
 
-  it('datetime (Date) -> quoted ISO', () => {
-    const d = new Date('2024-01-01T00:00:00.000Z');
+  // Конструируется через локальные компоненты, а не из ISO-строки: литерал
+  // тогда один и тот же в любом TZ, и тест ловит возврат к `toISOString()`.
+  it('datetime (Date) -> локальный wall-clock, без офсета', () => {
+    const d = new Date(2024, 0, 1, 12, 0, 0);
     expect(
       renderDefault({
         type: 'datetime',
         spec: { default: d },
       } as unknown as IrField),
-    ).toBe("'2024-01-01T00:00:00.000Z'");
+    ).toBe("'2024-01-01 12:00:00.000'");
+  });
+
+  // `timestamptz` хранит инстант: `Z` обязателен, иначе значение разберётся в
+  // `TimeZone` сервера, а не клиента.
+  it('datetime (Date, tz) -> инстант в UTC', () => {
+    const d = new Date(2024, 0, 1, 12, 0, 0);
+    expect(
+      renderDefault({
+        type: 'datetime',
+        spec: { default: d, tz: true },
+      } as unknown as IrField),
+    ).toBe(`'${d.toISOString()}'`);
+  });
+
+  it('date (Date) -> локальный календарный день', () => {
+    expect(
+      renderDefault({
+        type: 'date',
+        spec: { default: new Date(2024, 5, 15) },
+      } as unknown as IrField),
+    ).toBe("'2024-06-15'");
+  });
+
+  it('time (Date) -> локальное время суток', () => {
+    expect(
+      renderDefault({
+        type: 'time',
+        spec: { default: new Date(2024, 0, 1, 14, 30, 45, 123) },
+      } as unknown as IrField),
+    ).toBe("'14:30:45.123'");
   });
 
   it('uuid -> quoted literal', () => {
