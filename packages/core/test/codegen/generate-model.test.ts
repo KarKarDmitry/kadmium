@@ -11,7 +11,7 @@ function makeIr(overrides: Partial<ModelIR> & { name: string }): ModelIR {
 }
 
 describe('generateModel', () => {
-  it('minimal model — ~shape only, no ~rel, no imports', () => {
+  it('minimal model — ~shape, пустой ~rel, no imports', () => {
     const ir = makeIr({
       name: 'User',
       fields: {
@@ -29,7 +29,10 @@ describe('generateModel', () => {
     expect(out).toContain("declare module 'models/user'");
     expect(out).toContain("['~shape']: {");
     expect(out).toContain('name: string;');
-    expect(out).not.toContain('~rel');
+    // `~rel`/`~relInfo` эмитятся всегда, пустыми: ORM требует их на модели, и без
+    // нихrelation-less модель не проходит проверку типов после кодогенерации.
+    expect(out).toContain("['~rel']: {");
+    expect(out).toContain("['~relInfo']: {");
     expect(out).not.toContain('import ');
   });
 
@@ -178,12 +181,13 @@ describe('generateModel', () => {
     expect(out).not.toContain('import ');
   });
 
-  it('empty fields → ~shape: {}', () => {
+  it('empty fields → ~shape: {}, ~rel: {}', () => {
     const ir = makeIr({ name: 'Empty', fields: {} });
     const out = generateModel(ir, 'models/empty', [ir]);
     expect(out).toContain("['~shape']: {");
     expect(out).toContain('};');
-    expect(out).not.toContain('~rel');
+    expect(out).toContain("['~rel']: {");
+    expect(out).toContain("['~relInfo']: {");
   });
 
   it('nullable forward ref → number | undefined in ~shape', () => {

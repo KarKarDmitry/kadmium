@@ -109,34 +109,33 @@ export function generateModel(
     lines.push(`  };`);
   }
 
-  if (refs.length > 0) {
-    lines.push(``);
-    lines.push(`  ['~rel']: {`);
-    for (const [name, field] of refs) {
-      const target = field.sourceModel ?? field.ref ?? 'unknown';
-      const isToMany = !!field.sourceModel && field.relation === 'one-to-many';
-      // Forward refs: опциональность из БД. Inverse: to-many всегда массив ([]), to-one — по nullable
-      const optional = !field.sourceModel && field.nullable ? '?' : '';
-      lines.push(
-        `    ${name}${optional}: ${isToMany ? `${target}[]` : target};`,
-      );
-    }
-    lines.push(`  };`);
-
-    lines.push(``);
-    lines.push(`  ['~relInfo']: {`);
-    for (const [name, field] of refs) {
-      const target = field.sourceModel ?? field.ref ?? 'unknown';
-      const kind =
-        field.relation === 'one-to-one'
-          ? 'one-to-one'
-          : field.sourceModel
-            ? 'one-to-many'
-            : 'many-to-one';
-      lines.push(`    ${name}: { target: ${target}; kind: '${kind}' };`);
-    }
-    lines.push(`  };`);
+  // `~rel`/`~relInfo` эмитятся всегда, даже пустыми: ORM требует их на модели
+  // (`select()`/`insert()`), и без них модель без связей не проходит проверку
+  // типов после кодогенерации.
+  lines.push(``);
+  lines.push(`  ['~rel']: {`);
+  for (const [name, field] of refs) {
+    const target = field.sourceModel ?? field.ref ?? 'unknown';
+    const isToMany = !!field.sourceModel && field.relation === 'one-to-many';
+    // Forward refs: опциональность из БД. Inverse: to-many всегда массив ([]), to-one — по nullable
+    const optional = !field.sourceModel && field.nullable ? '?' : '';
+    lines.push(`    ${name}${optional}: ${isToMany ? `${target}[]` : target};`);
   }
+  lines.push(`  };`);
+
+  lines.push(``);
+  lines.push(`  ['~relInfo']: {`);
+  for (const [name, field] of refs) {
+    const target = field.sourceModel ?? field.ref ?? 'unknown';
+    const kind =
+      field.relation === 'one-to-one'
+        ? 'one-to-one'
+        : field.sourceModel
+          ? 'one-to-many'
+          : 'many-to-one';
+    lines.push(`    ${name}: { target: ${target}; kind: '${kind}' };`);
+  }
+  lines.push(`  };`);
 
   const body = lines.join('\n');
   const importsBlock =
