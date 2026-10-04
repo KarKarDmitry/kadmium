@@ -49,6 +49,16 @@ export default tseslint.config(
     },
   },
   {
+    // Сгенерированные augment-файлы: `~shape`/`~rel`/`~relInfo` обязаны быть
+    // интерфейсами, а модель без связей даёт пустые `{}` — их нельзя судить по
+    // правилам для рукописного кода. Правило называется `no-empty-object-type`,
+    // а `allowObjectTypes` — его опция, не отдельное правило.
+    files: ['test-project/**/~*.ts'],
+    rules: {
+      '@typescript-eslint/no-empty-object-type': 'off',
+    },
+  },
+  {
     ignores: [
       'dist/**',
       '!**/node_modules/**',
