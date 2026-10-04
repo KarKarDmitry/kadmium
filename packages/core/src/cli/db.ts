@@ -2,12 +2,12 @@ import { readdirSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { createInterface } from 'readline';
 import { KadmiumApp } from '../core/kadmium-app';
-import { computeDiff, checkHealth } from '../diff/index';
 import {
+  computeDiff,
+  checkHealth,
   applyDiff,
   applyDiffTransactional,
-  renderSql,
-} from '@karkardmitry/kadmium-sql-pg';
+} from '../diff/index';
 import { CHECK, CROSS, BULLET, WARN, DOT, box } from './format';
 
 function getDdl(app: KadmiumApp) {
@@ -236,7 +236,7 @@ export async function dbSql(
     }
 
     mkdirSync(dirname(fullPath), { recursive: true });
-    writeFileSync(fullPath, renderSql(diff), 'utf-8');
+    writeFileSync(fullPath, getDialect(app).renderSql(diff), 'utf-8');
 
     console.log('');
     for (const line of box(`  ${BULLET}  SQL migration written`)) {

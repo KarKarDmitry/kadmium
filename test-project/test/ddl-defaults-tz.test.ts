@@ -262,8 +262,8 @@ describe('DEFAULT идемпотентен для diff', () => {
     );
     const fields = { id: idField, n: field('int', { default: 0 }) };
 
-    const { computeDiff } = await import('@karkardmitry/kadmium-core');
-    const { applyDiff } = await import('@karkardmitry/kadmium-sql-pg');
+    const { computeDiff, applyDiff } =
+      await import('@karkardmitry/kadmium-core');
     const before = await computeDiff(irsOf(fields), h.adapter.ddl, pgDialect);
     expect(before.hasChanges).toBe(true);
     await applyDiff(before, h.adapter.ddl);

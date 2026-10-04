@@ -37,6 +37,11 @@ export const stubDialect: Dialect = {
   ): boolean {
     return expected === actual;
   },
+  renderSql(): string {
+    // Движок превью не вызывает: SQL-текст собирает диалект. Здесь важно лишь
+    // зафиксировать, что метод — часть контракта и не приходит из адаптера.
+    throw new Error('stubDialect.renderSql is not implemented');
+  },
 };
 
 export const userFields: Record<string, IrField> = {

@@ -13,7 +13,8 @@ import { makeHarness, type Harness } from './helpers';
 import { resetSchemaAndSeed } from './fixtures';
 import type { ReferentialAction } from '@karkardmitry/kadmium-core';
 import { computeDiff, checkHealth } from '@karkardmitry/kadmium-core';
-import { applyDiff, renderSql } from '@karkardmitry/kadmium-sql-pg';
+import { applyDiff } from '@karkardmitry/kadmium-core';
+import { renderSql } from '@karkardmitry/kadmium-sql-pg';
 
 let h: Harness;
 

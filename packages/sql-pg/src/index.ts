@@ -373,14 +373,7 @@ export function createDebugAdapter(): SqlAdapter {
   };
 }
 
-export {
-  applyDiff,
-  applyDiffTransactional,
-  renderSql,
-  pgType,
-  normalizePgType,
-  renderDefault,
-} from './diff';
+export { pgType, normalizePgType, renderDefault, renderSql } from './diff';
 export { pgDialect } from './dialect';
 export { PgDdlAdapter } from './ddl-adapter';
 export { ResultReshaper } from './result-reshaper';

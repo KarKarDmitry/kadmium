@@ -589,6 +589,17 @@ export interface Dialect {
     expected: string | null,
     actual: string | null,
   ): boolean;
+
+  /**
+   * Текст DDL-превью для набора операций — то, что `kadmium db:sql`
+   * показывает пользователю.
+   *
+   * Метод на диалекте, а не на адаптере: превью нужно там же, где считается
+   * дифф (диалект), и не требует соединения с базой. Возвращается ровно то,
+   * что выполнит `db:migrate`, — оба рендера обязаны звать одни и те же
+   * statement builders адаптера, иначе `db:sql` начнёт обещать не то.
+   */
+  renderSql(diff: DiffResult): string;
 }
 
 export interface DbDdlAdapter {

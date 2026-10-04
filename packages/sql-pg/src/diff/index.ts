@@ -3,12 +3,10 @@
  *
  * Здесь осталось то, что по природе PostgreSQL: имена типов и текст `DEFAULT`
  * (`types.ts`), SQL-текст DDL (`ddl-sql.ts`, `render.ts`) и его валидация.
- * Принятие решений — `computeDiff()`, `checkHealth()`, `expectedIndexes()` и
- * прочие — живёт в `core/src/diff/`, потому что одинаково для любой базы.
+ * Принятие решений — `computeDiff()`, `checkHealth()`, `applyDiff()`,
+ * `expectedIndexes()` и прочие — живёт в `core/src/diff/`, потому что одинаково
+ * для любой базы.
  */
 
 export { pgType, normalizePgType, renderDefault } from './types';
-export { createTableColumns } from './types';
-
-export { applyDiff, applyDiffTransactional } from './apply';
 export { renderSql } from './render';

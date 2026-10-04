@@ -70,12 +70,21 @@ export async function computeDiff(
   for (const ir of irs) {
     const tableName = ir.collection;
     if (!dbTables.has(tableName)) {
-      const columns = irToColumns(tableName, ir.fields, irs, dialect);
+      // Индексы считаем до колонок: колонка, которой достанется собственный
+      // `add-index`, не должна дополнительно получать инлайн `UNIQUE` —
+      // PostgreSQL создал бы ещё и свой `table_col_key`, который тот же
+      // `computeDiff()` отфильтровывает как системный. Убираем флаг здесь, на
+      // построении операции, чтобы `columns` в `create-table` были
+      // каноническими: и apply, и превью берут один и тот же список, и
+      // расхождение `db:sql` с `db:migrate` невозможно по построению.
+      const idxs = expectedIndexes(tableName, ir.fields);
+      const indexedColumns = new Set(idxs.flatMap((i) => i.columns));
+      const columns = irToColumns(tableName, ir.fields, irs, dialect).map(
+        (c) => (indexedColumns.has(c.name) ? { ...c, isUnique: false } : c),
+      );
       operations.push({ type: 'create-table', table: tableName, columns });
       summary.addedTables++;
 
-      // Indexes for new table (handled in Phase 2 of applyDiff)
-      const idxs = expectedIndexes(tableName, ir.fields);
       for (const idx of idxs) {
         operations.push({ type: 'add-index', index: idx });
         summary.addedIndexes++;

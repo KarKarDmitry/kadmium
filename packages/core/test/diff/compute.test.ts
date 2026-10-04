@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeDiff } from '../../src/diff/compute';
 import type {
+  CreateTableOp,
   DbForeignKey,
   DbIndex,
   DbTable,
@@ -768,5 +769,47 @@ describe('computeDiff', () => {
     for (const call of inspectCalls.slice(1)) {
       expect(call.args[0]).toEqual(expectedTables);
     }
+  });
+});
+
+describe('create-table columns are canonical', () => {
+  // Инвариант переехал сюда из applyDiff: колонки операции `create-table`
+  // уже не имеют инлайн `UNIQUE` там, где достанется собственный индекс.
+  // И apply, и рендер превью читают этот список как есть, поэтому `db:sql` и
+  // `db:migrate` расходиться не могут — не по общему хелперу, а по факту.
+  it('drops inline UNIQUE only for columns that get their own index', async () => {
+    const diff = await computeDiff(irs, new MockDdl(), stubDialect);
+
+    const create = diff.operations.find(
+      (o) => o.type === 'create-table' && o.table === 'users',
+    );
+    expect(create).toBeDefined();
+    const columns = (create as CreateTableOp).columns;
+    const byName = new Map(columns.map((c) => [c.name, c]));
+
+    // email уникален и получает idx_users_email — инлайн UNIQUE был бы дублем
+    expect(byName.get('email')?.isUnique).toBe(false);
+    expect(
+      diff.operations.some(
+        (o) => o.type === 'add-index' && o.index.name === 'idx_users_email',
+      ),
+    ).toBe(true);
+
+    // PK уникален, но индекса не получает (expectedIndexes его пропускает) —
+    // значит снятие не сплошное, а адресное
+    expect(byName.get('id')?.isUnique).toBe(true);
+    expect(byName.get('name')?.isUnique).toBe(false);
+  });
+
+  it('leaves the FK-owning ref column unique state to its index too', async () => {
+    const diff = await computeDiff(irs, new MockDdl(), stubDialect);
+
+    // ref-поле автора индексируется (idx_posts_author), но не уникально —
+    // снятие UNIQUE тут не при чём, флаг и так был false
+    const create = diff.operations.find(
+      (o) => o.type === 'create-table' && o.table === 'posts',
+    );
+    const columns = (create as CreateTableOp).columns;
+    expect(columns.find((c) => c.name === 'author')?.isUnique).toBe(false);
   });
 });

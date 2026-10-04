@@ -20,8 +20,8 @@ import {
   dropLegacyColumnOp,
   dropLegacyIndexOp,
   dropPostsOp,
-  MockDdl,
-} from './fixtures';
+} from './ops';
+import { MockDdl } from './fixtures';
 import type {
   AddColumnOp,
   AddForeignKeyOp,
@@ -90,22 +90,20 @@ describe('applyDiff', () => {
     expect(calls).toEqual(['createTable', 'addForeignKey', 'addIndex']);
   });
 
-  it('strips inline UNIQUE from columns that get an index in phase 2', async () => {
+  it('passes create-table columns through unchanged', async () => {
+    // apply не фильтрует колонки: inline UNIQUE снимает `computeDiff` при
+    // построении операции, поэтому `db:sql` и `db:migrate` читают один и тот
+    // же список по построению. Если бы apply начал фильтровать сам, у него
+    // появился бы второй источник правды — ровно та рассинхронизация, которую
+    // раньше предотвращал общий `createTableColumns`.
     const ddl = new MockDdl();
-    await applyDiff(diff([createUsersOp(), addEmailIndexOp()]), ddl);
+    const op = createUsersOp();
+    await applyDiff(diff([op]), ddl);
 
     const [, columns] = ddl.calls.find((c) => c.method === 'createTable')
       ?.args as [string, DbColumn[]];
-    expect(columns.find((c) => c.name === 'email')?.isUnique).toBe(false);
-    expect(columns.find((c) => c.name === 'id')?.isUnique).toBe(true);
-  });
-
-  it('keeps inline UNIQUE when no matching index op exists', async () => {
-    const ddl = new MockDdl();
-    await applyDiff(diff([createUsersOp()]), ddl);
-
-    const [, columns] = ddl.calls.find((c) => c.method === 'createTable')
-      ?.args as [string, DbColumn[]];
+    expect(columns).toEqual(op.columns);
+    // `email` уникален и в этом списке — снять его обязан вызывающий.
     expect(columns.find((c) => c.name === 'email')?.isUnique).toBe(true);
   });
 

@@ -3,10 +3,14 @@
  *
  * Statements are delegated to the shared pure builders in ddl-sql.ts so the
  * preview is always consistent with what PgDdlAdapter executes.
+ *
+ * The ops arrive already canonical: `computeDiff()` builds `create-table`
+ * columns without the inline `UNIQUE` that a separate `add-index` would
+ * duplicate. So preview and apply read the same column list by construction —
+ * there is no second filtering pass here that could drift from the other side.
  */
 
 import type { DiffOp, DiffResult } from '@karkardmitry/kadmium-sql-types';
-import { createTableColumns } from './types';
 import { assertDiffOpSqlSafe } from '../ddl-validate';
 import {
   addColumnSql,
@@ -22,16 +26,11 @@ import {
   dropTableSql,
 } from '../ddl-sql';
 
-function opToSql(op: DiffOp, operations: ReadonlyArray<DiffOp>): string {
+function opToSql(op: DiffOp): string {
   assertDiffOpSqlSafe(op);
   switch (op.type) {
     case 'create-table':
-      // Тот же хелпер, что в applyDiff: превью не должно обещать инлайн
-      // UNIQUE, которого при применении не будет.
-      return `${createTableSql(
-        op.table,
-        createTableColumns(op.table, op.columns, operations),
-      )};`;
+      return `${createTableSql(op.table, op.columns)};`;
     case 'drop-table':
       return `${dropTableSql(op.table)};`;
     case 'add-column':
@@ -62,6 +61,6 @@ function opToSql(op: DiffOp, operations: ReadonlyArray<DiffOp>): string {
 
 export function renderSql(diff: DiffResult): string {
   if (!diff.hasChanges) return '-- No changes needed.\n';
-  const lines = diff.operations.map((op) => opToSql(op, diff.operations));
+  const lines = diff.operations.map((op) => opToSql(op));
   return `BEGIN;\n\n${lines.join('\n\n')}\n\nCOMMIT;\n`;
 }

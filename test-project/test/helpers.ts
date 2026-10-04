@@ -94,8 +94,7 @@ export async function dropAllTables(adapter: PgAdapter): Promise<void> {
 
 /** Создать схему из моделей через computeDiff + applyDiff. */
 export async function syncSchema(h: Harness): Promise<void> {
-  const { computeDiff } = await import('@karkardmitry/kadmium-core');
-  const { applyDiff } = await import('@karkardmitry/kadmium-sql-pg');
+  const { computeDiff, applyDiff } = await import('@karkardmitry/kadmium-core');
   const diff = await computeDiff(h.app.allIrs, h.adapter.ddl, pgDialect);
   await applyDiff(diff, h.adapter.ddl);
 }

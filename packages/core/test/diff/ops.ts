@@ -1,8 +1,9 @@
 /**
- * Данные для тестов рендера PostgreSQL-текста DDL.
+ * Готовые DiffOp для тестов движка применения.
  *
- * Только операции: `renderSql()` превращает их в SQL и ничего не исполняет,
- * поэтому `MockDdl` после переезда `applyDiff` в core здесь больше не нужен.
+ * Операции — чистые данные, диалект тут ни при чём: apply разворачивает их в
+ * вызовы `DbDdlAdapter`. Вынесены отдельно от `fixtures.ts`, где лежит
+ * `MockDdl`, чтобы тесты apply не зависели от всего инвентаря compute-тестов.
  */
 import type {
   AddColumnOp,
@@ -203,19 +204,3 @@ export function diff(
     },
   };
 }
-
-/**
- * Тот же `createUsersOp`, но с уже снятым инлайн `UNIQUE` у `email`.
- *
- * Так выглядит операция, которую строит `computeDiff`: уникальность несёт
- * отдельный `add-index`, поэтому дублирующее колоночное ограничение не нужно.
- */
-export const withoutUniqueEmail = (): CreateTableOp => {
-  const op = createUsersOp();
-  return {
-    ...op,
-    columns: op.columns.map((c) =>
-      c.name === 'email' ? { ...c, isUnique: false } : c,
-    ),
-  };
-};

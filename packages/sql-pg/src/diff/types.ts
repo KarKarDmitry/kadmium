@@ -5,13 +5,7 @@
  * миграцией, живёт в `core/src/diff/expected.ts`.
  */
 
-import type {
-  AddIndexOp,
-  DbColumn,
-  DiffOp,
-  IrField,
-  IrModel,
-} from '@karkardmitry/kadmium-sql-types';
+import type { IrField, IrModel } from '@karkardmitry/kadmium-sql-types';
 
 /* ── IR field type → PG data type ── */
 
@@ -220,37 +214,4 @@ export function defaultsEqual(
     return !Number.isNaN(a) && a === b;
   }
   return false;
-}
-
-/**
- * Колонки для `CREATE TABLE` — без инлайн `UNIQUE` у колонок, которым
- * достанется отдельный `add-index`.
- *
- * Уникальность в этой схеме выражается только индексом. Инлайн `UNIQUE`
- * заставил бы PostgreSQL создать ещё и собственный индекс `table_col_key`,
- * который `computeDiff()` отфильтровывает как системный — он был бы
- * неотслеживаемым мусором рядом с нашим `idx_table_col`.
- *
- * Превью и применение обязаны считаться одинаково, иначе `db:sql` отдаёт файл,
- * отличающийся от того, что сделает `db:migrate`. Поэтому хелпер общий, а не
- * продублирован в `apply.ts` и `render.ts`.
- */
-export function createTableColumns(
-  tableName: string,
-  columns: DbColumn[],
-  operations: ReadonlyArray<DiffOp>,
-): DbColumn[] {
-  const indexedColumns = new Set(
-    operations
-      .filter(
-        (o): o is AddIndexOp =>
-          o.type === 'add-index' && o.index.tableName === tableName,
-      )
-      .flatMap((o) => o.index.columns),
-  );
-  if (indexedColumns.size === 0) return columns;
-  return columns.map((c) => ({
-    ...c,
-    isUnique: indexedColumns.has(c.name) ? false : c.isUnique,
-  }));
 }

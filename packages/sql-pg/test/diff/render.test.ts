@@ -14,6 +14,7 @@ import {
   dropLegacyColumnOp,
   dropLegacyIndexOp,
   dropPostsOp,
+  withoutUniqueEmail,
 } from './fixtures';
 import type { DiffOp } from '@karkardmitry/kadmium-sql-types';
 
@@ -29,11 +30,12 @@ describe('renderSql', () => {
   });
 
   it('preview matches the exact executed DDL (single source of truth)', () => {
-    // Инлайн UNIQUE у email здесь отсутствует намеренно: applyDiff его
-    // вырезает, потому что уникальность обеспечивает отдельный индекс.
-    // Если бы превью его печатало, `db:sql` отдавал бы файл, отличный от
-    // того, что сделает `db:migrate`.
-    expect(renderSql(diff([createUsersOp(), addEmailIndexOp()]))).toBe(
+    // Колонки приходят уже каноническими: инлайн UNIQUE у email снял
+    // `computeDiff` при построении операции, потому что уникальность
+    // обеспечивает отдельный индекс. Рендер печатает список как есть — и
+    // applyDiff отдаёт адаптеру тот же самый, поэтому расхождение `db:sql`
+    // с `db:migrate` исключено по построению, а не общим хелпером.
+    expect(renderSql(diff([withoutUniqueEmail(), addEmailIndexOp()]))).toBe(
       `BEGIN;
 
 CREATE TABLE "users" (
@@ -49,22 +51,25 @@ COMMIT;
     );
   });
 
-  it('renders create-table without inline unique for indexed columns', () => {
-    const sql = renderSql(diff([createUsersOp(), addEmailIndexOp()]));
-    expect(sql).toContain('CREATE TABLE "users" (');
-    expect(sql).toContain('"email" character varying NOT NULL');
-    expect(sql).not.toContain('"email" character varying NOT NULL  UNIQUE');
-    expect(sql).toContain('"id" serial NOT NULL PRIMARY KEY');
-    expect(sql).toContain(
+  it('renders the given columns verbatim, index or not', () => {
+    // Рендер не решает за движок, что считать каноничным: он получает
+    // готовые колонки. Ответственность за снятие дубля UNIQUE лежит на
+    // computeDiff (тест в core), а здесь проверяется только честность
+    // преобразования «колонка → текст».
+    const stripped = renderSql(diff([withoutUniqueEmail(), addEmailIndexOp()]));
+    expect(stripped).toContain('CREATE TABLE "users" (');
+    expect(stripped).toContain('"email" character varying NOT NULL');
+    expect(stripped).not.toContain(
+      '"email" character varying NOT NULL  UNIQUE',
+    );
+    expect(stripped).toContain('"id" serial NOT NULL PRIMARY KEY');
+    expect(stripped).toContain(
       'CREATE UNIQUE INDEX "idx_users_email" ON "users" ("email");',
     );
-  });
 
-  it('keeps inline unique for a column that gets no index op', () => {
-    // У колонки без своего индекса вырезать нечего — снять UNIQUE нечем,
-    // и колоночное ограничение остаётся единственным носителем.
-    const sql = renderSql(diff([createUsersOp()]));
-    expect(sql).toContain('"email" character varying NOT NULL  UNIQUE');
+    // Та же колонка с UNIQUE печатается с ним — рендер не фильтрует.
+    const kept = renderSql(diff([createUsersOp(), addEmailIndexOp()]));
+    expect(kept).toContain('"email" character varying NOT NULL  UNIQUE');
   });
 
   it('renders DROP DEFAULT when the model has no default', () => {

@@ -85,7 +85,7 @@ describe('db: applyDiffTransactional', () => {
 
   it('applies a multi-phase diff inside a transaction and commits', async () => {
     const { applyDiffTransactional } =
-      await import('@karkardmitry/kadmium-sql-pg');
+      await import('@karkardmitry/kadmium-core');
 
     const diff = {
       hasChanges: true,
@@ -156,7 +156,7 @@ describe('db: applyDiffTransactional', () => {
 
   it('rolls back the entire diff when an op fails mid-transaction', async () => {
     const { applyDiffTransactional } =
-      await import('@karkardmitry/kadmium-sql-pg');
+      await import('@karkardmitry/kadmium-core');
 
     const diff = {
       hasChanges: true,

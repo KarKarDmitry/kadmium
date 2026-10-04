@@ -15,7 +15,8 @@ import { makeHarness, type Harness } from './helpers';
 import { resetSchemaAndSeed, type SeedData } from './fixtures';
 import { User as UserModel, Profile as ProfileModel } from '../src/models';
 import { computeDiff } from '@karkardmitry/kadmium-core';
-import { applyDiff, renderSql } from '@karkardmitry/kadmium-sql-pg';
+import { applyDiff } from '@karkardmitry/kadmium-core';
+import { renderSql } from '@karkardmitry/kadmium-sql-pg';
 
 let h: Harness;
 let seed: SeedData;

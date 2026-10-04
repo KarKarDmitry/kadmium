@@ -39,6 +39,11 @@ core → sql-types ← sql-pg
 
 No circular dependencies. Core never imports sql-pg directly.
 
+Проверяется так: `rg "from '@karkardmitry/kadmium-sql-pg'" packages/core/src`
+должен дать пустой результат. Строка `kadmium-sql-pg` может встречаться в
+тексте ошибки — это не импорт. `Dialect` и `DbDdlAdapter` существуют именно для
+того, чтобы core получал PostgreSQL-поведение через контракт.
+
 ## Rules for Agents
 
 - **IR is the contract** — never import model builders from ORM or vice versa

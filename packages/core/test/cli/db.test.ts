@@ -10,6 +10,7 @@ import type {
   DbForeignKey,
   SqlAdapter,
   Dialect,
+  DiffResult,
   IrField,
 } from '@karkardmitry/kadmium-sql-types';
 import { KadmiumApp } from '../../src/core/kadmium-app';
@@ -175,7 +176,18 @@ const testDialect: Dialect = {
   normalizeTypeName: (n) => n.toLowerCase(),
   renderDefault: () => null,
   defaultsEqual: (_f, expected, actual) => expected === actual,
+  // Превью CLI зовёт диалект, а не импортированный рендерер адаптера — иначе
+  // core снова потянул бы sql-pg и установка из npm падала бы. Сам SQL-текст
+  // проверяется в sql-pg (`test/diff/render.test.ts`); здесь важно лишь, что
+  // CLI зовёт внедрённый диалект и пишет ровно его вывод.
+  renderSql(diff) {
+    renderedDiffs.push(diff);
+    return '-- preview from dialect\n';
+  },
 };
+
+/** Diff-ы, переданные диалекту на рендер — для проверки шва CLI ↔ Dialect. */
+const renderedDiffs: DiffResult[] = [];
 
 function makeApp(ddl: MockDb): KadmiumApp {
   const app = new KadmiumApp();
@@ -256,9 +268,12 @@ describe('db:* commands', () => {
     await dbSql(app, file);
 
     expect(existsSync(file)).toBe(true);
-    const sql = readFileSync(file, 'utf8');
-    expect(sql).toContain('CREATE TABLE "user"');
-    expect(sql).toContain('idx_user_email');
+    expect(readFileSync(file, 'utf8')).toBe('-- preview from dialect\n');
+    // Диалект получил ровно один диф — и он про то, что база пуста.
+    expect(renderedDiffs).toHaveLength(1);
+    expect(renderedDiffs[0].operations.map((o) => o.type)).toContain(
+      'create-table',
+    );
   });
 
   it('dbClear without force does not drop anything', async () => {

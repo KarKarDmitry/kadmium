@@ -1,10 +1,17 @@
 /**
  * applyDiff — apply structured diff operations to DB.
+ *
+ * Диалектно-нейтрально: операции разворачиваются в вызовы `DbDdlAdapter`, а
+ * текст DDL собирает сам адаптер. Поэтому движок живёт здесь, рядом с
+ * `computeDiff()`, и не тянет в core реализацию адаптера.
  */
 
-import type { DbDdlAdapter, SqlAdapter } from '@karkardmitry/kadmium-sql-types';
-import type { DiffOp, DiffResult } from '@karkardmitry/kadmium-sql-types';
-import { createTableColumns } from './types';
+import type {
+  DbDdlAdapter,
+  SqlAdapter,
+  DiffOp,
+  DiffResult,
+} from '@karkardmitry/kadmium-sql-types';
 
 /** Render a single DiffOp as a human-readable description */
 function opToString(op: DiffOp): string {
@@ -86,12 +93,11 @@ async function applyDiffOps(
 ): Promise<string[]> {
   const applied: string[] = [];
 
-  // Phase 1: CREATE TABLE (without inline UNIQUE for index fields)
+  // Phase 1: CREATE TABLE
   // Indexes and FKs are handled in phase 2
   const tableOps = diff.operations.filter((o) => o.type === 'create-table');
   for (const op of tableOps) {
-    const cols = createTableColumns(op.table, op.columns, diff.operations);
-    await ddl.createTable(op.table, cols);
+    await ddl.createTable(op.table, op.columns);
     applied.push(opToString(op));
   }
 
