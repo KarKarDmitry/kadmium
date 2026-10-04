@@ -54,6 +54,7 @@ export { generateToFile, checkSync } from './codegen/index';
 // установка из npm падала с MODULE_NOT_FOUND.
 export { computeDiff, checkHealth, diffToHealth } from './diff/index';
 export type {
+  Dialect,
   DiffOp,
   DiffResult,
   HealthCheckResult,

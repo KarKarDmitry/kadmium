@@ -29,7 +29,17 @@ TransactionalPgAdapter (TransactionalAdapter)
 | `sql-generator.ts` | SqlGenerator — AST → PostgreSQL SQL |
 | `result-reshaper.ts` | Flat PG rows → nested objects |
 | `ddl-adapter.ts` | PgDdlAdapter — schema introspection + DDL |
-| `diff.ts` | Schema diffing (computeDiff, applyDiff, renderSql) |
+| `ddl-sql.ts` | Pure DDL statement builders — the single source of SQL text |
+| `dialect.ts` | `pgDialect` — implementation of the `Dialect` contract |
+| `diff/types.ts` | PostgreSQL type names and `DEFAULT` rendering |
+| `diff/apply.ts` | `applyDiff` — executes operations via `DbDdlAdapter` |
+| `diff/render.ts` | `renderSql` — preview text via `ddl-sql.ts` |
+| `ddl-validate.ts` | DDL injection guards (identifiers, expressions) |
+
+`computeDiff()`, `checkHealth()` and the IR→schema helpers are **not here** —
+they live in `core/src/diff/` and are dialect-agnostic. What remains in this
+package is exactly what is PostgreSQL-specific: type names, `DEFAULT` literals
+and DDL SQL text.
 
 ## SQL Generation (`sql-generator.ts`)
 
@@ -83,7 +93,7 @@ For multi-table SELECT queries, `ResultReshaper.reshape()` transforms flat PG ro
 
 ## Referential Integrity
 
-`expectedForeignKeys()` (`diff/types.ts`) превращает IR в список ожидаемых FK: поле с `ref` и без `sourceModel` — это FK, владеющий колонкой. Действия приходят из model DSL уже в канонической uppercase-форме (`onDelete`/`onUpdate` на `IrField`), маппинг lowercase → uppercase живёт в core.
+`expectedForeignKeys()` (`core/src/diff/expected.ts`) превращает IR в список ожидаемых FK: поле с `ref` и без `sourceModel` — это FK, владеющий колонкой. Действия приходят из model DSL уже в канонической uppercase-форме (`onDelete`/`onUpdate` на `IrField`), маппинг lowercase → uppercase живёт в core.
 
 - **CREATE** — `ddl-sql.ts` рендерит `ON DELETE ... ON UPDATE ...` в `ADD CONSTRAINT`; отсутствие действия даёт `NO ACTION`.
 - **ALTER** — смена действия порождает `AlterForeignKeyOp` (`{ oldFk, newFk }`), а `apply.ts` разворачивает его в `DROP CONSTRAINT` → `ADD CONSTRAINT`. Отдельного «изменения действия» в PG нет, поэтому это всегда пара операций.
@@ -92,9 +102,9 @@ For multi-table SELECT queries, `ResultReshaper.reshape()` transforms flat PG ro
 Тесты: `test/diff/types.test.ts` (форма `expectedForeignKeys`), `test/diff/compute.test.ts` (порождение alter-операции), `test/diff/apply.test.ts` + `test/diff/render.test.ts` (DROP/ADD и текст превью), `test-project/test/ddl-fk.test.ts` (реальный PostgreSQL: `information_schema`, смена действия на существующем FK, `checkHealth`).
 ## Indexes and Uniqueness
 
-Уникальность в этой схеме выражается **только индексом**. `expectedIndexes()` (`diff/types.ts`) строит `idx_<table>_<field>`; оторвать `.unique()` от колоночного `UNIQUE` нельзя — иначе PostgreSQL создаст ещё и собственный `table_col_key`, который `computeDiff()` отфильтровывает как системный, то есть неотслеживаемый мусор рядом с нашим индексом.
+Уникальность в этой схеме выражается **только индексом**. `expectedIndexes()` (`core/src/diff/expected.ts`) строит `idx_<table>_<field>`; оторвать `.unique()` от колоночного `UNIQUE` нельзя — иначе PostgreSQL создаст ещё и собственный `table_col_key`, который `computeDiff()` отфильтровывает как системный, то есть неотслеживаемый мусор рядом с нашим индексом.
 
-- **Один источник правды для превью** — `createTableColumns()` (`diff/types.ts`) вырезает инлайн `UNIQUE` у колонок, которым достаётся отдельный `add-index`. Его зовут и `apply.ts` (фаза 1), и `render.ts` (ветка `create-table`). Дублировать эту логику в одном из них нельзя: `db:sql` начнёт показывать DDL, отличный от того, что сделает `db:migrate`.
+- **Один источник правды для превью** — `createTableColumns()` (`diff/types.ts`, остаётся здесь ради единственного источника правды) вырезает инлайн `UNIQUE` у колонок, которым достаётся отдельный `add-index`. Его зовут и `apply.ts` (фаза 1), и `render.ts` (ветка `create-table`). Дублировать эту логику в одном из них нельзя: `db:sql` начнёт показывать DDL, отличный от того, что сделает `db:migrate`.
 - **Сверка по имени и по `isUnique`** — `computeDiff()` ищет существующий индекс по имени (`Map` от `DbIndex`, а не `Set` имён) и сверяет уникальность. Имя у `.unique()`-поля и у обычного `f.index` одно, поэтому сверка только по имени молча пропускала оба перехода — поставить и снять `.unique()` на существующем индексе.
 - **Пересоздание, а не «изменение»** — отдельной операции «сменить уникальность» в PG нет, поэтому расхождение разворачивается в `drop-index` → `add-index`. Порядок обязателен: `apply.ts` выполняет операции в порядке массива, и `add-index` перед `drop-index` упрётся в уже существующий индекс.
 - **Индекс с `isUnique: true` на данных с дублями** упадёт с PG `23505`. Это намеренно: миграция должна сообщить о конфликте, а не молча оставить схему неуникальной.
