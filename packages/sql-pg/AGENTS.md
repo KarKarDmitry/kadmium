@@ -70,10 +70,16 @@ For multi-table SELECT queries, `ResultReshaper.reshape()` transforms flat PG ro
 
 ## Global Side Effects
 
-```typescript
-pgTypes.setTypeParser(20, (val) => val === null ? null : Number(val));
-```
-Converts PostgreSQL `int8` (bigint) to JavaScript `number`. **Warning**: global mutation — conflicts with other pg users.
+**Нет.** Импорт пакета не мутирует глобальное состояние `pg`.
+
+Парсеры типов задаются **на пул**, а не через `pgTypes.setTypeParser` —
+`createKadmiumTypes()` в `index.ts:42-58` возвращает объект, который отдаёт
+`int8` → `Number` и `date` → строку `'YYYY-MM-DD'`, а для остальных oid
+делегирует глобальным. Прежний глобальный `setTypeParser(20, …)` удалён.
+
+⚠️ `int8` всё ещё приводится к `number`: значения выше 2^53 теряют точность
+(`Number()`), для больших внешних идентификаторов нужен uuid/строковый PK.
+См. `plans/data-types.md` — B4/R2.
 
 ## Referential Integrity
 
