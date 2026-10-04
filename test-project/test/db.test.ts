@@ -26,8 +26,9 @@ describe('db: schema diff + health', () => {
     const { checkHealth } = await import('@karkardmitry/kadmium-sql-pg');
     const health = await checkHealth(h.app.allIrs, h.adapter.ddl);
     expect(health.isHealthy).toBe(true);
-    expect(health.summary.tablesExpected).toBe(9);
-    expect(health.summary.tablesMatching).toBe(9);
+    // 10 моделей: 9 исходных + CalendarEvent (матрица datetime/date/time).
+    expect(health.summary.tablesExpected).toBe(10);
+    expect(health.summary.tablesMatching).toBe(10);
   });
 
   it('renderSql returns no-op when clean', async () => {

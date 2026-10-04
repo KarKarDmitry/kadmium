@@ -12,6 +12,7 @@ import {
   UserAccount,
   Profile,
   LoginSession,
+  CalendarEvent,
 } from '../src/models';
 
 /**
@@ -29,6 +30,7 @@ const MODELS = [
   UserAccount,
   Profile,
   LoginSession,
+  CalendarEvent,
 ];
 
 /** Загрузить .env в process.env (не перезатирая уже заданные). */

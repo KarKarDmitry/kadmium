@@ -7,6 +7,7 @@ import { Region } from './region';
 import { UserAccount } from './user-account';
 import { Profile } from './profile';
 import { LoginSession } from './login-session';
+import { CalendarEvent } from './calendar-event';
 
 export {
   User,
@@ -18,4 +19,5 @@ export {
   UserAccount,
   Profile,
   LoginSession,
+  CalendarEvent,
 };

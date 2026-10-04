@@ -32,6 +32,31 @@ declare module '../src/models/bureau' {
   }
 }
 
+declare module '../src/models/calendar-event' {
+  interface CalendarEvent {
+  ['~shape']: {
+    id: number;
+    title: string | undefined;
+    happenedAt: Date;
+    happenedAtTz: Date;
+    eventDate: string;
+    eventTime: string;
+  };
+
+  ['~pk']: 'id';
+
+  ['~defaults']: {
+    id: number;
+  };
+
+  ['~rel']: {
+  };
+
+  ['~relInfo']: {
+  };
+  }
+}
+
 declare module '../src/models/comment' {
   interface Comment {
   ['~shape']: {
