@@ -124,7 +124,7 @@ export async function computeDiff(
         summary.addedColumns++;
       } else {
         // Check type
-        const expectedType = pgType(name, f, irs);
+        const expectedType = pgType(f, irs);
         const normalizedExpected = normalizePgType(expectedType);
         const normalizedActual = normalizePgType(dbCol.dataType);
 

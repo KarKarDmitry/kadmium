@@ -9,6 +9,7 @@ import type {
   DbIndex,
   DiffOp,
   IrField,
+  IrModel,
 } from '@karkardmitry/kadmium-sql-types';
 
 // Контракт diff-а (DiffOp/DiffResult/HealthCheckResult) переехал в
@@ -18,14 +19,7 @@ import type {
 
 /* ── IR field type → PG data type ── */
 
-export function pgType(
-  name: string,
-  f: IrField,
-  irs: Array<{
-    name: string;
-    fields: Record<string, IrField>;
-  }>,
-): string {
+export function pgType(f: IrField, irs: readonly IrModel[]): string {
   const dbType = f.spec?.db_type as string | undefined;
   if (f.type === 'primary') {
     if (dbType === 'uuid') return 'uuid';
@@ -41,7 +35,7 @@ export function pgType(
       const pkField = Object.values(target.fields).find((pf) =>
         isPrimaryField(pf),
       );
-      if (pkField) return pgType(name, pkField, irs);
+      if (pkField) return pgType(pkField, irs);
     }
   }
   if (f.type === 'string') return 'character varying';
@@ -277,7 +271,7 @@ export function irToColumns(
     .map(([name, f]) => ({
       name: f.alias ?? name,
       tableName,
-      dataType: pgType(name, f, irs),
+      dataType: pgType(f, irs),
       isNullable: f.nullable && !isPrimaryField(f),
       defaultValue: renderDefault(f),
       isPrimary: isPrimaryField(f),

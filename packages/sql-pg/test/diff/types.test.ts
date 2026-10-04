@@ -32,15 +32,14 @@ const irs = [
 
 describe('pgType', () => {
   it('primary → integer by default', () => {
-    expect(
-      pgType('id', { type: 'primary', nullable: false, unique: true }, []),
-    ).toBe('integer');
+    expect(pgType({ type: 'primary', nullable: false, unique: true }, [])).toBe(
+      'integer',
+    );
   });
 
   it('primary with uuid db_type → uuid', () => {
     expect(
       pgType(
-        'id',
         {
           type: 'primary',
           nullable: false,
@@ -55,7 +54,6 @@ describe('pgType', () => {
   it('primary with string db_type → varchar', () => {
     expect(
       pgType(
-        'id',
         {
           type: 'primary',
           nullable: false,
@@ -70,7 +68,6 @@ describe('pgType', () => {
   it('primary with numeric db_type → numeric', () => {
     expect(
       pgType(
-        'id',
         {
           type: 'primary',
           nullable: false,
@@ -89,7 +86,7 @@ describe('pgType', () => {
       nullable: false,
       unique: false,
     };
-    expect(pgType('author', f, irs)).toBe('integer');
+    expect(pgType(f, irs)).toBe('integer');
   });
 
   it('ref with unknown target falls through', () => {
@@ -99,27 +96,27 @@ describe('pgType', () => {
       nullable: false,
       unique: false,
     };
-    expect(pgType('author', f, irs)).toBe('text');
+    expect(pgType(f, irs)).toBe('text');
   });
 
   it('string → varchar', () => {
-    expect(
-      pgType('name', { type: 'string', nullable: false, unique: false }, []),
-    ).toBe('character varying');
+    expect(pgType({ type: 'string', nullable: false, unique: false }, [])).toBe(
+      'character varying',
+    );
   });
 
   it('number → integer', () => {
-    expect(
-      pgType('age', { type: 'number', nullable: false, unique: false }, []),
-    ).toBe('integer');
+    expect(pgType({ type: 'number', nullable: false, unique: false }, [])).toBe(
+      'integer',
+    );
   });
 
   // `time` и `datetime` — разные колонки. Раньше `time` уезжал в `timestamp`,
   // и значение вроде '14:30:45.123' отвергалось PG (22007) как timestamp.
   it('time → time without time zone', () => {
-    expect(
-      pgType('at', { type: 'time', nullable: false, unique: false }, []),
-    ).toBe('time without time zone');
+    expect(pgType({ type: 'time', nullable: false, unique: false }, [])).toBe(
+      'time without time zone',
+    );
   });
 
   // Длинная форма, а не 'timestamptz': у normalizePgType нет ветки-коллапсера
@@ -128,7 +125,6 @@ describe('pgType', () => {
   it('datetime with spec.tz → timestamp with time zone', () => {
     expect(
       pgType(
-        'at',
         {
           type: 'datetime',
           nullable: false,
@@ -143,7 +139,6 @@ describe('pgType', () => {
   it('spec.tz игнорируется для не-datetime типов', () => {
     expect(
       pgType(
-        'on',
         { type: 'date', nullable: false, unique: false, spec: { tz: true } },
         [],
       ),
@@ -151,69 +146,65 @@ describe('pgType', () => {
   });
 
   it('int → integer', () => {
-    expect(
-      pgType('count', { type: 'int', nullable: false, unique: false }, []),
-    ).toBe('integer');
+    expect(pgType({ type: 'int', nullable: false, unique: false }, [])).toBe(
+      'integer',
+    );
   });
 
   it('bigint → bigint', () => {
-    expect(
-      pgType('views', { type: 'bigint', nullable: false, unique: false }, []),
-    ).toBe('bigint');
+    expect(pgType({ type: 'bigint', nullable: false, unique: false }, [])).toBe(
+      'bigint',
+    );
   });
 
   it('decimal → numeric', () => {
     expect(
-      pgType('price', { type: 'decimal', nullable: false, unique: false }, []),
+      pgType({ type: 'decimal', nullable: false, unique: false }, []),
     ).toBe('numeric');
   });
 
   it('float → double precision', () => {
-    expect(
-      pgType('score', { type: 'float', nullable: false, unique: false }, []),
-    ).toBe('double precision');
+    expect(pgType({ type: 'float', nullable: false, unique: false }, [])).toBe(
+      'double precision',
+    );
   });
 
   it('boolean → boolean', () => {
     expect(
-      pgType('active', { type: 'boolean', nullable: false, unique: false }, []),
+      pgType({ type: 'boolean', nullable: false, unique: false }, []),
     ).toBe('boolean');
   });
 
   it('date → date', () => {
-    expect(
-      pgType('birthday', { type: 'date', nullable: false, unique: false }, []),
-    ).toBe('date');
+    expect(pgType({ type: 'date', nullable: false, unique: false }, [])).toBe(
+      'date',
+    );
   });
 
   it('datetime → timestamp', () => {
     expect(
-      pgType(
-        'created',
-        { type: 'datetime', nullable: false, unique: false },
-        [],
-      ),
+      pgType({ type: 'datetime', nullable: false, unique: false }, []),
     ).toBe('timestamp without time zone');
   });
 
   // Не `timestamp`: время суток — отдельная колонка. Схлопывание в timestamp
   // давало PG 22007 на '14:30:45.123' и тихий `db:push` без alter-type.
   it('time → time without time zone (не timestamp)', () => {
-    expect(
-      pgType('start', { type: 'time', nullable: false, unique: false }, []),
-    ).toBe('time without time zone');
+    expect(pgType({ type: 'time', nullable: false, unique: false }, [])).toBe(
+      'time without time zone',
+    );
   });
 
   it('uuid → uuid', () => {
-    expect(
-      pgType('token', { type: 'uuid', nullable: false, unique: false }, []),
-    ).toBe('uuid');
+    expect(pgType({ type: 'uuid', nullable: false, unique: false }, [])).toBe(
+      'uuid',
+    );
   });
 
   it('unknown type → text', () => {
-    expect(
-      pgType('x', { type: 'jsonb', nullable: false, unique: false }, []),
-    ).toBe('text');
+    expect(pgType({ type: 'jsonb', nullable: false, unique: false }, [])).toBe(
+      'text',
+    );
   });
 });
 
