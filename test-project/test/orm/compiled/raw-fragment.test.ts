@@ -78,12 +78,34 @@ describe('orm.raw — raw-фрагменты против PG', () => {
     expect(rows.map((r) => r.uname)).toEqual(['Alice', 'Bob', 'Carol']);
   });
 
-  it('id из seed совпадает с raw-витриной (uuid → строка)', async () => {
+  it('без .tsType() int8 приходит строкой — тип объявляет пользователь', async () => {
+    // Нетегированный фрагмент отдаёт ровно то, что прислала БД: `user.id` —
+    // bigint, то есть int8, то есть строка. Объявлять `id: number` здесь
+    // было бы ложью: ORM не знает, что это не текст, и молчал бы.
     const rows = await h.orm
       .raw<{ id: string; name: string }>(
         sql`SELECT id, name FROM "user" WHERE email = ${'alice@test.com'}`,
       )
       .go();
-    expect(rows).toEqual([{ id: seed.alice.id, name: 'Alice' }]);
+    expect(rows).toEqual([{ id: String(seed.alice.id), name: 'Alice' }]);
+  });
+
+  it('.tsType() превращает int8 в проекции в number', async () => {
+    // Проекция знает колонку по имени, поэтому тег ставится на неё. Без него
+    // `count(*)` в сыром фрагменте вернул бы строку '3' — ровно то, что
+    // прислала БД, но против объявленного `number`.
+    const [row] = await h.orm
+      .select(UserModel)
+      .fields(() => [sql`count(*)`.as('cnt').tsType()])
+      .go();
+    expect(row.cnt).toBe(3);
+  });
+
+  it('без .tsType() сырой count остаётся строкой', async () => {
+    const [row] = await h.orm
+      .select(UserModel)
+      .fields(() => [sql`count(*)`.as('cnt')])
+      .go();
+    expect(row.cnt).toBe('3');
   });
 });

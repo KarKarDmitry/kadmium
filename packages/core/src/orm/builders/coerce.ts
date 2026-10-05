@@ -287,11 +287,6 @@ function columnFor(
   if (!key) return null;
 
   const field = fieldOf(ir, sel, irLookup);
-  // Поле может не понадобиться: `count('*')` считает строки, а не колонку,
-  // и тип результата задаёт сама функция. Но если поле есть, приводим только
-  // то, что объявлено числом — строка/булево/Date уже приходят готовыми,
-  // а `~shape` обещает ровно `tsType`.
-  if (field && field.tsType !== 'number') return null;
 
   // У обычного поля `func` пуст — сторож берётся из самого поля. У агрегата и
   // окна тип задаёт функция (см. таблицу в `guardForFunc`), а поле нужно ей
@@ -302,6 +297,13 @@ function columnFor(
       : sel.kind === 'selectable'
         ? sel.aggregate
         : undefined;
+
+  // Ранний выход есть только у обычного поля: строка/булево/Date уже приходят
+  // готовыми, а `~shape` обещает ровно `tsType`. У агрегата и окна поле —
+  // аргумент функции, а не результат, и проверять надо результат: `count()`
+  // над boolean-колонкой возвращает int8 (→ bigint), а не boolean. Отсекать
+  // здесь значило бы вернуть `'8'` строкой там, где тип обещает число.
+  if (field && !func && field.tsType !== 'number') return null;
 
   if (!field && !func) return null;
 
@@ -347,9 +349,19 @@ function buildColumns(
 
   for (const sel of selects) {
     // У `sql`-фрагмента типа в рантайме нет: он живёт в фантоме
-    // (`declare '~result'`), который компилятор стирает. Такие колонки
-    // приводятся только если пользователь объявил тег — см. `.tsType()`.
-    if (sel.kind === 'sql-item') continue;
+    // (`declare '~result'`), который компилятор стирает. Приводить такой
+    // селект можно только если пользователь объявил тег через `.tsType()` —
+    // иначе ORM не отличил бы `count(*)` от genuinely текстовой колонки.
+    if (sel.kind === 'sql-item') {
+      if (sel.declaredType !== 'number') continue;
+      columns.push({
+        prop: sel.alias,
+        tsType: 'number',
+        guard: 'integer',
+        source: `sql<number> AS ${sel.alias}`,
+      });
+      continue;
+    }
     const column = columnFor(ir, sel, irLookup);
     if (column) columns.push(column);
   }
@@ -397,6 +409,20 @@ export function buildCoercionNode(
 }
 
 /**
+ * Селект, чей результат — скаляр в корне строки, а не колонка под алиасом.
+ *
+ * Агрегат и окно возвращают одно значение на строку, поэтому reshape кладёт их
+ * в корень multi-строки рядом с объектами алиасов. `tableAlias` у них при этом
+ * остаётся — он нужен рендеру аргумента (`SUM("p"."views")`), — но на
+ * принадлежность колонки не указывает.
+ */
+function isScalarAtRoot(sel: SelectItem): boolean {
+  return (
+    sel.kind === 'aggregate' || sel.kind === 'window' || sel.kind === 'sql-item'
+  );
+}
+
+/**
  * План приведения для multi-запроса.
  *
  * Строка multi-запроса — это `{ u: {...}, p: {...} }`, то есть те же
@@ -412,16 +438,49 @@ export function buildMultiCoercionNode(
   irLookup: IrLookupFn,
 ): CoercionNode | undefined {
   const byAlias: Record<string, CoercionNode> = {};
+  let firstIr: ModelIR | undefined;
 
   for (const [alias, ir] of irs) {
+    firstIr ??= ir;
     const own =
-      selects?.filter((s) => s.kind !== 'sql-item' && s.tableAlias === alias) ??
-      null;
+      selects?.filter(
+        (s) =>
+          s.kind !== 'sql-item' && !isScalarAtRoot(s) && s.tableAlias === alias,
+      ) ?? null;
     const ownIncludes = includes.filter((r) => r.parentAlias === alias);
     const node = buildCoercionNode(ir, own, ownIncludes, irLookup);
     if (node) byAlias[alias] = node;
   }
 
-  if (Object.keys(byAlias).length === 0) return undefined;
-  return { columns: [], includes: byAlias };
+  // Агрегат и окно дают скаляр, а не колонку таблицы, — даже когда аргумент
+  // взят из конкретного алиаса. `tableAlias` у них нужен рендеру, чтобы
+  // написать `SUM("p"."views")`, но после reshape результат лежит в корне
+  // строки рядом с объектами алиасов, а не внутри `p`. Привязывать его к
+  // алиасу нельзя: `GROUP BY` в multi часто оставляет одну группу на алиас,
+  // и `cnt`/`authorTotal` вернулся бы строкой. IR для такого селекта по
+  // большому счёту не нужен — тип задаёт функция, а поле ей нужно только как
+  // аргумент.
+  // Аргумент агрегата лежит во вложенном `field` (см. `FuncField`), а его
+  // `tableAlias` — это алиас таблицы, а не имя модели: `lookup('p')` у
+  // `irLookup` вернул бы undefined, и поле `Post.views` не нашлось бы — sum
+  // остался бы неприведённой строкой. Поэтому аргумент ищем по алиасам
+  // запроса, а на имя модели падаем только как на запасной вариант (ref).
+  const byAliasIr = (name: string): ModelIR | undefined =>
+    irs.get(name) ?? irLookup(name);
+
+  const rootColumns =
+    firstIr && selects
+      ? buildColumns(
+          firstIr,
+          selects.filter((s) => isScalarAtRoot(s)),
+          byAliasIr,
+        )
+      : [];
+
+  if (Object.keys(byAlias).length === 0 && rootColumns.length === 0) {
+    return undefined;
+  }
+  return rootColumns.length > 0
+    ? { columns: rootColumns, includes: byAlias }
+    : { columns: [], includes: byAlias };
 }

@@ -235,6 +235,15 @@ export interface SqlSelectItem {
   readonly text: string;
   readonly values: readonly unknown[];
   readonly slotOrder: readonly SlotDefinition[];
+  /**
+   * Объявленный тип колонки (ставится `.tsType()` на `sql`-фрагменте).
+   *
+   * У обычного селекта тип известен из IR, а у фрагмента IR-поля нет, а
+   * фантом `~result` компилятор стирает. Без тега `int8`/`numeric` приходят
+   * строкой и остаются строкой — с тегом ORM приводит их к `number` и
+   * сторожит точность.
+   */
+  readonly declaredType?: ResultTsType;
 }
 
 // ── Read coercion (B3/B4) ──

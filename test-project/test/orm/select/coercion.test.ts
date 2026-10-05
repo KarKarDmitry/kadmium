@@ -79,6 +79,30 @@ describe('приведение int8', () => {
     expect(typeof row.id).toBe('number');
   });
 
+  it('id за 2^53 бросает ошибку вместо тихого округления', async () => {
+    await rawInsert(
+      `INSERT INTO measurement (id, label, amount, count) VALUES (9007199254740993, 'snowflake', 1, 1)`,
+    );
+    const read = h.orm
+      .select(Measurement)
+      .where((t) => t.label.eq('snowflake'))
+      .go();
+    await expect(read).rejects.toThrow(/outside the safe integer range/);
+    await expect(read).rejects.toThrow(/Measurement\.id/);
+  });
+
+  it('FK на bigint-PK тоже сторожится', async () => {
+    await rawInsert(
+      `INSERT INTO measurement (id, label, amount, count) VALUES (9007199254740995, 'fk', 1, 1)`,
+    );
+    await expect(
+      h.orm
+        .select(Measurement)
+        .where((t) => t.label.eq('fk'))
+        .go(),
+    ).rejects.toThrow(/outside the safe integer range/);
+  });
+
   it('граница 2^53−1 ещё влезает', async () => {
     await rawInsert(
       `INSERT INTO measurement (id, label, amount, count) VALUES (9007199254740991, 'edge', 1, 1)`,

@@ -1,6 +1,7 @@
 import type {
   CompiledQuery,
   HoleRef,
+  ResultTsType,
   SlotDefinition,
 } from '@karkardmitry/kadmium-sql-types';
 import { KadmiumSqb } from './sqb';
@@ -99,8 +100,19 @@ export class SqlSelectable<T, A extends string> {
   readonly text: string;
   readonly values: readonly unknown[];
   readonly slotOrder: readonly SlotDefinition[];
+  /**
+   * Объявленный тип колонки — его задаёт `.tsType()`.
+   *
+   * У обычного селекта тип известен из IR, а у фрагмента IR-поля нет, а
+   * фантом `~result` компилятор стирает. Без тега колонка остаётся как
+   * прислала БД: `int8` приходит строкой, и `.go()` отдаст строку вместо
+   * объявленного `number`.
+   */
+  readonly declaredType?: ResultTsType;
+  /** Исходный фрагмент: `.tsType()` строит по нему копию. */
+  private readonly fragment: SqlFragment<T>;
 
-  constructor(fragment: SqlFragment<T>, alias: A) {
+  constructor(fragment: SqlFragment<T>, alias: A, declaredType?: ResultTsType) {
     const values: unknown[] = [];
     const slotOrder: SlotDefinition[] = [];
     const text = renderFragment(fragment.segments, fragment.parts, values, {
@@ -111,6 +123,27 @@ export class SqlSelectable<T, A extends string> {
     this.text = text;
     this.values = values;
     this.slotOrder = slotOrder;
+    this.declaredType = declaredType;
+    this.fragment = fragment;
+  }
+
+  /**
+   * Объявить, что колонка — число, чтобы ORM привёл её при чтении.
+   *
+   * Нужен ровно для числового результата: `SELECT count(*)` в сыром фрагменте
+   * отдаёт int8, то есть строку `'3'`, а без тега ORM не знает, что это не
+   * текст, и отдаст строку. Сторож точности здесь тот же, что у обычной
+   * bigint-колонки: значение за 2^53 бросит ошибку, а не округлится.
+   *
+   * Мутации нет — возвращается новый экземпляр, как у `.as()`, чтобы
+   * объявление типа не всплывало в запрос, куда фрагмент уже положен.
+   */
+  tsType(): SqlSelectable<T, A> & { '~tsType': ResultTsType } {
+    return new SqlSelectable<T, A>(
+      this.fragment,
+      this.alias,
+      'number',
+    ) as SqlSelectable<T, A> & { '~tsType': ResultTsType };
   }
 }
 

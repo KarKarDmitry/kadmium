@@ -35,17 +35,16 @@ import {
 
 // Per-pool type parsers.
 // Avoids global pgTypes.setTypeParser which conflicts with other pg users.
-// ⚠️ int8: values > 2^53 lose precision through Number(). Use uuid/string PK for large ids.
+//
+// ⚠️ int8 (oid 20) и numeric (oid 1700) НЕ получают парсера: оба приходят
+// строкой, и приводит их core (orm/builders/coerce.ts) — по IR, с проверкой
+// точности. Здесь любой `Number(val)` на oid 20 был бы молчаливым округлением
+// значений выше 2^53, поэтому его здесь нет намеренно.
 const DATE_OID = 1082;
-const INT8_OID = 20;
 
 function createKadmiumTypes() {
-  const int8Parser = (val: string | null) =>
-    val === null ? null : Number(val);
-
   return {
     getTypeParser(oid: TypeId, format?: TypeFormat) {
-      if (oid === INT8_OID) return int8Parser;
       // `date` отдаём строкой 'YYYY-MM-DD': парсер по умолчанию строит Date в
       // локальной зоне процесса, и календарный день оттуда теряется — дата
       // '2026-10-02' в Asia/Tokyo читалась бы как 2026-10-01T15:00Z. Тип
