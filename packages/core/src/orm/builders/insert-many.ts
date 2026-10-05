@@ -7,6 +7,7 @@ import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { SelectableField } from '../ast/selectable';
 import type { InsertValuesData, RawDmlData, SetData } from '../types/dml-data';
 import { createFilterProxy } from './query-proxies';
+import type { IrLookup } from './coerce';
 import {
   buildConflictSteps,
   buildCreateManyFinalizer,
@@ -105,6 +106,7 @@ export interface InsertManyReturningTerminal<
 export class InsertManyBuilder<TModel extends Model> {
   public sqb: KadmiumSqb;
   private ir: ModelIR;
+  private irLookup: IrLookup;
   private adapter: SqlAdapter | null;
   private mappedRows: Record<string, unknown>[] | null = null;
   private transactionEnabled = true;
@@ -115,6 +117,9 @@ export class InsertManyBuilder<TModel extends Model> {
     adapter?: SqlAdapter,
   ) {
     this.ir = ir;
+    // Нужен для приведения значений при чтении: FK-колонка хранит PK цели,
+    // поэтому сторож точности берётся у целевой модели.
+    this.irLookup = irLookup ?? (() => undefined);
     this.adapter = adapter ?? null;
     this.sqb = new KadmiumSqb();
     this.sqb.tableContext.set(ir.name, ir.collection);
@@ -197,6 +202,7 @@ export class InsertManyBuilder<TModel extends Model> {
       this.ir,
       this.mappedRows ?? [],
       { transaction: this.transactionEnabled },
+      this.irLookup,
     );
   }
 

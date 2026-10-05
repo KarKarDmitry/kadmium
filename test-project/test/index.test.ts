@@ -11,13 +11,14 @@ import { makeHarness } from './helpers';
 describe('core init + config (no DB)', () => {
   it('registers all models and compiles IR', async () => {
     const { app } = await makeHarness();
-    expect(app.modelCount).toBe(10);
+    expect(app.modelCount).toBe(11);
     expect(app.allIrs.map((ir) => ir.name).sort()).toEqual([
       'Bureau',
       'CalendarEvent',
       'Comment',
       'Country',
       'LoginSession',
+      'Measurement',
       'Post',
       'Profile',
       'Region',
@@ -55,7 +56,7 @@ describe('core init + config (no DB)', () => {
   it('loads config from kadmium.config.ts via AppCore.init', async () => {
     const { AppCore } = await import('@karkardmitry/kadmium-core');
     const app = await AppCore.init();
-    expect(app.modelCount).toBe(10);
+    expect(app.modelCount).toBe(11);
     const names = app.allIrs.map((ir) => ir.name).sort();
     expect(names).toEqual([
       'Bureau',
@@ -63,6 +64,7 @@ describe('core init + config (no DB)', () => {
       'Comment',
       'Country',
       'LoginSession',
+      'Measurement',
       'Post',
       'Profile',
       'Region',

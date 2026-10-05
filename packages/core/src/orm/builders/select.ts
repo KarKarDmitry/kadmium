@@ -40,6 +40,7 @@ import {
   createHavingProxy,
 } from './query-proxies';
 import { buildRelation, configureRelation } from './include-utils';
+import { applyCoercion, buildCoercionNode } from './coerce';
 import { BaseQueryBuilder } from './base-query-builder';
 
 /** Минимальный контракт модели, нужный select-билдеру. */
@@ -474,6 +475,10 @@ export class SelectQueryBuilder<
     if (!this.adapter)
       throw new Error('No adapter configured; cannot execute query.');
     const results = await this.adapter.execute(sqb);
+    applyCoercion(
+      buildCoercionNode(this.ir, sqb.selects, sqb.includes, this.irLookup),
+      results,
+    );
     return (this._isFirst ? results[0] : results) as never;
   }
 
@@ -508,6 +513,12 @@ export class SelectQueryBuilder<
       slotOrder: slotOrder ?? [],
       single: this._isFirst,
       sqb,
+      coerce: buildCoercionNode(
+        this.ir,
+        sqb.selects,
+        sqb.includes,
+        this.irLookup,
+      ),
     } as unknown as CompiledQuery<Record<string, unknown>, unknown>;
   }
 

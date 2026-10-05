@@ -268,5 +268,28 @@ declare module '../src/models/login-session' {
   }
 }
 
+declare module '../src/models/measurement' {
+  interface Measurement {
+  ['~shape']: {
+    id: number;
+    label: string | undefined;
+    amount: number;
+    count: number;
+  };
+
+  ['~pk']: 'id';
+
+  ['~defaults']: {
+    id: number;
+  };
+
+  ['~rel']: {
+  };
+
+  ['~relInfo']: {
+  };
+  }
+}
+
 
 export {};

@@ -29,9 +29,10 @@ describe('db: schema diff + health', () => {
 
     const health = await checkHealth(h.app.allIrs, h.adapter.ddl, pgDialect);
     expect(health.isHealthy).toBe(true);
-    // 10 моделей: 9 исходных + CalendarEvent (матрица datetime/date/time).
-    expect(health.summary.tablesExpected).toBe(10);
-    expect(health.summary.tablesMatching).toBe(10);
+    // 11 моделей: 9 исходных + CalendarEvent (datetime/date/time) +
+    // Measurement (матрица numeric/int4 для приведения при чтении).
+    expect(health.summary.tablesExpected).toBe(11);
+    expect(health.summary.tablesMatching).toBe(11);
   });
 
   it('renderSql returns no-op when clean', async () => {

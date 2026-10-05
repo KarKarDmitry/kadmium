@@ -9,6 +9,7 @@ import type { RawDmlData, SetData } from '../types/dml-data';
 import { createFilterProxy, createSelectProxy } from './query-proxies';
 import { buildWriteFinalizer } from './write-finalizer';
 import { mapRow } from './utils';
+import { buildCoercionNode } from './coerce';
 import { assertDmlUpdate } from '../guards';
 
 /** Минимальный контракт модели для UPDATE. */
@@ -159,12 +160,20 @@ export class UpdateQueryBuilder<TModel extends Model> {
 
   /** Снапшот финализатора поверх клона sqb — терминалы не мутируют билдер. */
   private _finalizer() {
+    const sqb = this.sqb.clone();
     return buildWriteFinalizer<TModel>(
-      this.sqb.clone(),
+      sqb,
       this.adapter,
       () => this._createFilterProxy(),
       () => this._createSelectProxy(),
       (row) => mapRow(this.ir, row),
+      () =>
+        buildCoercionNode(
+          this.ir,
+          sqb.selects,
+          sqb.includes,
+          this.irLookup ?? (() => undefined),
+        ),
     );
   }
 

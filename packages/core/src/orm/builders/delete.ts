@@ -8,6 +8,7 @@ import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import { createFilterProxy, createSelectProxy } from './query-proxies';
 import { buildWriteFinalizer } from './write-finalizer';
 import { mapRow } from './utils';
+import { buildCoercionNode, type IrLookup } from './coerce';
 
 /** Минимальный контракт модели для DELETE. */
 type Model = {
@@ -75,6 +76,7 @@ export interface DeleteReturningTerminal<S extends readonly AnySelectable[]> {
 export class DeleteQueryBuilder<TModel extends Model> {
   public sqb: KadmiumSqb;
   private ir: ModelIR;
+  private irLookup: IrLookup;
   private adapter: SqlAdapter | null;
 
   constructor(
@@ -83,6 +85,9 @@ export class DeleteQueryBuilder<TModel extends Model> {
     adapter?: SqlAdapter,
   ) {
     this.ir = ir;
+    // Нужен для приведения значений при чтении: FK-колонка хранит PK цели,
+    // поэтому сторож точности берётся у целевой модели.
+    this.irLookup = irLookup ?? (() => undefined);
     this.adapter = adapter ?? null;
     this.sqb = new KadmiumSqb();
     this.sqb.tableContext.set(ir.name, ir.collection);
@@ -126,12 +131,15 @@ export class DeleteQueryBuilder<TModel extends Model> {
 
   /** Снапшот финализатора поверх клона sqb — терминалы не мутируют билдер. */
   private _finalizer() {
+    const sqb = this.sqb.clone();
     return buildWriteFinalizer<TModel>(
-      this.sqb.clone(),
+      sqb,
       this.adapter,
       () => this._createFilterProxy(),
       () => this._createSelectProxy(),
       (row) => mapRow(this.ir, row),
+      () =>
+        buildCoercionNode(this.ir, sqb.selects, sqb.includes, this.irLookup),
     );
   }
 

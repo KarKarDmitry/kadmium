@@ -249,8 +249,8 @@ export interface SqlSelectItem {
  */
 export type CoercionGuard =
   /** int2/int4/int8: целое, терять разряды нельзя */
-  | 'int8'
-  /** numeric/decimal: произвольная точность, double перестаёт быть точным */
+  | 'integer'
+  /** numeric/decimal: произвольная точность, double перестаётся быть точным */
   | 'numeric'
   /** float4/float8: неточность заложена в тип, сторожа нет */
   | 'float';

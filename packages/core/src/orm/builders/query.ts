@@ -12,6 +12,7 @@ import {
   type SqlFragment,
   type SqlOrder,
 } from '../sql-fragment';
+import { applyCoercion, buildMultiCoercionNode } from './coerce';
 import type { ModelIR } from '../../ir/index';
 import type {
   MultiFilterProxy,
@@ -358,12 +359,26 @@ export class MultiQueryBuilder<
     return {
       toSql: () => this._toSqlFrom(sqb),
       go: () => {
-        if (this.adapter) {
-          return this.adapter.execute(sqb) as Promise<
-            FinalResult<readonly AnySelectable[], T, TInclude>[]
-          >;
-        }
-        throw new Error('No adapter configured; cannot execute query.');
+        if (!this.adapter)
+          throw new Error('No adapter configured; cannot execute query.');
+        // Не `async`: отсутствие адаптера обязано бросать в точке вызова,
+        // а не отклонённым промисом (см. тест multi-builder).
+        return this.adapter.execute(sqb).then((results) => {
+          applyCoercion(
+            buildMultiCoercionNode(
+              this.irs,
+              sqb.selects,
+              sqb.includes,
+              this.irLookup,
+            ),
+            results,
+          );
+          return results as unknown as FinalResult<
+            readonly AnySelectable[],
+            T,
+            TInclude
+          >[];
+        });
       },
       compile: (slots?: MultiQuerySlots<T, any>) => {
         const snap = sqb.clone();
@@ -377,6 +392,12 @@ export class MultiQueryBuilder<
           slotOrder: slotOrder ?? [],
           single,
           sqb: snap,
+          coerce: buildMultiCoercionNode(
+            this.irs,
+            snap.selects,
+            snap.includes,
+            this.irLookup,
+          ),
         } as unknown as CompiledQuery<any, any>;
       },
     };

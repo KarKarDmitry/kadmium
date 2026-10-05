@@ -1,6 +1,6 @@
 import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { KadmiumSqb, AnySelectableField } from '../sqb';
-import type { SqlAdapter } from '@karkardmitry/kadmium-sql-types';
+import type { SqlAdapter, CoercionNode } from '@karkardmitry/kadmium-sql-types';
 import type {
   FilterProxy,
   SelectProxy,
@@ -10,6 +10,7 @@ import type {
 import { aggregates } from '../field-builders/aggregates';
 import { buildDebugSql } from './utils';
 import { toSqlCondition } from '../sql-fragment';
+import { applyCoercion } from './coerce';
 
 type Model = { ['~shape']: Record<string, unknown> };
 
@@ -17,6 +18,10 @@ type Model = { ['~shape']: Record<string, unknown> };
  * Собрать UPDATE/DELETE финализатор поверх уже сконфигурированного sqb
  * (клон с выставленным operation). Один путь для go/sql/where/returning,
  * общий для update() и delete().
+ *
+ * `buildCoercion` — ленивый, потому что проекция известна только после
+ * `returning()`: RETURNING отдаёт те же строки, что и SELECT, и `int8`/
+ * `numeric` в них приходят строкой.
  */
 export function buildWriteFinalizer<TModel extends Model>(
   sqb: KadmiumSqb,
@@ -24,6 +29,7 @@ export function buildWriteFinalizer<TModel extends Model>(
   createFilterProxy: () => FilterProxy<TModel>,
   createSelectProxy: () => SelectProxy<TModel>,
   mapRow: (row: Record<string, unknown>) => Record<string, unknown>,
+  buildCoercion?: () => CoercionNode | undefined,
 ): UpdateFinalizer<TModel> {
   const requireAdapter = (): SqlAdapter => {
     if (!adapter)
@@ -35,6 +41,7 @@ export function buildWriteFinalizer<TModel extends Model>(
 
   const go = async (): Promise<TModel['~shape'][]> => {
     const rows = await requireAdapter().execute(sqb);
+    applyCoercion(buildCoercion?.(), rows);
     return rows.map(mapRow) as TModel['~shape'][];
   };
 
@@ -67,6 +74,7 @@ export function buildWriteFinalizer<TModel extends Model>(
     return {
       go: async (): Promise<FlatFinalResult<S>[]> => {
         const rows = await requireAdapter().execute(sqb);
+        applyCoercion(buildCoercion?.(), rows);
         return rows.map(mapReturningRow) as FlatFinalResult<S>[];
       },
       sql,

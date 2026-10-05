@@ -20,6 +20,7 @@ import {
   type RawRunner,
 } from './compiled-query';
 import { isSqlFragment, type SqlFragment } from './sql-fragment';
+import { applyCoercion } from './builders/coerce';
 
 /**
  * OrmManager — менеджер ORM-запросов, привязанный к AppCore.
@@ -296,6 +297,9 @@ export class OrmManager {
               compiled.sqb,
               await adapter.raw<Record<string, unknown>>(text, params),
             );
+            // План приведения лежит в самом compiled: горячий цикл не должен
+            // ни ходить в IR, ни знать про билдер, который его собрал.
+            applyCoercion(compiled.coerce, rows);
             // first()-режим: разворачиваем rows[0] как go() билдера
             return (compiled.single ? rows[0] : rows) as ExtractResult<C>;
           },

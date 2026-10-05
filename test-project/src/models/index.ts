@@ -8,6 +8,7 @@ import { UserAccount } from './user-account';
 import { Profile } from './profile';
 import { LoginSession } from './login-session';
 import { CalendarEvent } from './calendar-event';
+import { Measurement } from './measurement';
 
 export {
   User,
@@ -20,4 +21,5 @@ export {
   Profile,
   LoginSession,
   CalendarEvent,
+  Measurement,
 };

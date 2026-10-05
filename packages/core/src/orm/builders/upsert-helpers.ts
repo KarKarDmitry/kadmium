@@ -9,6 +9,7 @@ import { createSelectProxy, createFilterProxy } from './query-proxies';
 import { toSqlValue } from '../sql-fragment';
 import { aggregates } from '../field-builders/aggregates';
 import { buildDebugSql, mapRow } from './utils';
+import { applyCoercion, buildCoercionNode, type IrLookup } from './coerce';
 
 // ── Types ──
 
@@ -201,6 +202,7 @@ export function buildCreateFinalizer<TModel extends Model>(
   adapter: SqlAdapter,
   ir: ModelIR,
   mapped: Record<string, unknown>,
+  irLookup?: IrLookup,
 ): CreateFinalizer<TModel> {
   sqb.operation = 'upsert';
   sqb.upsertData = mapped;
@@ -214,6 +216,10 @@ export function buildCreateFinalizer<TModel extends Model>(
       const finalizer: CreateReturningFinalizer<S> = {
         go: async () => {
           const rows = await adapter.execute(sqb);
+          applyCoercion(
+            buildCoercionNode(ir, selects, [], irLookup ?? (() => undefined)),
+            rows,
+          );
           if (!rows[0]) return {} as FlatFinalResult<S>;
           return mapReturningRow(
             rows[0] as Record<string, unknown>,
@@ -226,6 +232,10 @@ export function buildCreateFinalizer<TModel extends Model>(
     },
     go: async () => {
       const row = await adapter.execute(sqb);
+      applyCoercion(
+        buildCoercionNode(ir, sqb.selects, [], irLookup ?? (() => undefined)),
+        row,
+      );
       if (!row[0]) return {} as TModel['~shape'];
       return mapRow(ir, row[0] as Record<string, unknown>) as TModel['~shape'];
     },
@@ -274,6 +284,7 @@ export function buildCreateManyFinalizer<TModel extends Model>(
   ir: ModelIR,
   mappedRows: Record<string, unknown>[],
   options?: CreateManyOptions,
+  irLookup?: IrLookup,
 ): CreateManyFinalizer<TModel> {
   let returningSelects: AnySelectableField[] | null = null;
 
@@ -297,6 +308,10 @@ export function buildCreateManyFinalizer<TModel extends Model>(
             returning: returningSelects,
           });
           const sel = returningSelects as AnySelectableField[];
+          applyCoercion(
+            buildCoercionNode(ir, sel, [], irLookup ?? (() => undefined)),
+            rows,
+          );
           return rows.map((r) =>
             mapReturningRow(r, sel),
           ) as FlatFinalResult<S>[];
@@ -318,6 +333,10 @@ export function buildCreateManyFinalizer<TModel extends Model>(
         doNothing: baseSqb.doNothing,
         setData: baseSqb.upsertSetData ?? undefined,
       });
+      applyCoercion(
+        buildCoercionNode(ir, null, [], irLookup ?? (() => undefined)),
+        rows,
+      );
       return rows.map((r) => mapRow(ir, r)) as TModel['~shape'][];
     },
     sql: () =>

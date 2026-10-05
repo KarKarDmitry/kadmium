@@ -7,6 +7,7 @@ import type { AnySelectable, FlatFinalResult } from '../types/includes';
 import type { InsertValuesData, RawDmlData, SetData } from '../types/dml-data';
 import type { SelectableField } from '../ast/selectable';
 import { createFilterProxy, createSelectProxy } from './query-proxies';
+import { type IrLookup } from './coerce';
 import { buildConflictSteps, buildCreateFinalizer } from './upsert-helpers';
 import { assertDmlInsert } from '../guards';
 
@@ -112,6 +113,7 @@ export interface InsertReturningTerminal<S extends readonly AnySelectable[]> {
 export class InsertBuilder<TModel extends Model> {
   public sqb: KadmiumSqb;
   private ir: ModelIR;
+  private irLookup: IrLookup;
   private adapter: SqlAdapter | null;
   private hasValues = false;
 
@@ -121,6 +123,9 @@ export class InsertBuilder<TModel extends Model> {
     adapter?: SqlAdapter,
   ) {
     this.ir = ir;
+    // Нужен для приведения значений при чтении: FK-колонка хранит PK цели,
+    // поэтому сторож точности берётся у целевой модели.
+    this.irLookup = irLookup ?? (() => undefined);
     this.adapter = adapter ?? null;
     this.sqb = new KadmiumSqb();
     this.sqb.tableContext.set(ir.name, ir.collection);
@@ -206,6 +211,7 @@ export class InsertBuilder<TModel extends Model> {
       this._requireAdapter(),
       this.ir,
       this.sqb.upsertData ?? {},
+      this.irLookup,
     );
   }
 
